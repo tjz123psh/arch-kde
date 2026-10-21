@@ -362,13 +362,13 @@ build_official_list() {
   pkgs="
 plasma-desktop plasma-workspace kwin plasma-integration plasma-pa plasma-nm
 powerdevil kscreen polkit-kde-agent xdg-desktop-portal-kde kde-cli-tools
-systemsettings kde-gtk-config kdecoration aurorae breeze breeze-gtk
+systemsettings kde-gtk-config kdecoration breeze
 dolphin kio-extras ark gwenview spectacle plasma-systemmonitor
-sddm qt6-tools kvantum sassc optipng libxml2
+sddm qt6-tools libxml2
 noto-fonts noto-fonts-cjk noto-fonts-emoji inter-font ttf-jetbrains-mono-nerd
 fcitx5 fcitx5-configtool fcitx5-gtk fcitx5-qt fcitx5-chinese-addons
 fcitx5-pinyin-zhwiki fcitx5-material-color fcitx5-nord fcitx5-lua
-kitty fish starship fuzzel fzf eza bat fd ripgrep zoxide fastfetch
+kitty fish starship fzf eza bat fd ripgrep zoxide fastfetch
 mpv tesseract-data-eng
 networkmanager bluez bluez-utils linux-firmware
 base-devel git curl jq unzip xdg-utils xdg-user-dirs man-db cmake extra-cmake-modules python
@@ -581,7 +581,9 @@ setup_aur_helper() {
 install_aur_packages() {
   if [ "$NO_AUR" -eq 1 ]; then return 0; fi
   local list pkg failed
-  list="whitesur-icon-theme whitesur-cursor-theme-git"
+  # 外观三件套要和 assets/config/gtk/settings.ini、environment/90-kos.conf 里的
+  # 名字对得上：图标 WhiteSur、光标 WhiteSur-cursors、GTK 主题 WhiteSur-Light。
+  list="whitesur-icon-theme whitesur-cursor-theme-git whitesur-gtk-theme"
   list="$list maplemono-nf-cn"
   list="$list fcitx5-pinyin-moegirl fcitx5-pinyin-custom-pinyin-dictionary"
 
