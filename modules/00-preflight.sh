@@ -66,6 +66,69 @@ check_disk() {
   fi
 }
 
+# ---------------------------------------------------------------------------
+# archinstall 之后的前置状态检查
+#
+# 下面这些是用户装机流程里 archinstall 已经处理过的：分区/挂载、bootloader、
+# linux-lts 或 linux-zen + headers、时区、时间同步、zram。安装器不重做这些
+# 破坏性动作（分区/引导器绝不碰），但动手前要确认它们在位：
+#   - 缺 headers 会进官方包列表补（detect_headers）
+#   - 时间同步没开由 40-system.sh 兜底启用 systemd-timesyncd
+#   - 时区/引导器只报告，不改（改时区会影响用户预期）
+# 全部只读，失败只 warn，不 die。
+# ---------------------------------------------------------------------------
+check_prereqs() {
+  local tz='' ntp='' u
+  if [ -e /etc/localtime ]; then
+    tz=$(timedatectl show -p Timezone --value 2>/dev/null || true)
+    if [ -z "$tz" ]; then
+      tz=$(readlink -f /etc/localtime 2>/dev/null | sed 's|.*/zoneinfo/||' || true)
+    fi
+    case "$tz" in
+      ""|UTC)
+        warn "时区是 ${tz:-未知}（archinstall 默认 UTC）；安装器不改时区，装完用 sudo timedatectl set-timezone Asia/Shanghai"
+        ;;
+      *)
+        log "时区: $tz（archinstall 已设置，安装器不改）"
+        ;;
+    esac
+  else
+    warn "没有 /etc/localtime：时区没设置，桌面时间会不对（安装器不改时区）"
+  fi
+
+  for u in chronyd ntpd openntpd systemd-timesyncd; do
+    if systemctl is-enabled --quiet "$u" 2>/dev/null; then ntp=$u; break; fi
+  done
+  if [ -n "$ntp" ]; then
+    log "时间同步: $ntp 已启用"
+  else
+    warn "没有启用的时间同步服务；40-system 会兜底启用 systemd-timesyncd"
+  fi
+
+  if [ -e /sys/block/zram0 ]; then
+    log "zram: /dev/zram0 已启用"
+  elif [ -e /etc/systemd/zram-generator.conf ]; then
+    warn "有 /etc/systemd/zram-generator.conf 但 /dev/zram0 没起来（archinstall 的 zram 没生效？装完看 zramctl）"
+  fi
+
+  if [ "${BOOTLOADER:-unknown}" = unknown ]; then
+    warn "没识别出 bootloader（GRUB/systemd-boot）；安装器不改引导，但请确认机器能正常重启"
+  else
+    log "bootloader: $BOOTLOADER（安装器不改）"
+  fi
+  if [ -n "$HEADERS" ]; then
+    log "内核 headers:$HEADERS"
+  else
+    warn "没算出内核 headers 包名（内核列表为空？）"
+  fi
+  if [ ! -d /boot ]; then
+    warn "没有 /boot 目录：内核、initramfs、微码都装不进去（archinstall 应该已经建好）"
+  fi
+  if systemctl is-enabled --quiet reflector.timer 2>/dev/null; then
+    warn "reflector.timer 已启用：它会定期重写 /etc/pacman.d/mirrorlist，覆盖本安装器的国内镜像列表；要固定就 sudo systemctl disable --now reflector.timer"
+  fi
+}
+
 preflight() {
   if [ "$(id -u)" -eq 0 ]; then die "请不要用 root 运行（脚本内部会用 sudo）"; fi
   [ -f /etc/arch-release ] || die "只支持 Arch Linux"
@@ -95,6 +158,7 @@ preflight() {
     if [ "${HAS_AMD_GPU:-0}" -eq 1 ]; then HAS_AMD=1; fi
     if [ "${HAS_NVIDIA_GPU:-0}" -eq 1 ]; then HAS_NVIDIA=1; fi
   fi
+  check_prereqs
   log "内核: $KERNELS"
   log "NVIDIA: $HAS_NVIDIA  AMD: $HAS_AMD"
   if [ "${HW_DETECTED:-0}" -eq 1 ]; then

@@ -43,6 +43,17 @@ jobs:
           printf '%s\n' "$help" | grep -q -- '--dry-run'
           printf '%s\n' "$help" | grep -q -- '--check'
 
+      # 镜像列表是安装器的生命线：清华必须第一，国内镜像要够多（单源抽风时能降级）。
+      - name: Mirror lists are Tsinghua-first and cover several domestic sites
+        run: |
+          set -eu
+          off=$(bash -c 'source modules/10-packages.sh; official_mirrorlist')
+          cn=$(bash -c 'source modules/10-packages.sh; archlinuxcn_mirrorlist')
+          printf '%s\n' "$off" | grep -q '^Server = https://mirrors.tuna.tsinghua.edu.cn/archlinux/'
+          printf '%s\n' "$cn" | grep -q '^Server = https://mirrors.tuna.tsinghua.edu.cn/archlinuxcn/'
+          [ "$(printf '%s\n' "$off" | grep -c '^Server = ')" -ge 10 ]
+          [ "$(printf '%s\n' "$cn" | grep -c '^Server = ')" -ge 8 ]
+
   arch:
     name: clean Arch preflight and dry run
     runs-on: ubuntu-24.04

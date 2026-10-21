@@ -94,6 +94,42 @@ EOF
   warn "已切到 iwd 后端。若 Wi-Fi 列表为空：删掉 /etc/NetworkManager/conf.d/10-iwd-backend.conf 并 sudo systemctl enable --now wpa_supplicant 即回退"
 }
 
+# 时间同步：archinstall 通常会启用 systemd-timesyncd（或用户自己用 chrony）。
+# 安装器只兜底，不覆盖已有的 NTP 实现 —— 两个 NTP 客户端同时改时钟会互相拉扯。
+time_sync_setup() {
+  local u
+  for u in chronyd ntpd openntpd; do
+    if systemctl is-enabled --quiet "$u" 2>/dev/null; then
+      log "时间同步已由 $u 负责，跳过 systemd-timesyncd"
+      return 0
+    fi
+  done
+  if systemctl is-enabled --quiet systemd-timesyncd 2>/dev/null; then
+    log "时间同步: systemd-timesyncd 已启用"
+    return 0
+  fi
+  log "启用 systemd-timesyncd（兜底）..."
+  sudo_run systemctl enable --now systemd-timesyncd || warn "启用 systemd-timesyncd 失败，请手动检查时间同步"
+}
+
+# zram：archinstall 开了 zram 时会写 /etc/systemd/zram-generator.conf 并装包。
+# 安装器不新建/不修改 zram 配置，只做一次确认（重启后由 zram-generator 建 /dev/zram0）。
+zram_setup() {
+  if [ ! -e /etc/systemd/zram-generator.conf ] && [ ! -e /usr/lib/systemd/zram-generator.conf ]; then
+    return 0
+  fi
+  if [ "$DRY_RUN" -eq 1 ]; then
+    log "[dry-run] systemctl daemon-reload（zram-generator 配置已存在）"
+    return 0
+  fi
+  sudo_run systemctl daemon-reload || true
+  if [ -e /sys/block/zram0 ]; then
+    log "zram: /dev/zram0 已启用"
+  else
+    log "zram: 有配置但当前没有 /dev/zram0（重启后由 zram-generator 创建）"
+  fi
+}
+
 nvidia_setup() {
   if [ "${WANT_NVIDIA:-0}" -ne 1 ]; then
     log "本次不装 NVIDIA 驱动，跳过 modprobe/mkinitcpio"
@@ -232,6 +268,8 @@ setup_system() {
   add_groups
   set_shell
   enable_services
+  time_sync_setup
+  zram_setup
   network_backend
   # 顺序有讲究：nvidia_setup 先写 MODULES drop-in 并重建 initramfs，
   # microcode_setup 最后再跑一次 mkinitcpio -P 并校验 —— 校验对象才是最终镜像。

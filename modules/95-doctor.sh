@@ -12,7 +12,7 @@ doctor_check() {
 }
 
 run_doctor() {
-  local mode="$1" gallery kos_dir=""
+  local mode="$1" gallery kos_dir="" ml ml_n ml_first ml_skip
   local report="$STATE_DIR/doctor-$RUN_ID.txt"
   mkdir -p "$STATE_DIR"
   {
@@ -55,6 +55,28 @@ run_doctor() {
     echo "== 服务 =="
     systemctl is-enabled sddm 2>&1 || true
     systemctl is-enabled NetworkManager 2>&1 || true
+    echo
+    echo "== 镜像 =="
+    for ml in /etc/pacman.d/mirrorlist /etc/pacman.d/archlinuxcn-mirrorlist; do
+      [ -f "$ml" ] || continue
+      ml_n=$(grep -c '^Server = ' "$ml" 2>/dev/null || true)
+      ml_first=$(grep -m1 '^Server = ' "$ml" 2>/dev/null | sed 's/^Server = //' || true)
+      ml_skip=$(grep -c '^# 降级跳过' "$ml" 2>/dev/null || true)
+      echo "  $ml: ${ml_n:-0} 个 Server，首个: ${ml_first:-无}"
+      if [ "${ml_skip:-0}" -gt 0 ]; then
+        echo "    已降级跳过 ${ml_skip} 个（重跑安装器会重写并复原）"
+      fi
+    done
+    echo
+    echo "== 时间/内存压缩 =="
+    timedatectl 2>/dev/null | sed -n '1,7p' || true
+    if have zramctl; then
+      if zramctl 2>/dev/null | grep -q zram; then
+        zramctl 2>/dev/null | head -3
+      else
+        echo "  zram: 未启用（archinstall 没开 zram 时可忽略）"
+      fi
+    fi
     echo
     # 硬件探测与驱动复查（逻辑在 20-hardware.sh；这里只负责把结果放进报告）
     if declare -F hw_doctor_check >/dev/null 2>&1; then

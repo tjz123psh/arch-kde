@@ -267,15 +267,85 @@ hw_policy_summary() {
 official_mirrorlist() {
   cat <<'EOF'
 # Arch Linux 官方镜像列表（KOS 安装器生成，顺序 = 中国网络优先级）
-# 清华第一；想换顺序直接改这个文件。安装器重跑也会再次覆盖它。
+#
+# 为什么整份覆盖：archinstall 会按 --mirror-region 或 reflector 自动生成一份
+# （本机常见是 aliyun 单源），单源一抽风整装就卡住。安装器默认重写这个文件，
+# 原文件在 ~/.local/state/kos-installer/backup/<时间>/etc/pacman.d/mirrorlist。
+# 清华第一；想换顺序直接改这个文件，安装器重跑会再次覆盖（降级注释也会复原）。
+# 2026-10-21 用 curl 逐个取 core.db 验证，除 163（超时）外全部 200。
 # 镜像状态: https://archlinux.org/mirrors/status/
 Server = https://mirrors.tuna.tsinghua.edu.cn/archlinux/$repo/os/$arch
 Server = https://mirrors.ustc.edu.cn/archlinux/$repo/os/$arch
 Server = https://mirrors.aliyun.com/archlinux/$repo/os/$arch
 Server = https://mirror.nju.edu.cn/archlinux/$repo/os/$arch
+Server = https://mirrors.sustech.edu.cn/archlinux/$repo/os/$arch
+Server = https://mirrors.cernet.edu.cn/archlinux/$repo/os/$arch
+Server = https://mirrors.cloud.tencent.com/archlinux/$repo/os/$arch
+Server = https://repo.huaweicloud.com/archlinux/$repo/os/$arch
+Server = https://mirrors.bfsu.edu.cn/archlinux/$repo/os/$arch
+Server = https://mirror.sjtu.edu.cn/archlinux/$repo/os/$arch
+Server = https://mirrors.hust.edu.cn/archlinux/$repo/os/$arch
+Server = https://mirrors.xjtu.edu.cn/archlinux/$repo/os/$arch
 Server = https://mirrors.zju.edu.cn/archlinux/$repo/os/$arch
 Server = https://mirrors.lzu.edu.cn/archlinux/$repo/os/$arch
+Server = https://mirror.iscas.ac.cn/archlinux/$repo/os/$arch
+Server = https://mirrors.jlu.edu.cn/archlinux/$repo/os/$arch
 EOF
+}
+
+# ---------------------------------------------------------------------------
+# 镜像降级（failover）
+#
+# 国内镜像站偶尔整站抽风：维护、被校园网拦、TLS 证书过期。pacman 自己会在同一个
+# 文件里按 Server 顺序回退，但"连得上却一直超时"会拖很久。这里在系统更新或装包
+# 失败、且失败原因确实是网络时，把当前排第一的 Server 注释掉再重试，也就是
+# "降级到下一个镜像"，最多降 3 次。下一次运行安装器会重写镜像列表，注释自动复原。
+# ---------------------------------------------------------------------------
+
+# 失败输出里出现这些才算镜像问题；依赖冲突、包名错重试没有意义
+_mirror_network_failure() {
+  grep -Eqi 'failed retrieving file|could not resolve host|Connection timed out|Operation too slow|SSL certificate problem|Failed to connect|Could not connect|404' "$1"
+}
+
+# 注释掉镜像列表里第一条 Server =（即当前优先级最高的镜像）
+_mirror_demote_first() {
+  local f="$1" no line
+  [ -r "$f" ] || return 1
+  no=$(sudo grep -n -m1 '^Server = ' "$f" 2>/dev/null | cut -d: -f1 || true)
+  [ -n "$no" ] || return 1
+  line=$(sudo sed -n "${no}p" "$f" 2>/dev/null || true)
+  warn "镜像降级：跳过 $line（$f 第 $no 行）"
+  sudo sed -i "${no}s/^Server = /# 降级跳过: Server = /" "$f" || return 1
+}
+
+# pacman_fallback <mirrorlist> <命令...>：失败且是网络原因就降级镜像重试
+pacman_fallback() {
+  local ml="$1" attempt=1 out rc
+  shift
+  if [ "$DRY_RUN" -eq 1 ]; then
+    log "[dry-run] $*"
+    return 0
+  fi
+  while :; do
+    out=$(mktemp)
+    if "$@" 2>&1 | tee -a "$LOG_FILE" | tee "$out"; then
+      rm -f "$out"
+      return 0
+    else
+      rc=$?
+    fi
+    if [ "$attempt" -ge 3 ] || ! _mirror_network_failure "$out"; then
+      rm -f "$out"
+      return "$rc"
+    fi
+    rm -f "$out"
+    if ! _mirror_demote_first "$ml"; then
+      warn "镜像列表里没有可降级的 Server 了（$ml）"
+      return "$rc"
+    fi
+    attempt=$((attempt + 1))
+    log "镜像不可用，降级后重试（第 $((attempt - 1)) 次）..."
+  done
 }
 
 setup_official_mirrors() {
@@ -283,12 +353,18 @@ setup_official_mirrors() {
     log "跳过官方镜像列表覆盖（--no-mirrors）"
     return 0
   fi
-  log "覆盖官方镜像列表（清华第一，另含中科大/阿里云/南大/浙大/兰大）..."
+  log "覆盖官方镜像列表（清华第一 + 15 个国内镜像；archinstall 生成的 aliyun/reflector 列表会被整份替换）..."
   if [ "$DRY_RUN" -eq 1 ]; then
     log "[dry-run] 写 /etc/pacman.d/mirrorlist（清华第一）"
     return 0
   fi
   official_mirrorlist | sudo_write_file /etc/pacman.d/mirrorlist
+  local n
+  n=$(sudo grep -c '^Server = ' /etc/pacman.d/mirrorlist 2>/dev/null || true)
+  log "官方镜像列表已覆盖：${n:-0} 个镜像，清华第一（archinstall 的 aliyun/reflector 列表已替换）"
+  if ! sudo grep -q '^Server = https://mirrors.tuna.tsinghua.edu.cn/archlinux/' /etc/pacman.d/mirrorlist; then
+    warn "写入后没看到清华源，请手动检查 /etc/pacman.d/mirrorlist"
+  fi
 }
 
 # ---------------------------------------------------------------------------
@@ -303,15 +379,21 @@ setup_official_mirrors() {
 archlinuxcn_mirrorlist() {
   cat <<'EOF'
 # archlinuxcn 镜像列表（KOS 安装器生成，顺序 = 中国网络优先级）
-# 清华第一；想换顺序直接改这个文件，重跑安装器只会补缺失的配置。
+# 清华第一；想换顺序直接改这个文件，重跑安装器会再次覆盖。
+# 2026-10-21 用 curl 逐个取 archlinuxcn.db 验证：zju 超时、sjtu/163 返回 404，未收录。
 # 镜像帮助: https://mirrors.tuna.tsinghua.edu.cn/help/archlinuxcn/
 Server = https://mirrors.tuna.tsinghua.edu.cn/archlinuxcn/$arch
 Server = https://mirrors.ustc.edu.cn/archlinuxcn/$arch
 Server = https://mirrors.aliyun.com/archlinuxcn/$arch
-Server = https://repo.huaweicloud.com/archlinuxcn/$arch
-Server = https://mirrors.cloud.tencent.com/archlinuxcn/$arch
 Server = https://mirror.nju.edu.cn/archlinuxcn/$arch
-Server = https://mirrors.zju.edu.cn/archlinuxcn/$arch
+Server = https://mirrors.sustech.edu.cn/archlinuxcn/$arch
+Server = https://mirrors.cernet.edu.cn/archlinuxcn/$arch
+Server = https://mirrors.cloud.tencent.com/archlinuxcn/$arch
+Server = https://repo.huaweicloud.com/archlinuxcn/$arch
+Server = https://mirrors.bfsu.edu.cn/archlinuxcn/$arch
+Server = https://mirrors.lzu.edu.cn/archlinuxcn/$arch
+Server = https://mirror.iscas.ac.cn/archlinuxcn/$arch
+Server = https://mirrors.hust.edu.cn/archlinuxcn/$arch
 EOF
 }
 
@@ -320,7 +402,7 @@ setup_archlinuxcn_repo() {
     log "跳过 archlinuxcn 仓库（--no-archlinuxcn）"
     return 0
   fi
-  log "配置 archlinuxcn 镜像源（清华第一，另含中科大/阿里云/华为云/腾讯云/南大/浙大）..."
+  log "配置 archlinuxcn 镜像源（清华第一 + 11 个国内镜像）..."
   if [ "$DRY_RUN" -eq 1 ]; then
     log "[dry-run] 写 /etc/pacman.d/archlinuxcn-mirrorlist（清华第一）"
     log "[dry-run] /etc/pacman.conf 追加 [archlinuxcn] Include（已有则保留）"
@@ -329,6 +411,9 @@ setup_archlinuxcn_repo() {
   fi
 
   archlinuxcn_mirrorlist | sudo_write_file /etc/pacman.d/archlinuxcn-mirrorlist
+  local cn_n
+  cn_n=$(sudo grep -c '^Server = ' /etc/pacman.d/archlinuxcn-mirrorlist 2>/dev/null || true)
+  log "archlinuxcn 镜像列表：${cn_n:-0} 个镜像，清华第一"
 
   # 幂等：已经有 [archlinuxcn] 段就不动（可能是用户自己配的镜像/顺序）
   if grep -q '^\[archlinuxcn\]' /etc/pacman.conf; then
@@ -341,7 +426,7 @@ setup_archlinuxcn_repo() {
 
   # 官方导入 GPG key 的做法就是装 archlinuxcn-keyring；
   # --noconfirm 会替用户回答"导入 PGP key"的提示。
-  if sudo pacman -Sy --noconfirm archlinuxcn-keyring; then
+  if pacman_fallback /etc/pacman.d/archlinuxcn-mirrorlist sudo pacman -Sy --noconfirm archlinuxcn-keyring; then
     log "archlinuxcn-keyring 已安装"
   else
     warn "archlinuxcn-keyring 安装失败；仓库已写入但包签名未信任，稍后手动: sudo pacman -Sy archlinuxcn-keyring"
@@ -354,7 +439,8 @@ system_update() {
     return 0
   fi
   log "更新系统（pacman -Syu）..."
-  sudo_run pacman -Syu --noconfirm
+  pacman_fallback /etc/pacman.d/mirrorlist sudo pacman -Syu --noconfirm ||
+    die "系统更新失败：镜像都不可用或包数据库异常（详见 $LOG_FILE）"
 }
 
 build_official_list() {
@@ -377,6 +463,15 @@ mpv tesseract-data-eng
 networkmanager bluez bluez-utils linux-firmware
 base-devel git curl jq unzip xdg-utils xdg-user-dirs man-db cmake extra-cmake-modules python
 "
+
+  # ---- archinstall 阶段已经装好的基础工具（只做 --needed 兜底）----
+  # 这些在干净 archinstall 后通常已经存在，装了就是空操作；写进来是为了防
+  # "精简预设 / 别人装的系统"缺件：
+  #   neovim        编辑器（本机基线）
+  #   os-prober     GRUB 探测其它系统（双系统菜单）
+  #   zram-generator archinstall 的 zram 支持（/etc/systemd/zram-generator.conf）
+  #   exfatprogs    在下面的存储段（U 盘 exFAT）
+  pkgs="$pkgs neovim os-prober zram-generator"
 
   # ---- 图形基础栈：任何显卡（含虚拟机的 llvmpipe）都要 ----
   # mesa              AMD/Intel 开源驱动 + llvmpipe 软件渲染兜底；没有它 Wayland 起不来
@@ -558,7 +653,8 @@ install_archlinuxcn_apps() {
       skipped="$skipped $p"
       continue
     fi
-    sudo pacman -S --needed --noconfirm "$p" || warn "安装 $p 失败，跳过"
+    pacman_fallback /etc/pacman.d/archlinuxcn-mirrorlist sudo pacman -S --needed --noconfirm "$p" ||
+      warn "安装 $p 失败，跳过"
   done
   if [ -n "$skipped" ]; then
     warn "未安装的可选应用:$skipped（配好 archlinuxcn 后手动 sudo pacman -S$skipped）"
@@ -576,7 +672,8 @@ install_official_packages() {
     return 0
   fi
   # shellcheck disable=SC2086
-  sudo pacman -S --needed --noconfirm $PKGS
+  pacman_fallback /etc/pacman.d/mirrorlist sudo pacman -S --needed --noconfirm $PKGS ||
+    die "官方包安装失败（详见 $LOG_FILE）"
 }
 
 setup_aur_helper() {
