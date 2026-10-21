@@ -388,6 +388,9 @@ base-devel git curl jq unzip xdg-utils xdg-user-dirs man-db cmake extra-cmake-mo
   # nomacs：看图（macOS 预览那种双击看图体验），官方仓库
   pkgs="$pkgs yazi flclash obsidian nomacs"
 
+  # JDK 21：开发用（Arch 的默认 jdk-openjdk 已经是 27，这里显式锁 21 的 LTS）
+  pkgs="$pkgs jdk21-openjdk"
+
   # ---- ASUS ROG 笔记本工具（默认只在 ASUS 机器上装；--no-asus 关，--asus 强开）----
   # asusctl / rog-control-center：风扇曲线、键盘灯、性能模式、MUX 切换（官方仓库）
   # supergfxctl：GPU 模式切换（archlinuxcn）
@@ -587,6 +590,10 @@ install_aur_packages() {
   # 但只把修复版暴露到菜单里。安装器只装包，不做桌面文件改写 ——
   # 菜单去重（老项目的 fix_china_app_launchers）没有移植过来，属于已知缺口。
   list="$list linuxqq linuxqq-wayland-fix wechat-bin musicfree-desktop-wayland-bin"
+
+  # 命令行 AI 工具（2026-10-21 用户指定）：pi 与 opencode。上游只发二进制，
+  # AUR 里对应 pi-bin / opencode-bin（装完各占 ~109 / ~177 MiB）。
+  list="$list pi-bin opencode-bin"
 
   if [ "$NO_BROWSER" -eq 0 ]; then
     list="$list google-chrome"

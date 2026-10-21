@@ -25,6 +25,9 @@ bash install.sh --all       # 全装（含独立应用 + 锁屏）
 - 输入法：fcitx5 + 中文输入方案，按 KWin Wayland 的方式接管
 - 终端：**kitty**、**fish**、**starship**，外加 fzf / eza / bat / fd / ripgrep / zoxide / fastfetch
 - 常用应用：Chrome、VS Code、yazi、flclash、Obsidian、nomacs 等（可用参数关掉）
+- 开发工具：**JDK 21**（LTS）、命令行 AI 工具 **pi** 与 **opencode**（AUR 的 -bin 包）
+- ASUS 笔记本：**asusctl** + **rog-control-center**（风扇曲线/键盘灯/性能模式；按主板厂商自动判断，
+  `--no-asus` 可关），有 archlinuxcn 源时再加 `supergfxctl` 做 GPU 模式切换
 - 中文环境：locale、Noto CJK / Inter / Maple Mono NF CN 字体
 
 **桌面本体（KOS / NextKDE）**

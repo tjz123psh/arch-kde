@@ -36,7 +36,7 @@ KOS_START=0
 KOS_SPATIAL=0
 IME=fcitx5
 LOCALE_MODE=en
-HW_ASUS=0
+HW_ASUS=auto
 
 source "$INSTALLER_DIR/lib/common.sh"
 for _m in "$INSTALLER_DIR"/modules/*.sh; do
@@ -78,7 +78,8 @@ usage() {
   --no-gpu-amd --no-gpu-intel --no-gpu-nvidia --nvidia-legacy --no-microcode
   --no-printers --no-fp --no-wwan --power ppd|tlp|none
   --wifi-aur         允许装机型专属 AUR 无线驱动（会和内核驱动抢设备，默认不开）
-  --asus             ASUS 机型额外服务（asusd / supergfxd）
+  --asus             ASUS 机型额外服务（asusd / supergfxd）；默认按主板厂商自动判断
+  --no-asus          即使认到 ASUS 也不装这些
 
 环境变量:
   KOS_SRC_DIR        KOS 源码检出位置（默认 ~/.cache/kos-src）
@@ -128,6 +129,7 @@ parse_args() {
       --no-camera) : ;;
       --power) shift; HW_POWER="${1:?--power 需要 ppd|tlp|none}" ;;
       --asus) HW_ASUS=1 ;;
+      --no-asus) HW_ASUS=0 ;;
       -h|--help) usage; exit 0 ;;
       *) usage; die "未知参数: $1" ;;
     esac
