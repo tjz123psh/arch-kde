@@ -1,0 +1,8 @@
+# install.sh 把 lib/ 与 modules/*.sh 全部 source 进同一个 shell，全局变量和函数
+# 是跨文件传递的。shellcheck 逐文件分析，看不到别的文件里的读取点，所以：
+#
+# SC2034（变量/函数未被使用）：误报。典型例子是 install.sh 的 --no-aur 开关，
+#        真正读取它的是 modules/80-sddm.sh。
+# SC1091（无法跟随 source）：模块列表在运行时由 glob 展开，静态分析跟不了。
+disable=SC2034
+disable=SC1091

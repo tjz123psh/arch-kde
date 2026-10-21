@@ -1,0 +1,18 @@
+{
+    "KPlugin": {
+        "Authors": [
+            {
+                "Name": "linux-macos contributors"
+            }
+        ],
+        "Category": "Appearance",
+        "Description": "macOS-style genie minimize and restore animation",
+        "EnabledByDefault": false,
+        "Icon": "preferences-system-windows",
+        "License": "GPL",
+        "Name": "Linux macOS Genie"
+    },
+    "org.kde.kwin.effect": {
+        "exclusiveGroup": "minimize"
+    }
+}

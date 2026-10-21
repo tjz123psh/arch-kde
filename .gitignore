@@ -1,0 +1,5 @@
+# 安装器运行时只写 ~/.local/state/kos-installer 和 ~/.config，
+# 仓库里不该出现任何产物；这几条防的是本地调试留下的东西。
+*.log
+*.tmp
+.build/

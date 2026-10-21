@@ -1,0 +1,74 @@
+name: ci
+
+# 这个仓库里只有安装脚本：语法错一个字符，吃亏的是已经重装好系统的人。
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  lint:
+    name: syntax and shellcheck
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Parse every script
+        run: |
+          set -eu
+          for f in install.sh lib/*.sh modules/*.sh assets/genie/build.sh; do
+            bash -n "$f"
+            printf 'ok %s\n' "$f"
+          done
+
+      # .shellcheckrc 记录为什么关掉 SC2034/SC1091：模块是 source 进同一个 shell 的，
+      # 逐文件分析看不到跨文件的读写。
+      - name: shellcheck
+        run: |
+          shellcheck --version
+          shellcheck install.sh lib/*.sh modules/*.sh assets/genie/build.sh
+
+      - name: Usage text renders
+        run: |
+          set -eu
+          help=$(bash install.sh --help)
+          printf '%s\n' "$help" | grep -q -- '--dry-run'
+          printf '%s\n' "$help" | grep -q -- '--check'
+
+  arch:
+    name: clean Arch preflight and dry run
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    container: archlinux:base-devel
+    steps:
+      - name: Install git
+        run: pacman -Sy --noconfirm --needed git
+
+      - uses: actions/checkout@v7
+
+      # 安装器拒绝 root（会把配置写进 root 的 HOME），也要求机器上有内核包。
+      # 这两条是它的契约，所以让容器长得像目标机器，而不是放宽检查。
+      - name: Make the container look like an install target
+        run: |
+          pacman -S --noconfirm --needed sudo linux
+          useradd -m -s /bin/bash builder
+          printf 'builder ALL=(ALL) NOPASSWD: ALL\n' > /etc/sudoers.d/builder
+          chmod 440 /etc/sudoers.d/builder
+          chown -R builder "$GITHUB_WORKSPACE"
+          # 只读检出：--dry-run 敢写东西就红在这里，而不是红在用户机器上。
+          chmod -R a-w "$GITHUB_WORKSPACE"
+
+      - name: Preflight only
+        run: su - builder -c "cd '$GITHUB_WORKSPACE' && bash install.sh --check"
+
+      # 全阶段走一遍。--dry-run 不克隆源码、不装包，只打印每一步。
+      - name: Every stage, without touching the system
+        run: su - builder -c "cd '$GITHUB_WORKSPACE' && bash install.sh --dry-run --yes"
