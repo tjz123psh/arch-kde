@@ -28,7 +28,7 @@
 #   HAS_WIFI 0|1    WIFI_IDS "10ec:b852"（多个用空格分隔）
 #   WIFI_NAME       PCI ID 或 lspci 型号
 #   WIFI_VENDOR     realtek|intel|broadcom|mediatek|atheros|other|""
-#   HAS_BT / HAS_CAMERA / HAS_WWAN   0|1
+#   HAS_BT / HAS_CAMERA   0|1
 #   IS_LAPTOP 0|1   有电池即视为笔记本
 #   BOOTLOADER      grub|systemd-boot|refind|unknown
 #   MICROCODE_HOOK  0|1（/etc/mkinitcpio.conf 的 HOOKS 里有没有 microcode）
@@ -59,8 +59,6 @@ WIFI_NAME=""
 WIFI_VENDOR=""
 HAS_BT=0
 HAS_CAMERA=0
-HAS_ASUS=0
-HAS_WWAN=0
 IS_LAPTOP=0
 BOOTLOADER=unknown
 MICROCODE_HOOK=0
@@ -214,7 +212,7 @@ _hw_detect_gpu() {
 }
 
 # --------------------------------------------------------------------------
-# Wi-Fi / 蓝牙 / WWAN
+# Wi-Fi / 蓝牙
 # --------------------------------------------------------------------------
 
 _hw_wifi_vendor_of() {
@@ -282,16 +280,6 @@ _hw_detect_bt() {
   done
 }
 
-_hw_detect_wwan() {
-  local f
-  HAS_WWAN=0
-  for f in /sys/class/wwan* /dev/cdc-wdm*; do
-    [ -e "$f" ] || continue
-    HAS_WWAN=1
-    break
-  done
-}
-
 # --------------------------------------------------------------------------
 # 外设：摄像头
 # --------------------------------------------------------------------------
@@ -346,16 +334,6 @@ _hw_detect_microcode_hook() {
 # 主入口
 # --------------------------------------------------------------------------
 
-# ASUS / ROG 笔记本（决定要不要装 asusctl / rog-control-center / supergfxctl）
-_hw_detect_asus() {
-  HAS_ASUS=0
-  local v
-  v=$(cat /sys/class/dmi/id/sys_vendor 2>/dev/null || true)
-  case "$v" in
-    *ASUSTeK*|*ASUS*) HAS_ASUS=1 ;;
-  esac
-}
-
 hw_detect() {
   # 幂等：重复调用只重算，不累积
   _hw_detect_cpu
@@ -364,9 +342,7 @@ hw_detect() {
   _hw_detect_gpu
   _hw_detect_wifi
   _hw_detect_bt
-  _hw_detect_wwan
   _hw_detect_camera
-  _hw_detect_asus
   _hw_detect_bootloader
   _hw_detect_microcode_hook
   HW_DETECTED=1
@@ -515,7 +491,7 @@ hw_report() {
   else
     log " Wi-Fi      : 无（装机走有线，装完再插网卡也不会掉）"
   fi
-  log " 蓝牙       : $(_hw_yn "$HAS_BT")    摄像头: $(_hw_yn "$HAS_CAMERA")    WWAN(4G/5G): $(_hw_yn "$HAS_WWAN")"
+  log " 蓝牙       : $(_hw_yn "$HAS_BT")    摄像头: $(_hw_yn "$HAS_CAMERA")"
   log " Bootloader : $BOOTLOADER（安装器不改它）"
   if [ "$IS_VM" -eq 1 ]; then
     log " 提示       : 当前是虚拟机（$VIRT），部分硬件探测结果只代表虚拟硬件"

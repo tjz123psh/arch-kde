@@ -43,12 +43,6 @@ enable_services() {
     # tlp 与 power-profiles-daemon 二选一：不 mask 掉的话 ppd 会把 TLP 的改动覆盖回去
     sudo_run systemctl mask power-profiles-daemon || warn "mask power-profiles-daemon 失败（大概率没装），忽略"
   fi
-  if [ "${WANT_THERMALD:-0}" -eq 1 ]; then
-    sudo_run systemctl enable thermald || warn "enable thermald 失败，忽略（AMD 机器不需要它）"
-  fi
-  if [ "${WANT_IRQBALANCE:-0}" -eq 1 ]; then
-    sudo_run systemctl enable irqbalance || warn "enable irqbalance 失败，忽略"
-  fi
   # ASUS ROG：asusd 管风扇/灯/性能模式，supergfxd 管 GPU 模式切换（装到才有）
   if pacman -Qq asusctl >/dev/null 2>&1; then
     sudo_run systemctl enable asusd.service || warn "enable asusd 失败，忽略"
@@ -66,7 +60,7 @@ enable_services() {
 network_backend() {
   # iwd 默认不装（和 wpa_supplicant 抢 wlan0）。只在 --iwd 或用户自己已经启用过
   # iwd 时才把 NetworkManager 切过去；切错的表现是"Wi-Fi 列表空"，所以下面留了回退命令。
-  if [ "${WANT_IWD:-0}" -ne 1 ] && ! systemctl is-enabled iwd >/dev/null 2>&1; then
+  if ! systemctl is-enabled iwd >/dev/null 2>&1; then
     return 0
   fi
   log "NetworkManager 使用 iwd 后端..."

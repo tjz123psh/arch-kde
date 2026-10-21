@@ -86,7 +86,7 @@ run_doctor() {
       echo " GPU: ${GPU_VENDORS:-none}  NVIDIA_GEN=${NVIDIA_GEN:-unknown}"
       [ -n "${GPU_AMD_NAME:-}" ] && echo "   AMD: $GPU_AMD_NAME"
       [ -n "${GPU_NVIDIA_NAME:-}" ] && echo "   NVIDIA: $GPU_NVIDIA_NAME"
-      echo " 外设: 摄像头=${HAS_CAMERA:-0} WWAN=${HAS_WWAN:-0}"
+      echo " 外设: 摄像头=${HAS_CAMERA:-0}"
       echo " Wi-Fi: ${HAS_WIFI:-0} ${WIFI_NAME:-} ${WIFI_IDS:-}"
       echo " 蓝牙: ${HAS_BT:-0}"
       echo " bootloader: ${BOOTLOADER:-unknown}  微码: $(hw_microcode_pkg)/$(hw_microcode_state)  microcode-hook=${MICROCODE_HOOK:-0}"

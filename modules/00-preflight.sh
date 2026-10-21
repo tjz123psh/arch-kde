@@ -150,7 +150,7 @@ preflight() {
   detect_kernels
   detect_headers
   detect_gpu
-  # 全量硬件探测（CPU/GPU/Wi-Fi/蓝牙/摄像头/WWAN/bootloader/微码 hook）。
+  # 全量硬件探测（CPU/GPU/Wi-Fi/蓝牙/摄像头/bootloader/微码 hook）。
   # 只读、不装任何东西；失败也只会让字段留空，不会中断安装。
   if declare -F hw_detect >/dev/null 2>&1; then
     hw_detect || true

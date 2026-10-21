@@ -19,9 +19,7 @@ AUR_CMD=
 # 依据：Projects/arch-noctalia/manifests/packages.tsv 的 drivers/audio 模块。
 # 换机器时改这里的开关和 build_official_list 的固定驱动块。
 : "${HW_GPU_AMD:=1}"
-: "${HW_GPU_INTEL:=0}"
 : "${HW_GPU_NVIDIA:=1}"
-: "${HW_IWD:=0}"
 : "${HW_POWER:=ppd}"              # ppd | tlp | none
 : "${HW_NVIDIA_DRIVER:=open}"     # open | legacy
 : "${HW_ASUS:=1}"
@@ -30,29 +28,14 @@ AUR_CMD=
 : "${CPU_VENDOR:=unknown}"
 : "${IS_VM:=0}"
 : "${VIRT:=unknown}"
-: "${HAS_AMD_GPU:=0}"
-: "${HAS_INTEL_GPU:=0}"
-: "${HAS_NVIDIA_GPU:=0}"
-: "${HAS_WWAN:=0}"
-: "${HAS_CAMERA:=0}"
-: "${HAS_BT:=0}"
-: "${GPU_NVIDIA_NAME:=}"
-: "${NVIDIA_GEN:=unknown}"
-: "${WIFI_IDS:=}"
-: "${WIFI_NAME:=}"
 
 # 策略结果：install.sh 打印、system.sh 配服务、doctor 只按包名复查
 WANT_UCODE=1
 UCODE_PKG=amd-ucode
 WANT_AMD=1
-WANT_INTEL=0
 WANT_NVIDIA=1
 NVIDIA_PKG=nvidia-open-dkms
 NVIDIA_LEGACY_PKGS="nvidia-580xx-dkms nvidia-580xx-utils"
-NVIDIA_SKIP_REASON=
-WANT_THERMALD=0
-WANT_IRQBALANCE=0
-WANT_IWD=0
 WANT_TLP=0
 WANT_PPD=1
 
@@ -63,15 +46,6 @@ CN_EXTRA_PKGS="flclash nomacs supergfxctl"
 # 已装包判断（pacman -Qq 只看本地库，不联网）
 pkg_installed() {
   pacman -Qq "$1" >/dev/null 2>&1
-}
-
-# 三态 → 0/1：$1=开关（auto/1/0），$2=探测结果（0/1）
-hw_pick() {
-  case "${1:-auto}" in
-    1) echo 1 ;;
-    0) echo 0 ;;
-    *) if [ "${2:-0}" -eq 1 ]; then echo 1; else echo 0; fi ;;
-  esac
 }
 
 # 策略层输出：安装流程里有 log/warn 就用，单测里退回 echo
@@ -87,7 +61,6 @@ hw_alert() {
 hw_policy_resolve() {
   # 固定按目标机装；开关只保留手动覆盖（--no-gpu-* / --nvidia-legacy / --no-asus / --power）。
   WANT_AMD="${HW_GPU_AMD:-1}"
-  WANT_INTEL="${HW_GPU_INTEL:-0}"
   WANT_NVIDIA="${HW_GPU_NVIDIA:-1}"
   if [ "${IS_VM:-0}" -eq 1 ]; then
     WANT_NVIDIA=0
@@ -95,7 +68,6 @@ hw_policy_resolve() {
   WANT_UCODE=1
   UCODE_PKG=amd-ucode
 
-  NVIDIA_SKIP_REASON=
   if [ "$WANT_NVIDIA" -eq 1 ]; then
     case "${HW_NVIDIA_DRIVER:-open}" in
       legacy)
@@ -126,9 +98,6 @@ hw_policy_resolve() {
     none) ;;
     *) WANT_PPD=1 ;;
   esac
-  WANT_THERMALD=0
-  WANT_IRQBALANCE=0
-  WANT_IWD="${HW_IWD:-0}"
   return 0
 }
 
@@ -136,8 +105,13 @@ hw_policy_resolve() {
 hw_policy_summary() {
   local gpu="" power=""
   if [ "$WANT_AMD" -eq 1 ]; then gpu="$gpu AMD"; fi
-  if [ "$WANT_INTEL" -eq 1 ]; then gpu="$gpu Intel"; fi
-  if [ "$WANT_NVIDIA" -eq 1 ]; then gpu="$gpu NVIDIA(${NVIDIA_PKG%% *})"; fi
+  if [ "$WANT_NVIDIA" -eq 1 ]; then
+    if [ -n "$NVIDIA_PKG" ]; then
+      gpu="$gpu NVIDIA(${NVIDIA_PKG%% *})"
+    else
+      gpu="$gpu NVIDIA(已装预编译驱动)"
+    fi
+  fi
   if [ -z "$gpu" ]; then gpu=" 无（只装 mesa/llvmpipe 基础栈）"; fi
   hw_note " 显卡驱动:$gpu"
   hw_note " CPU 微码: $UCODE_PKG"
@@ -482,23 +456,11 @@ base-devel git curl jq unzip xdg-utils xdg-user-dirs man-db cmake extra-cmake-mo
     # tlp 与 power-profiles-daemon 二选一（都改 CPU/磁盘/无线电源策略，同装互相覆盖）
     pkgs="$pkgs tlp"
   fi
-  if [ "$WANT_THERMALD" -eq 1 ]; then
-    # thermald：只有 Intel CPU 用；AMD 靠内核 amd_pstate，装了不干活
-    pkgs="$pkgs thermald"
-  fi
-  if [ "$WANT_IRQBALANCE" -eq 1 ]; then
-    # irqbalance：可选（多核/服务器分摊中断；笔记本收益不明显，默认不装）
-    pkgs="$pkgs irqbalance"
-  fi
 
   # ---- 网络 ----
   # iw：iw dev / iw link（排查无线）；wireless-regdb：5GHz 管制域数据库；
   # wpa_supplicant：NetworkManager 的 Wi-Fi 后端（默认就是这个）。
   pkgs="$pkgs iw wireless-regdb wpa_supplicant"
-  if [ "$WANT_IWD" -eq 1 ]; then
-    # iwd 默认不装：它和 wpa_supplicant 抢 wlan0，NetworkManager 必须显式切后端。
-    pkgs="$pkgs iwd"
-  fi
 
   # 内核 headers：DKMS 编译前提（NVIDIA 或任何 AUR 机型驱动都依赖它）
   pkgs="$pkgs $HEADERS"
