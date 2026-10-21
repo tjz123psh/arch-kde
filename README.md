@@ -21,13 +21,30 @@ bash install.sh --all       # 全装（含独立应用 + 锁屏）
 安装器**不重做**（分区、挂载、引导器一律不碰）：
 
 - 分区、挂载、bootloader（GRUB / systemd-boot）
-- 内核：linux / linux-lts / linux-zen（安装器按实际装着的内核补对应 `-headers`，不装、不换内核）
+- 内核：linux / linux-lts / linux-zen（安装器固定补 `linux-lts-headers` / `linux-zen-headers`，不装、不换内核）
 - 时区、时间同步（systemd-timesyncd）、zram（zram-generator）
 - 基础工具：neovim、exfatprogs、os-prober
 
 这些包安装器会用 `pacman -S --needed` 再过一遍：已经装过的直接跳过，缺的补上
 （防精简预设或别人的系统）。时区只检查、不改；时间同步没启用时兜底开 systemd-timesyncd；
 zram 配置不动，只确认有没有起来。
+
+## 硬件驱动（固定按目标机）
+
+目标机是 **ASUS TUF A15：AMD Ryzen 7 7735H（Radeon 680M）+ RTX 4050 + RTL8852BE**。
+安装器不再按探测结果决定装什么，固定装这一套（和 `Projects/arch-noctalia` 的
+`manifests/packages.tsv` drivers/audio 模块对齐）：
+
+- CPU/微码：`amd-ucode`
+- AMD：`mesa`、`mesa-utils`、`lib32-mesa`、`vulkan-radeon`、`vulkan-tools`、`xf86-video-amdgpu`
+- NVIDIA：`nvidia-open-dkms`、`nvidia-utils`、`nvidia-settings`、`nvidia-prime`、`lib32-nvidia-utils`、`libva-nvidia-driver`、`dkms`
+- 声音：`alsa-firmware`、`sof-firmware`、`alsa-ucm-conf` + PipeWire 整套
+- 蓝牙：`bluez`、`bluez-utils`、`bluedevil`、`bluez-obex`
+- 网络：`linux-firmware`、`wireless-regdb`、`iw`、`wpa_supplicant`
+- ASUS：`asusctl`、`rog-control-center`（+ archlinuxcn 的 `supergfxctl`）
+
+换机器时改 `modules/10-packages.sh` 里"硬件驱动：固定按目标机装"那一段和
+`hw_policy_resolve()` 的开关；打印、指纹、WWAN 已按用户要求移除。
 
 ## 镜像（中国网络）
 
@@ -57,7 +74,7 @@ archlinuxcn 12 个）；加 `--no-mirrors` 可保留你原来的列表。
 **系统层**
 
 - KDE Plasma 6 + KWin + SDDM + 一套 KDE 应用（Dolphin / Ark / Gwenview / Spectacle / System Monitor）
-- 图形栈：mesa / vulkan / VA-API；按硬件自动选 AMD、Intel、NVIDIA（含 Turing 之前的旧卡分支）驱动
+- 图形栈：mesa / vulkan / VA-API；按目标机固定装 AMD 核显 + NVIDIA 独显驱动（换机器改 `modules/10-packages.sh`）
 - 声音：pipewire + wireplumber + ALSA 兼容层
 - 输入法：fcitx5 + 中文输入方案，按 KWin Wayland 的方式接管
 - 终端：**kitty**、**fish**、**starship**，外加 fzf / eza / bat / fd / ripgrep / zoxide / fastfetch
@@ -65,8 +82,9 @@ archlinuxcn 12 个）；加 `--no-mirrors` 可保留你原来的列表。
 - 常用应用：Chrome、VS Code、yazi、Obsidian、flclash、nomacs 等（Chrome / VS Code 可用参数关掉；
   flclash / nomacs 来自 archlinuxcn，没配这个源时自动跳过）
 - 开发工具：**Neovim**、**JDK 21**（LTS）、命令行 AI 工具 **pi** 与 **opencode**（AUR 的 -bin 包）
-- ASUS 笔记本：**asusctl** + **rog-control-center**（风扇曲线/键盘灯/性能模式；按主板厂商自动判断，
-  `--no-asus` 可关），有 archlinuxcn 源时再加 `supergfxctl` 做 GPU 模式切换
+- ASUS 笔记本：**asusctl** + **rog-control-center**（风扇曲线/键盘灯/性能模式），有 archlinuxcn 源时再加
+  `supergfxctl` 做 GPU 模式切换；`--no-asus` 可关
+- 蓝牙：**bluez** + **bluedevil**（KDE 蓝牙页/托盘）+ **bluez-obex**（文件传输），`bluetooth.service` 常开
 - 中文环境：locale、Noto CJK / Inter / Maple Mono NF CN 字体
 
 **桌面本体（KOS / NextKDE）**
@@ -99,6 +117,7 @@ archlinuxcn 12 个）；加 `--no-mirrors` 可保留你原来的列表。
 │   ├── 40-system.sh      用户组 / shell / 服务 / 微码 / 驱动
 │   ├── 45-ime.sh         fcitx5 配置
 │   ├── 50-terminal.sh    kitty / fish / starship
+│   ├── 55-apps.sh        QQ 启动器去重
 │   ├── 60-kos.sh         KOS 构建依赖 + 取源码 + kosctl 构建安装 + 快捷键
 │   ├── 70-genie.sh       genie 最小化动效（归档原生 KWin 插件）
 │   ├── 80-sddm.sh        SilentSDDM 登录主题（AUR）
@@ -121,8 +140,8 @@ archlinuxcn 12 个）；加 `--no-mirrors` 可保留你原来的列表。
 | `--locale en\|zh` | 系统语言 |
 | `--no-sddm-theme` / `--no-aur` / `--no-mirrors` | 跳过对应步骤 |
 | `--no-browser` / `--no-vscode` | 不装 Chrome / VS Code |
-| `--no-gpu-amd` / `--no-gpu-intel` / `--no-gpu-nvidia` / `--nvidia-legacy` | 显卡驱动选择 |
-| `--wifi-aur` | 允许装机型专属 AUR 无线驱动（默认关，会和内核驱动抢设备） |
+| `--no-gpu-amd` / `--no-gpu-nvidia` | 手动去掉某个厂商的显卡驱动 |
+| `--nvidia-legacy` | 旧 NVIDIA 卡改用 archlinuxcn 的 nvidia-580xx（默认 nvidia-open-dkms） |
 | `--spatial` | 同时构建空间景深（自动装 OpenCV + ONNX Runtime） |
 | `--skip-update` | 不更新 KOS 源码（离线安装） |
 

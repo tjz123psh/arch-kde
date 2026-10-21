@@ -28,8 +28,7 @@
 #   HAS_WIFI 0|1    WIFI_IDS "10ec:b852"（多个用空格分隔）
 #   WIFI_NAME       PCI ID 或 lspci 型号
 #   WIFI_VENDOR     realtek|intel|broadcom|mediatek|atheros|other|""
-#   WIFI_AUR_PKG    需要 AUR 驱动的芯片才给包名（broadcom-wl-dkms / rtl8821ce-dkms-git）
-#   HAS_BT / HAS_FINGERPRINT / HAS_CAMERA / HAS_PRINTER / HAS_WWAN   0|1
+#   HAS_BT / HAS_CAMERA / HAS_WWAN   0|1
 #   IS_LAPTOP 0|1   有电池即视为笔记本
 #   BOOTLOADER      grub|systemd-boot|refind|unknown
 #   MICROCODE_HOOK  0|1（/etc/mkinitcpio.conf 的 HOOKS 里有没有 microcode）
@@ -58,11 +57,8 @@ HAS_WIFI=0
 WIFI_IDS=""
 WIFI_NAME=""
 WIFI_VENDOR=""
-WIFI_AUR_PKG=""
 HAS_BT=0
-HAS_FINGERPRINT=0
 HAS_CAMERA=0
-HAS_PRINTER=0
 HAS_ASUS=0
 HAS_WWAN=0
 IS_LAPTOP=0
@@ -238,7 +234,6 @@ _hw_detect_wifi() {
   WIFI_IDS=""
   WIFI_NAME=""
   WIFI_VENDOR=""
-  WIFI_AUR_PKG=""
 
   # 主路径：PCI 无线网卡（class 0x0280 = Network controller / Wireless）
   for d in /sys/bus/pci/devices/*; do
@@ -268,20 +263,11 @@ _hw_detect_wifi() {
     done
   fi
 
-  # 厂商 + 需要 AUR 驱动的芯片（只列确定必须 AUR 的，其余都走内核自带）
+  # 厂商只用于报告；目标机 RTL8852BE 走内核 rtw89，不需要 AUR 机型驱动
   if [ "$HAS_WIFI" -eq 1 ] && [ -n "$WIFI_IDS" ]; then
     id=${WIFI_IDS%% *}
     vid=${id%%:*}
     WIFI_VENDOR=$(_hw_wifi_vendor_of "$vid")
-    case "$id" in
-      # Broadcom：bcm43xx 系列（43xx）内核只给部分型号驱动，闭源 broadcom-wl 才稳
-      14e4:43*) WIFI_AUR_PKG=broadcom-wl-dkms ;;
-      # Realtek RTL8821CE：内核无原生支持，社区 DKMS 包
-      10ec:c821) WIFI_AUR_PKG=rtl8821ce-dkms-git ;;
-      # 注意：RTL8852BE(10ec:b852)/MT7921/Intel AX 系列都已有内核驱动，
-      # 不要给 AUR 包（装了反而和内核模块抢设备）。
-      *) WIFI_AUR_PKG="" ;;
-    esac
     if [ -z "$WIFI_NAME" ]; then WIFI_NAME=$id; fi
   fi
 }
@@ -307,7 +293,7 @@ _hw_detect_wwan() {
 }
 
 # --------------------------------------------------------------------------
-# 外设：摄像头 / 指纹 / 打印机
+# 外设：摄像头
 # --------------------------------------------------------------------------
 
 _hw_detect_camera() {
@@ -317,34 +303,6 @@ _hw_detect_camera() {
     [ -e "$f" ] || continue
     HAS_CAMERA=1
     break
-  done
-}
-
-_hw_detect_fingerprint() {
-  local d vid
-  HAS_FINGERPRINT=0
-  # USB 指纹仪常见 vendor：Validity/Synaptics/Goodix/Elan/AuthenTec。
-  # 这是启发式判断（libfprint 支持列表太长，且 Elan 也做触摸板），
-  # 只用于“要不要装 fprintd”与 doctor 提示，误判代价很小。
-  for d in /sys/bus/usb/devices/*; do
-    vid=$(_hw_read "$d/idVendor")
-    case "$vid" in
-      138a|06cb|27c6|1c7a|08ff|147e) HAS_FINGERPRINT=1 ;;
-    esac
-    [ "$HAS_FINGERPRINT" -eq 1 ] && break
-  done
-}
-
-_hw_detect_printer() {
-  local d cls
-  HAS_PRINTER=0
-  # USB 打印机 = 接口类 07（Printer）
-  for d in /sys/bus/usb/devices/*; do
-    cls=$(_hw_read "$d/bInterfaceClass")
-    case "$cls" in
-      07) HAS_PRINTER=1 ;;
-    esac
-    [ "$HAS_PRINTER" -eq 1 ] && break
   done
 }
 
@@ -408,8 +366,6 @@ hw_detect() {
   _hw_detect_bt
   _hw_detect_wwan
   _hw_detect_camera
-  _hw_detect_fingerprint
-  _hw_detect_printer
   _hw_detect_asus
   _hw_detect_bootloader
   _hw_detect_microcode_hook
@@ -555,12 +511,11 @@ hw_report() {
   log " 微码       : $(hw_microcode_pkg || true) 状态=$(hw_microcode_state) hook=$MICROCODE_HOOK"
   log " 显卡       :$gpu"
   if [ "$HAS_WIFI" -eq 1 ]; then
-    log " Wi-Fi      : $WIFI_NAME [$WIFI_IDS] 厂商=$WIFI_VENDOR$([ -n "$WIFI_AUR_PKG" ] && echo " 需要AUR: $WIFI_AUR_PKG")"
+    log " Wi-Fi      : $WIFI_NAME [$WIFI_IDS] 厂商=$WIFI_VENDOR"
   else
     log " Wi-Fi      : 无（装机走有线，装完再插网卡也不会掉）"
   fi
-  log " 蓝牙       : $(_hw_yn "$HAS_BT")    指纹: $(_hw_yn "$HAS_FINGERPRINT")    摄像头: $(_hw_yn "$HAS_CAMERA")"
-  log " 打印/扫描  : $(_hw_yn "$HAS_PRINTER")    WWAN(4G/5G): $(_hw_yn "$HAS_WWAN")"
+  log " 蓝牙       : $(_hw_yn "$HAS_BT")    摄像头: $(_hw_yn "$HAS_CAMERA")    WWAN(4G/5G): $(_hw_yn "$HAS_WWAN")"
   log " Bootloader : $BOOTLOADER（安装器不改它）"
   if [ "$IS_VM" -eq 1 ]; then
     log " 提示       : 当前是虚拟机（$VIRT），部分硬件探测结果只代表虚拟硬件"
@@ -570,9 +525,6 @@ hw_report() {
     log " 注意       : NVIDIA 卡是 Turing 之前的老卡，不能用 nvidia-open-dkms（会加载失败→黑屏）。"
     log "              官方仓库已不提供闭源驱动；要独显请用 --nvidia-legacy（archlinuxcn 的 nvidia-580xx-dkms），"
     log "              不想折腾就保持 nouveau 显示（默认）。"
-  fi
-  if [ -n "$WIFI_AUR_PKG" ]; then
-    log " 注意       : 这块 Wi-Fi 需要 AUR 驱动 $WIFI_AUR_PKG（默认不装，需要 --wifi-aur）"
   fi
   return 0
 }
@@ -660,30 +612,19 @@ hw_doctor_check() {
     if [ "$ok" -eq 1 ]; then
       _hw_line 1 "Wi-Fi" "$WIFI_NAME 有无线接口"
     else
-      _hw_line 0 "Wi-Fi" "$WIFI_NAME 没有无线接口（缺固件或驱动？$WIFI_AUR_PKG）"
+      _hw_line 0 "Wi-Fi" "$WIFI_NAME 没有无线接口（缺固件或驱动？）"
     fi
   fi
-  if [ "$HAS_BT" -eq 1 ]; then
-    if _hw_have systemctl && systemctl is-enabled --quiet bluetooth 2>/dev/null; then
-      _hw_line 1 "蓝牙" "bluetooth.service 已启用"
-    else
-      _hw_line 0 "蓝牙" "检测到蓝牙硬件但 bluetooth.service 没启用"
-    fi
+  # 蓝牙服务现在固定安装、固定启用；硬件有无只作为信息展示
+  if _hw_have systemctl && systemctl is-enabled --quiet bluetooth 2>/dev/null; then
+    _hw_line 1 "蓝牙" "bluetooth.service 已启用（硬件: $(_hw_yn "$HAS_BT")）"
+  else
+    _hw_line 0 "蓝牙" "bluetooth.service 没启用（sudo systemctl enable --now bluetooth）"
   fi
 
-  # 5) 外设
-  if [ "$HAS_FINGERPRINT" -eq 1 ]; then
-    if _hw_have fprintd-list; then
-      _hw_line 1 "指纹" "fprintd 已装（录入：fprintd-enroll）"
-    else
-      _hw_line 0 "指纹" "检测到指纹仪但没装 fprintd（sudo pacman -S fprintd libfprint）"
-    fi
-  fi
+  # 5) 外设（只保留摄像头；打印/指纹已按用户要求移除）
   if [ "$HAS_CAMERA" -eq 1 ] && ! _hw_have v4l2-ctl; then
     _hw_line 0 "摄像头" "有摄像头但没装 v4l-utils（v4l2-ctl --list-devices 用）"
-  fi
-  if [ "$HAS_PRINTER" -eq 1 ] && ! _hw_have lpstat; then
-    _hw_line 0 "打印" "检测到打印机但没装 cups（sudo pacman -S cups cups-pdf）"
   fi
 
   return 0

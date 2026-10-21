@@ -5,86 +5,60 @@
 AUR_CMD=
 
 # ---------------------------------------------------------------------------
-# 硬件策略：探测结果 + 命令行开关 → 最终装哪些驱动包
+# 硬件策略：固定按目标机装（2026-10-21 用户要求）
 #
-# 为什么把"探测"和"策略"分开：真机上装错驱动的代价是黑屏/断网/没输入，而探测
-# （20-hardware.sh，只读 /sys、/proc、lspci）与"决定装什么"是两件事。本文件只读
-# 下面这组 WANT_* 布尔量，不再自己判断硬件；40-system.sh 读同一组，保证"装了什么"
-# 和"配了什么服务"不会打架。
-#
-# 六个坑，每一段条件都在防一个真机故障：
-#   1. 没显卡却装 nvidia-open-dkms：DKMS 编译失败 / mkinitcpio 找不到模块时
-#      initramfs 生成会失败 → 重启黑屏。
-#   2. Maxwell/Pascal/Volta（GTX 10 系及更早）装 615 版驱动：模块加载失败，而
-#      nvidia-utils 会把 nouveau 拉黑，只剩 TTY。官方仓库自 615 起只有开源内核模块
-#      （nvidia-open*），旧卡要用 archlinuxcn 的 nvidia-580xx-*（--nvidia-legacy）。
-#   3. 虚拟机里装微码/thermald：微码属于宿主，装进 guest 不会生效。
-#   4. tlp 与 power-profiles-daemon 同装：两个都在改电源策略，互相覆盖。
-#   5. iwd 与 wpa_supplicant 同装：抢 wlan0，NetworkManager 必须显式切后端。
-#   6. AUR 机型固件（broadcom-wl-dkms / rtl8821ce-dkms-git）默认跳过：会和内核自带的
-#      brcmfmac / rtw89 抢同一个 PCI 设备，装错的表现是"Wi-Fi 直接消失"。
+# 以前按 20-hardware.sh 的探测结果决定装什么；现在改为固定名单：
+# 目标机是 ASUS TUF A15（AMD 7735H + RTX 4050 + RTL8852BE），名单在
+# build_official_list 的"硬件驱动：固定按目标机装"一段。
+# 探测仍然保留，只用于 install 计划、doctor 报告和微码/引导提示，不再影响装包。
+# 手动覆盖只保留 --no-gpu-* / --nvidia-legacy / --no-asus / --power。
 # ---------------------------------------------------------------------------
 
-# 三态开关：auto = 听探测的；1 = 强制装；0 = 强制不装
-: "${HW_MODE:=auto}"              # none | auto | all
-: "${HW_GPU_AMD:=auto}"
-: "${HW_GPU_INTEL:=auto}"
-: "${HW_GPU_NVIDIA:=auto}"
-: "${HW_MICROCODE:=auto}"
-: "${HW_PRINTERS:=auto}"
-: "${HW_FP:=auto}"
-: "${HW_WWAN:=auto}"
-: "${HW_THERMALD:=auto}"
-: "${HW_IRQBALANCE:=0}"
+# 目标机固定硬件（2026-10-21 用户要求：不再按探测结果决定装什么）。
+# 机型：ASUS TUF A15 / AMD Ryzen 7 7735H（Radeon 680M）+ RTX 4050 + RTL8852BE。
+# 依据：Projects/arch-noctalia/manifests/packages.tsv 的 drivers/audio 模块。
+# 换机器时改这里的开关和 build_official_list 的固定驱动块。
+: "${HW_GPU_AMD:=1}"
+: "${HW_GPU_INTEL:=0}"
+: "${HW_GPU_NVIDIA:=1}"
 : "${HW_IWD:=0}"
 : "${HW_POWER:=ppd}"              # ppd | tlp | none
 : "${HW_NVIDIA_DRIVER:=open}"     # open | legacy
-: "${HW_NVIDIA_FORCE:=0}"
-: "${HW_XORG_NOUVEAU:=0}"
-: "${HW_WIFI_AUR:=0}"
+: "${HW_ASUS:=1}"
 
-# 探测变量兜底：本文件可能被单独 source（tests/package-names.sh），也可能在 hw_detect
-# 之前被读到。默认一律当"没有这块硬件"，装出来仍是最小可用系统。
+# 探测变量兜底（只用于报告 / doctor，不参与装包决策）
 : "${CPU_VENDOR:=unknown}"
 : "${IS_VM:=0}"
 : "${VIRT:=unknown}"
 : "${HAS_AMD_GPU:=0}"
 : "${HAS_INTEL_GPU:=0}"
 : "${HAS_NVIDIA_GPU:=0}"
-: "${HAS_FINGERPRINT:=0}"
-: "${HAS_PRINTER:=0}"
 : "${HAS_WWAN:=0}"
 : "${HAS_CAMERA:=0}"
+: "${HAS_BT:=0}"
 : "${GPU_NVIDIA_NAME:=}"
 : "${NVIDIA_GEN:=unknown}"
 : "${WIFI_IDS:=}"
 : "${WIFI_NAME:=}"
-: "${WIFI_AUR_PKG:=}"
 
 # 策略结果：install.sh 打印、system.sh 配服务、doctor 只按包名复查
-WANT_UCODE=0
-UCODE_PKG=
-WANT_AMD=0
+WANT_UCODE=1
+UCODE_PKG=amd-ucode
+WANT_AMD=1
 WANT_INTEL=0
-WANT_NVIDIA=0
+WANT_NVIDIA=1
 NVIDIA_PKG=nvidia-open-dkms
 NVIDIA_LEGACY_PKGS="nvidia-580xx-dkms nvidia-580xx-utils"
 NVIDIA_SKIP_REASON=
-WANT_XORG_NOUVEAU=0
-WANT_PRINTERS=0
-WANT_FP=0
-WANT_WWAN=0
 WANT_THERMALD=0
 WANT_IRQBALANCE=0
 WANT_IWD=0
 WANT_TLP=0
-WANT_PPD=0
-WANT_WIFI_AUR=0
-WIFI_AUR_LIST=
+WANT_PPD=1
 
-# 只在 archlinuxcn 里的可选应用：archlinuxcn 没配好时逐个跳过，
-# 绝不让它们把官方包那条 pacman -S 整条拖垮（原因见 build_official_list 的注释）。
-CN_EXTRA_PKGS="flclash nomacs"
+# 只在 archlinuxcn 里的包：archlinuxcn 没配好时逐个跳过，
+# 绝不让它们把官方包那条 pacman -S 整条拖垮。
+CN_EXTRA_PKGS="flclash nomacs supergfxctl"
 
 # 已装包判断（pacman -Qq 只看本地库，不联网）
 pkg_installed() {
@@ -108,49 +82,26 @@ hw_alert() {
   if declare -F warn >/dev/null 2>&1; then warn "$*"; else echo "[警告] $*" >&2; fi
 }
 
-# 策略求解：把"探测到的硬件"与"--hw/--no-* 开关"合成 WANT_* 一组布尔量。
+# 策略求解：固定按目标机（ASUS TUF A15）给出 WANT_*；探测结果只用于报告。
 # 必须在 hw_detect 之后、build_official_list 之前调用一次（install.sh 的 main 里）。
 hw_policy_resolve() {
-  local has_amd="${HAS_AMD_GPU:-0}"
-  local has_intel="${HAS_INTEL_GPU:-0}"
-  local has_nvidia="${HAS_NVIDIA_GPU:-0}"
-  local has_fp="${HAS_FINGERPRINT:-0}"
-  local has_printer="${HAS_PRINTER:-0}"
-  local has_wwan="${HAS_WWAN:-0}"
-  local want_thermald=0
-
-  # --hw none / all：一次性把所有厂商开关拨到底；单厂商开关仍可在之后覆盖
-  case "${HW_MODE:-auto}" in
-    all)
-      has_amd=1; has_intel=1; has_nvidia=1
-      has_fp=1; has_printer=1; has_wwan=1
-      ;;
-    none)
-      has_amd=0; has_intel=0; has_nvidia=0
-      has_fp=0; has_printer=0; has_wwan=0
-      ;;
-  esac
-
-  WANT_AMD=$(hw_pick "${HW_GPU_AMD:-auto}" "$has_amd")
-  WANT_INTEL=$(hw_pick "${HW_GPU_INTEL:-auto}" "$has_intel")
-  WANT_NVIDIA=$(hw_pick "${HW_GPU_NVIDIA:-auto}" "$has_nvidia")
-
-  # ---- NVIDIA：先过代际闸门，再决定装哪个包 ----
-  NVIDIA_SKIP_REASON=
-  if [ "$WANT_NVIDIA" -eq 1 ] && [ "${NVIDIA_GEN:-unknown}" = pre_turing ] && [ "${HW_NVIDIA_FORCE:-0}" -ne 1 ]; then
+  # 固定按目标机装；开关只保留手动覆盖（--no-gpu-* / --nvidia-legacy / --no-asus / --power）。
+  WANT_AMD="${HW_GPU_AMD:-1}"
+  WANT_INTEL="${HW_GPU_INTEL:-0}"
+  WANT_NVIDIA="${HW_GPU_NVIDIA:-1}"
+  if [ "${IS_VM:-0}" -eq 1 ]; then
     WANT_NVIDIA=0
-    NVIDIA_SKIP_REASON="检测到旧架构 NVIDIA 显卡（${GPU_NVIDIA_NAME:-型号未知}），官方 nvidia-open 只支持 Turing（RTX 20 系 / GTX 16 系）及更新"
-    hw_alert "$NVIDIA_SKIP_REASON"
-    hw_alert "已跳过 NVIDIA 驱动：内核自带的 nouveau 照常显示（能亮，性能低），不会黑屏"
-    hw_alert "旧卡想用独显：重跑 ./install.sh --nvidia-legacy（archlinuxcn 的 nvidia-580xx-dkms）；确认要试 nvidia-open 就加 --nvidia-force"
   fi
+  WANT_UCODE=1
+  UCODE_PKG=amd-ucode
 
+  NVIDIA_SKIP_REASON=
   if [ "$WANT_NVIDIA" -eq 1 ]; then
     case "${HW_NVIDIA_DRIVER:-open}" in
       legacy)
         NVIDIA_PKG="$NVIDIA_LEGACY_PKGS"
         if [ "${NO_ARCHLINUXCN:-0}" -eq 1 ]; then
-          hw_alert "nvidia-580xx 只在 archlinuxcn 仓库里，而本次带了 --no-archlinuxcn：请先配好 archlinuxcn，否则这一步会装失败"
+          hw_alert "nvidia-580xx 只在 archlinuxcn 仓库里，而本次带了 --no-archlinuxcn：请先配好 archlinuxcn"
         fi
         ;;
       *)
@@ -158,7 +109,7 @@ hw_policy_resolve() {
         ;;
     esac
     # 已经装了预编译的 nvidia-open / nvidia-open-lts 时不要再点名 nvidia-open-dkms：
-    # 三者 provides 同一个包名，pacman 会因为冲突整条事务失败（一个包都不装）。
+    # 三者 provides 同一个包名，pacman 会因为冲突整条事务失败。
     if [ "$NVIDIA_PKG" = nvidia-open-dkms ] && ! pkg_installed nvidia-open-dkms; then
       if pkg_installed nvidia-open || pkg_installed nvidia-open-lts; then
         NVIDIA_PKG=
@@ -167,34 +118,7 @@ hw_policy_resolve() {
     fi
   fi
 
-  # ---- CPU 微码 ----
-  UCODE_PKG=
-  case "${CPU_VENDOR:-unknown}" in
-    intel) UCODE_PKG=intel-ucode ;;
-    amd)   UCODE_PKG=amd-ucode ;;
-  esac
-  WANT_UCODE=0
-  if [ -n "$UCODE_PKG" ]; then
-    if [ "${HW_MODE:-auto}" = none ] && [ "${HW_MICROCODE:-auto}" != 1 ]; then
-      hw_note "--hw none：不装 CPU 微码（要装就加 --microcode）"
-    elif [ "${IS_VM:-0}" -eq 1 ] && [ "${HW_MICROCODE:-auto}" != 1 ]; then
-      hw_note "虚拟机（${VIRT:-unknown}）里跳过 CPU 微码：微码由宿主负责，装进 guest 不会生效"
-    else
-      WANT_UCODE=$(hw_pick "${HW_MICROCODE:-auto}" 1)
-    fi
-  elif [ "${HW_MICROCODE:-auto}" = 1 ]; then
-    hw_alert "CPU 厂商没识别出来（${CPU_VENDOR:-unknown}），无法在 intel-ucode/amd-ucode 里二选一；请手动装 intel-ucode 或 amd-ucode 之一"
-  fi
-
-  # ---- 外设 ----
-  WANT_FP=$(hw_pick "${HW_FP:-auto}" "$has_fp")
-  WANT_PRINTERS=$(hw_pick "${HW_PRINTERS:-auto}" "$has_printer")
-  WANT_WWAN=$(hw_pick "${HW_WWAN:-auto}" "$has_wwan")
-  WANT_XORG_NOUVEAU="${HW_XORG_NOUVEAU:-0}"
-  WANT_IRQBALANCE="${HW_IRQBALANCE:-0}"
-  WANT_IWD="${HW_IWD:-0}"
-
-  # ---- 电源：ppd / tlp / none 三选一，绝不两个都装 ----
+  # 电源：ppd / tlp / none 三选一
   WANT_PPD=0
   WANT_TLP=0
   case "${HW_POWER:-ppd}" in
@@ -202,56 +126,23 @@ hw_policy_resolve() {
     none) ;;
     *) WANT_PPD=1 ;;
   esac
-
-  # thermald 只对 Intel CPU 有意义（AMD 走内核 amd_pstate，thermald 不干活）
-  if [ "${CPU_VENDOR:-unknown}" = intel ] && [ "${IS_VM:-0}" -eq 0 ]; then
-    want_thermald=1
-  fi
-  WANT_THERMALD=$(hw_pick "${HW_THERMALD:-auto}" "$want_thermald")
-
-  # ---- AUR 机型固件：默认只提示，不装 ----
-  WANT_WIFI_AUR="${HW_WIFI_AUR:-0}"
-  WIFI_AUR_LIST=
-  if [ -n "${WIFI_AUR_PKG:-}" ]; then
-    if [ "$WANT_WIFI_AUR" -eq 1 ]; then
-      WIFI_AUR_LIST="$WIFI_AUR_PKG"
-    else
-      hw_note "无线 ${WIFI_NAME:-未知型号}（${WIFI_IDS:-?}）可能还需要 AUR 机型驱动 ${WIFI_AUR_PKG}；默认跳过（会和内核驱动抢设备），确实不行再加 --wifi-aur"
-    fi
-  fi
-
+  WANT_THERMALD=0
+  WANT_IRQBALANCE=0
+  WANT_IWD="${HW_IWD:-0}"
   return 0
 }
 
 # 逐行打印"本次到底装什么"，install.sh 的 print_plan 调用（--dry-run 也能看到）
 hw_policy_summary() {
-  local gpu="" extras="" power=""
+  local gpu="" power=""
   if [ "$WANT_AMD" -eq 1 ]; then gpu="$gpu AMD"; fi
   if [ "$WANT_INTEL" -eq 1 ]; then gpu="$gpu Intel"; fi
-  if [ "$WANT_NVIDIA" -eq 1 ]; then
-    # 只显示第一个包名（legacy 是两个包）
-    gpu="$gpu NVIDIA(${NVIDIA_PKG%% *})"
-  fi
+  if [ "$WANT_NVIDIA" -eq 1 ]; then gpu="$gpu NVIDIA(${NVIDIA_PKG%% *})"; fi
   if [ -z "$gpu" ]; then gpu=" 无（只装 mesa/llvmpipe 基础栈）"; fi
   hw_note " 显卡驱动:$gpu"
-  if [ "$WANT_UCODE" -eq 1 ]; then
-    hw_note " CPU 微码: $UCODE_PKG"
-  else
-    hw_note " CPU 微码: 不装"
-  fi
-
-  extras=""
-  if [ "$WANT_PRINTERS" -eq 1 ]; then extras="$extras 打印扫描"; fi
-  if [ "$WANT_FP" -eq 1 ]; then extras="$extras 指纹"; fi
-  if [ "$WANT_WWAN" -eq 1 ]; then extras="$extras WWAN"; fi
-  if [ "$WANT_IWD" -eq 1 ]; then extras="$extras iwd"; fi
-  if [ "$WANT_XORG_NOUVEAU" -eq 1 ]; then extras="$extras Xorg-nouveau"; fi
-  if [ -n "$WIFI_AUR_LIST" ]; then extras="$extras AUR固件($WIFI_AUR_LIST)"; fi
-  hw_note " 额外外设/网络:${extras:- 无}"
-
+  hw_note " CPU 微码: $UCODE_PKG"
+  hw_note " 蓝牙: bluez + bluedevil + bluez-obex（固定安装，服务常开）"
   if [ "$WANT_TLP" -eq 1 ]; then power="tlp"; elif [ "$WANT_PPD" -eq 1 ]; then power="power-profiles-daemon"; else power="无"; fi
-  if [ "$WANT_THERMALD" -eq 1 ]; then power="$power + thermald"; fi
-  if [ "$WANT_IRQBALANCE" -eq 1 ]; then power="$power + irqbalance"; fi
   hw_note " 电源/散热:$power"
 }
 
@@ -260,9 +151,9 @@ hw_policy_summary() {
 #
 # archinstall 初始化时选中的镜像（常见是阿里云/境外源）在部分网络下会掉速、
 # 单连接卡在几十 B/s。安装器默认把 /etc/pacman.d/mirrorlist 覆盖成国内常用
-# 镜像，清华第一（用户指定），后面中科大/阿里云/南大/浙大/兰大。
+# 镜像，清华第一（用户指定），后面 15 个国内镜像（名单见 official_mirrorlist）。
 # 不想覆盖就加 --no-mirrors（例如机器不在中国，或已经用 reflector 配好）。
-# 2026-10-19 逐个 HEAD 验证这些镜像的 core.db 返回 200。
+# 2026-10-21 用 curl 逐个取 core.db 验证，除 163 外全部 200。
 # ---------------------------------------------------------------------------
 official_mirrorlist() {
   cat <<'EOF'
@@ -433,6 +324,37 @@ setup_archlinuxcn_repo() {
   fi
 }
 
+# ---------------------------------------------------------------------------
+# [multilib]：lib32-mesa / lib32-nvidia-utils 的前提
+#
+# 干净 archinstall 默认把 [multilib] 注释着。目标机装 32 位显卡库（Steam/Wine 用到）
+# 前必须打开，否则整条 pacman -S 会因为 "target not found: lib32-*" 失败。
+# ---------------------------------------------------------------------------
+setup_multilib() {
+  if grep -qE '^[[:space:]]*\[multilib\]' /etc/pacman.conf 2>/dev/null; then
+    log "[multilib] 已启用"
+    return 0
+  fi
+  log "启用 [multilib]（lib32 显卡驱动需要）..."
+  if [ "$DRY_RUN" -eq 1 ]; then
+    log "[dry-run] 启用 /etc/pacman.conf 的 [multilib] 并 pacman -Sy"
+    return 0
+  fi
+  backup_file /etc/pacman.conf
+  if grep -qE '^[[:space:]]*#\[multilib\]' /etc/pacman.conf 2>/dev/null; then
+    sudo sed -i 's/^[[:space:]]*#\[multilib\].*/[multilib]/' /etc/pacman.conf
+  else
+    # 精简 pacman.conf（容器/自定义镜像常见）：直接补一段
+    printf '\n[multilib]\nInclude = /etc/pacman.d/mirrorlist\n' | sudo tee -a /etc/pacman.conf >/dev/null
+  fi
+  # 段内 Include 行可能还是注释；没有就补一条，保证 multilib 也走镜像表
+  if ! awk '/^\[multilib\]/{f=1; next} f && /^\[/{exit} f && /^Include[[:space:]]*=[[:space:]]*\/etc\/pacman\.d\/mirrorlist/{found=1} END{exit !found}' /etc/pacman.conf; then
+    sudo sed -i '/^\[multilib\]/a Include = /etc/pacman.d/mirrorlist' /etc/pacman.conf
+  fi
+  sudo pacman -Sy --noconfirm || warn "启用 multilib 后 pacman -Sy 失败，稍后重试"
+  grep -qE '^[[:space:]]*\[multilib\]' /etc/pacman.conf || warn "没能启用 [multilib]，lib32 包会装失败"
+}
+
 system_update() {
   if [ "$SKIP_UPDATE" -eq 1 ]; then
     log "跳过 pacman -Syu（--skip-update）"
@@ -460,7 +382,7 @@ fcitx5 fcitx5-configtool fcitx5-gtk fcitx5-qt fcitx5-chinese-addons
 fcitx5-pinyin-zhwiki fcitx5-material-color fcitx5-nord fcitx5-lua
 kitty fish starship fzf eza bat fd ripgrep zoxide fastfetch
 mpv tesseract-data-eng
-networkmanager bluez bluez-utils linux-firmware
+networkmanager bluez bluez-utils bluedevil bluez-obex linux-firmware
 base-devel git curl jq unzip xdg-utils xdg-user-dirs man-db cmake extra-cmake-modules python
 "
 
@@ -491,23 +413,33 @@ base-devel git curl jq unzip xdg-utils xdg-user-dirs man-db cmake extra-cmake-mo
   # JDK 21：开发用（Arch 的默认 jdk-openjdk 已经是 27，这里显式锁 21 的 LTS）
   pkgs="$pkgs jdk21-openjdk"
 
-  # ---- ASUS ROG 笔记本工具（默认只在 ASUS 机器上装；--no-asus 关，--asus 强开）----
-  # asusctl / rog-control-center：风扇曲线、键盘灯、性能模式、MUX 切换（官方仓库）
-  # supergfxctl：GPU 模式切换（archlinuxcn）
-  local asus=0
-  case "$HW_ASUS" in
-    0) asus=0 ;;
-    1) asus=1 ;;
-    *) asus=${HAS_ASUS:-0} ;;
-  esac
-  if [ "$asus" -eq 1 ]; then
-    pkgs="$pkgs asusctl rog-control-center"
-    if pacman -Ss '^supergfxctl$' >/dev/null 2>&1; then
-      pkgs="$pkgs supergfxctl"
-    else
-      warn "未找到 supergfxctl（需要 archlinuxcn 源），跳过 GPU 模式切换工具"
+  # ---- 硬件驱动：固定按目标机装（2026-10-21 用户要求，不再看探测结果）----
+  # 目标机：ASUS TUF A15 / AMD Ryzen 7 7735H（Radeon 680M）+ RTX 4050 + RTL8852BE。
+  # 依据：Projects/arch-noctalia/manifests/packages.tsv 的 drivers/audio 模块。
+  # 换机器时改这一段，以及上面 hw_policy_resolve 的开关。
+  pkgs="$pkgs amd-ucode linux-firmware linux-lts-headers linux-zen-headers"
+  pkgs="$pkgs mesa mesa-utils lib32-mesa vulkan-tools libva-utils"
+  if [ "$WANT_AMD" -eq 1 ]; then
+    pkgs="$pkgs vulkan-radeon xf86-video-amdgpu"
+  fi
+  # 虚拟机没有对应硬件：NVIDIA / ASUS 驱动跳过，避免 DKMS 白编、asusd 空跑。
+  # 物理机（目标机）固定装这一套。
+  if [ "${IS_VM:-0}" -eq 1 ]; then
+    log "虚拟机：跳过 NVIDIA / ASUS 专属驱动包（物理机才装）"
+  else
+    if [ "$WANT_NVIDIA" -eq 1 ]; then
+      if [ "${HW_NVIDIA_DRIVER:-open}" = legacy ]; then
+        # 580xx 自带 utils，不要再点名 nvidia-utils（会冲突）
+        pkgs="$pkgs $NVIDIA_PKG nvidia-settings nvidia-prime dkms libva-nvidia-driver"
+      else
+        pkgs="$pkgs $NVIDIA_PKG nvidia-utils nvidia-settings nvidia-prime dkms libva-nvidia-driver lib32-nvidia-utils"
+      fi
+    fi
+    if [ "${HW_ASUS:-1}" -eq 1 ]; then
+      pkgs="$pkgs asusctl rog-control-center"
     fi
   fi
+  # supergfxctl 只在 archlinuxcn，走 CN_EXTRA_PKGS（install_archlinuxcn_apps）
 
   pkgs="$pkgs mesa vulkan-icd-loader vulkan-tools libva libva-utils"
 
@@ -518,7 +450,7 @@ base-devel git curl jq unzip xdg-utils xdg-user-dirs man-db cmake extra-cmake-mo
   # alsa-plugins   老程序、部分 Java/游戏只认 ALSA
   # alsa-ucm-conf  笔记本声卡 UCM 配置；缺了大量机型只剩 "Dummy Output"
   # sof-firmware   Intel/AMD 新本子的 SOF DSP 固件；缺了内置麦克风/扬声器不出声
-  pkgs="$pkgs pipewire pipewire-pulse wireplumber pipewire-alsa alsa-utils alsa-plugins alsa-ucm-conf sof-firmware"
+  pkgs="$pkgs pipewire pipewire-pulse wireplumber pipewire-alsa alsa-utils alsa-plugins alsa-ucm-conf sof-firmware alsa-firmware"
 
   # ---- 输入 ----
   # libinput + xf86-input-libinput：触控板/触摸屏（X11 会话要后者）
@@ -560,71 +492,12 @@ base-devel git curl jq unzip xdg-utils xdg-user-dirs man-db cmake extra-cmake-mo
   fi
 
   # ---- 网络 ----
-  # iw：iw dev / iw link（排查无线时唯一可靠的命令；tlp 也依赖它）
-  pkgs="$pkgs iw"
-  if [ "$WANT_WWAN" -eq 1 ]; then
-    # modemmanager：WWAN/4G 模块（笔记本自带 LTE、USB 上网卡）
-    # usb_modeswitch：很多 USB 上网卡插上先是"U 盘"模式，靠它切到调制解调器模式
-    # mobile-broadband-provider-info：运营商 APN 数据库（ModemManager 要用）
-    pkgs="$pkgs modemmanager usb_modeswitch mobile-broadband-provider-info"
-  fi
+  # iw：iw dev / iw link（排查无线）；wireless-regdb：5GHz 管制域数据库；
+  # wpa_supplicant：NetworkManager 的 Wi-Fi 后端（默认就是这个）。
+  pkgs="$pkgs iw wireless-regdb wpa_supplicant"
   if [ "$WANT_IWD" -eq 1 ]; then
-    # iwd 默认不装：它和 wpa_supplicant 抢 wlan0，NetworkManager 必须显式切
-    # wifi.backend=iwd（40-system.sh::network_backend 会写）。装错的表现是"Wi-Fi 列表空"。
+    # iwd 默认不装：它和 wpa_supplicant 抢 wlan0，NetworkManager 必须显式切后端。
     pkgs="$pkgs iwd"
-  fi
-
-  # ---- 指纹 ----
-  if [ "$WANT_FP" -eq 1 ]; then
-    # fprintd/libfprint：指纹认证。安装器只装包 + 打印 PAM 接法，不动 /etc/pam.d/sddm
-    #（PAM 改错会直接登录不了）；接法由 40-system.sh::fprintd_hint 在安装结束时打印。
-    pkgs="$pkgs fprintd libfprint"
-  fi
-
-  # ---- 打印/扫描 ----
-  if [ "$WANT_PRINTERS" -eq 1 ]; then
-    # cups + cups-pdf：打印系统 + 虚拟 PDF 打印机
-    # sane + sane-airscan：扫描仪 + 免驱网络扫描（airscan 靠 avahi 的 mDNS 发现）
-    # print-manager：KDE 的打印机设置面板（否则只能开 localhost:631）
-    pkgs="$pkgs cups cups-pdf sane sane-airscan avahi print-manager"
-  fi
-
-  # ---- CPU 微码 ----
-  if [ "$WANT_UCODE" -eq 1 ] && [ -n "$UCODE_PKG" ]; then
-    # intel-ucode / amd-ucode：包只把 payload 放进 /boot 与 /usr/lib/firmware；
-    # 真正的"早加载"靠 mkinitcpio 的 microcode hook（Arch 默认已有）→ 合并 initramfs，
-    # 不需要改 bootloader。40-system.sh::microcode_setup 会复查是否真的进去了。
-    pkgs="$pkgs $UCODE_PKG"
-  fi
-
-  # ---- 显卡 ----
-  if [ "$WANT_AMD" -eq 1 ]; then
-    # vulkan-radeon：AMD 的 RADV（Vulkan）
-    # xf86-video-amdgpu：只有 X11 会话用得到；Wayland 下不加载，留作 X11 回退
-    #（libva-mesa-driver 已并入 mesa，见上面的说明）
-    pkgs="$pkgs vulkan-radeon xf86-video-amdgpu"
-  fi
-  if [ "$WANT_INTEL" -eq 1 ]; then
-    # vulkan-intel：Intel 的 ANV（Vulkan）
-    # intel-media-driver：Gen8（Broadwell）及更新的 VA-API 后端，硬解 H.264/HEVC/AV1 必需
-    # libva-intel-driver：Gen7 及更老的 i965 后端（老机器才用得到）
-    # xf86-video-intel：X11 回退（Wayland 用内核 modesetting）；有已知撕裂问题，仅兜底
-    pkgs="$pkgs vulkan-intel intel-media-driver libva-intel-driver xf86-video-intel"
-  fi
-  if [ "$WANT_NVIDIA" -eq 1 ]; then
-    # NVIDIA_PKG = nvidia-open-dkms（Turing 及更新，官方开源内核模块；官方仓库已无闭源替代）
-    #            或 nvidia-580xx-dkms + nvidia-580xx-utils（--nvidia-legacy，旧卡，archlinuxcn）
-    # nvidia-utils       用户态驱动（libGLX/Vulkan/OpenCL）；它自己依赖 egl-wayland、
-    #                    egl-wayland2、egl-gbm、egl-x11，所以不必再点名
-    # libva-nvidia-driver  NVDEC 的 VA-API 翻译层（浏览器/播放器硬解）
-    # nvidia-prime       prime-run 双显卡切换（本子上用独显跑单个程序）
-    # dkms               DKMS 框架（内核升级后自动重编）
-    pkgs="$pkgs $NVIDIA_PKG nvidia-utils libva-nvidia-driver nvidia-prime dkms"
-  fi
-  if [ "$WANT_XORG_NOUVEAU" -eq 1 ]; then
-    # 仅在 --xorg-nouveau 时：X11 下用 nouveau 救急。注意 nvidia-utils 会把 nouveau
-    # 拉黑，两者同时装只有一个能生效（切换：卸掉 nvidia-utils 后 nouveau 才会重新可用）。
-    pkgs="$pkgs xf86-video-nouveau"
   fi
 
   # 内核 headers：DKMS 编译前提（NVIDIA 或任何 AUR 机型驱动都依赖它）
@@ -731,13 +604,6 @@ install_aur_packages() {
   if [ "$IME" = rime ]; then
     list="$list rime-ice-git"
   fi
-  if [ "$WANT_WIFI_AUR" -eq 1 ] && [ -n "$WIFI_AUR_LIST" ]; then
-    # 机型特定的 AUR 无线驱动/固件（broadcom-wl-dkms、rtl8821ce-dkms-git 等），
-    # 只有 --wifi-aur 才装：装错会和内核自带的 brcmfmac/rtw89 抢同一个设备，
-    # 表现是"Wi-Fi 列表直接空掉"，比不装更难救。
-    list="$list $WIFI_AUR_LIST"
-  fi
-
   failed=
   log "安装 AUR 包..."
   for pkg in $list; do

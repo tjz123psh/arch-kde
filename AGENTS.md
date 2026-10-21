@@ -33,10 +33,11 @@ assets/             配置、genie 源码、壁纸
 
 1. **以桌面用户身份运行，不要整脚本 sudo**：KOS 配置写 `~/.config/quickshell/kos`，用 root 跑会写进 root 的 HOME。
 2. **破坏性动作不做**：分区、挂载、bootloader、内核安装/切换、时区都不碰；这些是 archinstall 的前提。
-3. **archinstall 前提只做 `--needed` 兜底**：内核 headers（按实际内核）、`neovim`、`exfatprogs`、`os-prober`、`zram-generator`。装过就跳过。
-4. **镜像文件策略**：默认整份覆盖 `/etc/pacman.d/mirrorlist`（archinstall 常留 aliyun 单源）与 `/etc/pacman.d/archlinuxcn-mirrorlist`；清华必须第一，官方 16 个 / archlinuxcn 12 个国内镜像；网络失败自动降级（注释当前第一条 `Server =`，最多 3 次）。改镜像清单要重新用 curl 验证 `core.db` / `archlinuxcn.db`。
-5. **失败分级**：KOS 本体安装失败即 `die`；独立应用 / 锁屏 / 主题 / genie / 壁纸失败只 `warn`。
-6. **不要"顺手"扩展**：微信启动器不需要去重（用户 2026-10-21 确认）；QQ 需要（`modules/55-apps.sh`）。
+3. **硬件固定按目标机**：ASUS TUF A15（AMD 7735H + RTX 4050 + RTL8852BE）。驱动名单写死在 `modules/10-packages.sh` 的"硬件驱动：固定按目标机装"一段，**不再按探测结果决定装包**；换机器时改那一段和 `hw_policy_resolve()`。蓝牙固定装 `bluez` + `bluedevil` + `bluez-obex`，`bluetooth.service` 常开；打印、指纹、WWAN 不装。
+4. **archinstall 前提只做 `--needed` 兜底**：内核 headers、`neovim`、`exfatprogs`、`os-prober`、`zram-generator`。装过就跳过。
+5. **镜像文件策略**：默认整份覆盖 `/etc/pacman.d/mirrorlist`（archinstall 常留 aliyun 单源）与 `/etc/pacman.d/archlinuxcn-mirrorlist`；清华必须第一，官方 16 个 / archlinuxcn 12 个国内镜像；网络失败自动降级（注释当前第一条 `Server =`，最多 3 次）。改镜像清单要重新用 curl 验证 `core.db` / `archlinuxcn.db`。
+6. **失败分级**：KOS 本体安装失败即 `die`；独立应用 / 锁屏 / 主题 / genie / 壁纸失败只 `warn`。
+7. **不要"顺手"扩展**：微信启动器不需要去重（用户 2026-10-21 确认）；QQ 需要（`modules/55-apps.sh`）。
 
 ## 五、改动规则
 
@@ -63,5 +64,6 @@ assets/             配置、genie 源码、壁纸
 
 - 干净系统实机全装验收（VM 安装进行中；以实测日志为准，不要拿 dry-run 当验收）。
 - QQ 启动器去重已在 `55-apps.sh` 落地，装完需要在真实会话里看一眼 Dock/启动器。
+- 硬件驱动是固定名单（目标机 ASUS TUF A15）；换机器要同步改 `modules/10-packages.sh`。
 - 首次登录引导属于桌面仓库，本仓库不承担。
 - 仓库还没有单独的 `tests/`；CI 的内联检查是当前唯一自动化门禁。

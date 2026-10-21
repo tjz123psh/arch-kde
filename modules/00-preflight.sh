@@ -150,7 +150,7 @@ preflight() {
   detect_kernels
   detect_headers
   detect_gpu
-  # 全量硬件探测（CPU/GPU/Wi-Fi/蓝牙/指纹/摄像头/打印/WWAN/bootloader/微码 hook）。
+  # 全量硬件探测（CPU/GPU/Wi-Fi/蓝牙/摄像头/WWAN/bootloader/微码 hook）。
   # 只读、不装任何东西；失败也只会让字段留空，不会中断安装。
   if declare -F hw_detect >/dev/null 2>&1; then
     hw_detect || true
@@ -162,7 +162,7 @@ preflight() {
   log "内核: $KERNELS"
   log "NVIDIA: $HAS_NVIDIA  AMD: $HAS_AMD"
   if [ "${HW_DETECTED:-0}" -eq 1 ]; then
-    log "硬件: CPU=$CPU_VENDOR  GPU=[${GPU_VENDORS}]  Wi-Fi=$HAS_WIFI 蓝牙=$HAS_BT 指纹=$HAS_FINGERPRINT 摄像头=$HAS_CAMERA 打印=$HAS_PRINTER"
+    log "硬件: CPU=$CPU_VENDOR  GPU=[${GPU_VENDORS}]  Wi-Fi=$HAS_WIFI 蓝牙=$HAS_BT 摄像头=$HAS_CAMERA"
     log "引导器: $BOOTLOADER  微码: $(hw_microcode_pkg)/$(hw_microcode_state)  microcode-hook=$MICROCODE_HOOK"
   fi
 }

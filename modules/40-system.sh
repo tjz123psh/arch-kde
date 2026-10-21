@@ -5,12 +5,8 @@
 USER_NAME=$(id -un)
 
 add_groups() {
-  local g groups="video render input audio optical storage lp scanner"
-  # uucp：WWAN/串口设备的属组（ModemManager 要能开 /dev/ttyUSB*）。
-  # lp/scanner 是打印/扫描（cups/sane 用得到），视频渲染/输入/存储一直是这批。
-  if [ "${WANT_WWAN:-0}" -eq 1 ]; then
-    groups="$groups uucp"
-  fi
+  local g groups="video render input audio optical storage"
+  # 打印/扫描（lp/scanner）与 WWAN（uucp）不再处理：目标机不需要。
   for g in $groups; do
     if getent group "$g" >/dev/null 2>&1; then
       sudo_run usermod -aG "$g" "$USER_NAME"
@@ -36,12 +32,8 @@ enable_services() {
   sudo_run systemctl enable sddm
   sudo_run systemctl enable NetworkManager
 
-  # 没有蓝牙硬件还 enable，每次开机都会留一条失败日志（bluez 已装，插上再开就行）
-  if [ "${HAS_BT:-0}" -eq 1 ]; then
-    sudo_run systemctl enable bluetooth
-  else
-    log "未检测到蓝牙硬件，跳过 bluetooth.service（bluez 已装：sudo systemctl enable --now bluetooth 随时可开）"
-  fi
+  # 蓝牙常装常开：没有硬件时 bluez 只是空跑，插上适配器即用；不再按 hci 设备门控
+  sudo_run systemctl enable bluetooth || warn "启用 bluetooth.service 失败，请手动检查"
 
   if [ "${WANT_PPD:-0}" -eq 1 ]; then
     sudo_run systemctl enable power-profiles-daemon
@@ -67,12 +59,6 @@ enable_services() {
   # udisks2：U 盘/移动硬盘挂载后端（KDE 设备通知器与 Dolphin 都走它；D-Bus 激活也能工作，显式 enable 更稳）
   if pacman -Qq udisks2 >/dev/null 2>&1; then
     sudo_run systemctl enable udisks2.service || warn "enable udisks2 失败，忽略"
-  fi
-  if [ "${WANT_PRINTERS:-0}" -eq 1 ]; then
-    # cups 安装时一般会自己 enable cups.socket，这里再显式来一次（镜像 preset 不一定）
-    # avahi：sane-airscan 的免驱网络扫描靠它的 mDNS 发现，没它扫描仪搜不到
-    sudo_run systemctl enable cups.socket || warn "enable cups.socket 失败，忽略"
-    sudo_run systemctl enable avahi-daemon.socket avahi-daemon.service || warn "enable avahi 失败，忽略"
   fi
   sudo_run systemctl set-default graphical.target
 }
@@ -235,18 +221,6 @@ microcode_setup() {
   hw_boot_hint
 }
 
-# 指纹：只装包 + 打印接法，绝不自动改 PAM。
-# 原因：/etc/pam.d/sddm 写错就是"登录界面永远密码错"，真机上要 rescue 才救得回来。
-fprintd_hint() {
-  if [ "${WANT_FP:-0}" -ne 1 ]; then
-    return 0
-  fi
-  log "指纹已装包（fprintd/libfprint）。安装器不改 PAM（改错会登录不了），要指纹登录请手动三步："
-  log "  1) fprintd-enroll                 # 按提示按 5 次指纹"
-  log "  2) sudoedit /etc/pam.d/sddm       # auth 段最前面加一行：auth sufficient pam_fprintd.so"
-  log "  3) 回退：删掉那一行；进不去桌面时 Ctrl+Alt+F3 登录后用 sudoedit 改回来"
-}
-
 xdg_dirs() {
   if [ "$DRY_RUN" -eq 1 ]; then return 0; fi
   if have xdg-user-dirs-update; then
@@ -275,7 +249,6 @@ setup_system() {
   # microcode_setup 最后再跑一次 mkinitcpio -P 并校验 —— 校验对象才是最终镜像。
   nvidia_setup
   microcode_setup
-  fprintd_hint
   xdg_dirs
   default_browser
 }

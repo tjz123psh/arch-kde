@@ -36,7 +36,7 @@ KOS_START=0
 KOS_SPATIAL=0
 IME=fcitx5
 LOCALE_MODE=en
-HW_ASUS=auto
+HW_ASUS=1
 
 source "$INSTALLER_DIR/lib/common.sh"
 for _m in "$INSTALLER_DIR"/modules/*.sh; do
@@ -73,13 +73,11 @@ usage() {
   --no-vscode        不装 VS Code
   --skip-update      不更新 KOS 源码（离线安装）
 
-硬件与驱动（探测在 modules/20-hardware.sh，策略在 modules/10-packages.sh）:
-  --hw none|auto|all
-  --no-gpu-amd --no-gpu-intel --no-gpu-nvidia --nvidia-legacy --no-microcode
-  --no-printers --no-fp --no-wwan --power ppd|tlp|none
-  --wifi-aur         允许装机型专属 AUR 无线驱动（会和内核驱动抢设备，默认不开）
-  --asus             ASUS 机型额外服务（asusd / supergfxd）；默认按主板厂商自动判断
-  --no-asus          即使认到 ASUS 也不装这些
+硬件与驱动（固定按目标机 ASUS TUF A15；名单在 modules/10-packages.sh）:
+  --no-gpu-amd --no-gpu-nvidia   手动去掉某个厂商的驱动
+  --nvidia-legacy    旧 NVIDIA 卡用 archlinuxcn 的 nvidia-580xx（默认 nvidia-open-dkms）
+  --power ppd|tlp|none
+  --asus / --no-asus  ASUS 工具（asusctl / rog-control-center / supergfxctl，默认装）
 
 环境变量:
   KOS_SRC_DIR        KOS 源码检出位置（默认 ~/.cache/kos-src）
@@ -112,21 +110,9 @@ parse_args() {
       --no-browser) NO_BROWSER=1 ;;
       --no-vscode) NO_VSCODE=1 ;;
       --skip-update) SKIP_UPDATE=1 ;;
-      --hw) shift; HW_MODE="${1:?--hw 需要 none|auto|all}" ;;
       --no-gpu-amd) HW_GPU_AMD=0 ;;
-      --no-gpu-intel) HW_GPU_INTEL=0 ;;
       --no-gpu-nvidia) HW_GPU_NVIDIA=0 ;;
       --nvidia-legacy|--nvidia-closed) HW_NVIDIA_DRIVER=legacy ;;
-      --no-microcode) HW_MICROCODE=0 ;;
-      --no-printers) HW_PRINTERS=0 ;;
-      --no-fp) HW_FP=0 ;;
-      --no-wwan) HW_WWAN=0 ;;
-      # 10-packages.sh / 20-hardware.sh 的提示会叫用户"加 --wifi-aur"，
-      # 这个开关必须真的存在，否则照做的人只会拿到"未知参数"。
-      --wifi-aur) HW_WIFI_AUR=1 ;;
-      # 摄像头没有对应的可选包（v4l-utils 只是排查工具），保留这个参数只为
-      # 不打断已经在用的命令行；它不产生动作，也不再出现在 --help 里。
-      --no-camera) : ;;
       --power) shift; HW_POWER="${1:?--power 需要 ppd|tlp|none}" ;;
       --asus) HW_ASUS=1 ;;
       --no-asus) HW_ASUS=0 ;;
@@ -148,6 +134,7 @@ print_plan() {
   log " 空间景深: $([ "$KOS_SPATIAL" -eq 1 ] && echo 构建 || echo 跳过)"
   log " 动效: genie 最小化（归档原生插件）+ KOS 玻璃"
   if declare -F hw_report >/dev/null 2>&1; then hw_report; fi
+  if declare -F hw_policy_summary >/dev/null 2>&1; then hw_policy_summary; fi
   log " 不改动: 分区 / 内核 / 时区 / bootloader"
   log "============================================================"
 }
@@ -182,6 +169,7 @@ main() {
 
   setup_official_mirrors
   setup_archlinuxcn_repo
+  setup_multilib
   system_update
   install_official_packages
   install_archlinuxcn_apps
@@ -191,6 +179,7 @@ main() {
   setup_system
   setup_ime
   setup_terminal
+  fix_qq_launcher
 
   install_kos_deps
   fetch_kos_source
