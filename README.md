@@ -81,7 +81,7 @@ bash install.sh --all       # 全装（含独立应用 + 锁屏）
 | `--no-browser` / `--no-vscode` | 不装 Chrome / VS Code |
 | `--no-gpu-amd` / `--no-gpu-intel` / `--no-gpu-nvidia` / `--nvidia-legacy` | 显卡驱动选择 |
 | `--wifi-aur` | 允许装机型专属 AUR 无线驱动（默认关，会和内核驱动抢设备） |
-| `--spatial` | 同时构建空间景深（需要 OpenCV + ONNX） |
+| `--spatial` | 同时构建空间景深（自动装 OpenCV + ONNX Runtime） |
 | `--skip-update` | 不更新 KOS 源码（离线安装） |
 
 完整列表：`bash install.sh --help`
@@ -101,7 +101,9 @@ bash install.sh --all       # 全装（含独立应用 + 锁屏）
 
 - 已验证：`--check` 通过、`--dry-run` 全链路通过、genie 插件在本机 KWin 6.8 上编译成功
 - CI：`.github/workflows/ci.yml`，bash -n + shellcheck + 干净 Arch 容器里跑 `--check` 与 `--dry-run`（只读检出）
-- 待办：首次登录引导未接；`--spatial` 未在干净系统验证；干净系统实机全装还没走过一遍
+- `--spatial`：已在干净 Arch 容器里验证（OpenCV 5.0.0 + onnxruntime-cpu 1.29，`KOS_BUILD_SPATIAL=ON` 下
+  产出 `kos-spatial-enabled=ON`、`kos-ai-worker`、`libkos_spatial3d.so`）
+- 待办：首次登录引导属于桌面仓库，本仓库不再承担；干净系统实机全装还没走过一遍
 
 ## 许可
 

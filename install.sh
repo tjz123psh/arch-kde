@@ -60,7 +60,7 @@ usage() {
   --no-apps          不装独立应用（日历/计算器/待办/天气）
   --no-lockscreen    不装 KOS 锁屏
   --start            安装完成后立即启动 KOS shell
-  --spatial          同时构建空间/景深（需要 OpenCV + ONNX，默认关闭）
+  --spatial          同时构建空间/景深（会装 OpenCV + ONNX Runtime，默认关闭）
   --ime fcitx5|rime|none
   --locale en|zh
 

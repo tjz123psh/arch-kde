@@ -24,6 +24,12 @@ kos_dep_list() {
     extra-cmake-modules wayland kwindowsystem kiconthemes kglobalaccel kio patchelf \
     kwin kconfig ki18n kguiaddons kcmutils kcoreaddons kdecoration gettext libxcb \
     vulkan-headers
+
+  # 空间景深要多两样：深度引擎要 OpenCV + ONNX Runtime（Arch 的包名是
+  # onnxruntime-cpu）。缺了它们 CMake 会静默跳过，所以 --spatial 时显式列出来。
+  if [ "${KOS_SPATIAL:-0}" -eq 1 ]; then
+    printf '%s\n' opencv onnxruntime-cpu
+  fi
 }
 
 install_kos_deps() {
@@ -65,7 +71,7 @@ fetch_kos_source() {
 build_install_kos() {
   local repo; repo=$(kos_repo_dir)
   local spatial=OFF
-  [ "${KOS_SPATIAL:-0}" -eq 1 ] && spatial=AUTO
+  [ "${KOS_SPATIAL:-0}" -eq 1 ] && spatial=ON
 
   if [ "$DRY_RUN" -eq 1 ]; then
     log "[dry-run] $repo/tools/kosctl doctor"
