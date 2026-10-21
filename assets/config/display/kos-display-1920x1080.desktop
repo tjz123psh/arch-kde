@@ -1,0 +1,8 @@
+[Desktop Entry]
+Type=Application
+Name=KOS Display 1920x1080
+Comment=Set the primary display to 1920x1080 on first login
+Exec=/bin/sh -c "exec ~/.local/bin/kos-display-1920x1080"
+Terminal=false
+X-KDE-autostart-after=panel
+OnlyShowIn=KDE;

@@ -57,7 +57,7 @@ assets/             配置、壁纸
 ## 六、验收基线
 
 - `install.sh --check` 通过；`install.sh --dry-run` 全阶段走通。
-- 干净 VM 全装后：能进 SDDM → KDE → KOS shell；doctor 无 MISS（硬件没有的项除外）；KOS 窗口动画、壁纸库、fcitx5、kitty/fish 可用。
+- 干净 VM 全装后：能进 SDDM → KDE → KOS shell；KDE 界面为中文，主屏 1920x1080（显示器支持时）；doctor 无 MISS（硬件没有的项除外）；KOS 窗口动画、壁纸库、fcitx5、kitty/fish 可用。
 - 装完立即重启一次，确认没有黑屏/起不来（尤其 NVIDIA 与微码改动）。
 
 ## 七、已知缺口 / 待办

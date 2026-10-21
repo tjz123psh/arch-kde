@@ -85,7 +85,9 @@ archlinuxcn 12 个）；加 `--no-mirrors` 可保留你原来的列表。
 - ASUS 笔记本：**asusctl** + **rog-control-center**（风扇曲线/键盘灯/性能模式），有 archlinuxcn 源时再加
   `supergfxctl` 做 GPU 模式切换；`--no-asus` 可关
 - 蓝牙：**bluez** + **bluedevil**（KDE 蓝牙页/托盘）+ **bluez-obex**（文件传输），`bluetooth.service` 常开
-- 中文环境：locale、Noto CJK / Inter / Maple Mono NF CN 字体
+- 中文环境：locale、Noto CJK / Inter / Maple Mono NF CN 字体；KDE 界面固定中文
+  （`--locale en` = 系统英文 / 桌面中文，`--locale zh` = 系统与桌面全中文）
+- 显示：首次登录自动把主屏切到 1920x1080（只在显示器支持该模式时生效，之后不再强制）
 
 **桌面本体（KOS / NextKDE）**
 
@@ -137,7 +139,7 @@ archlinuxcn 12 个）；加 `--no-mirrors` 可保留你原来的列表。
 | `--dry-run` | 打印将要执行的命令，不落盘 |
 | `--all` / `--no-apps` / `--no-lockscreen` | 是否装独立应用与锁屏 |
 | `--ime fcitx5\|rime\|none` | 输入法 |
-| `--locale en\|zh` | 系统语言 |
+| `--locale en\|zh` | 系统语言（KDE 界面始终中文；en = 系统英文，zh = 全中文） |
 | `--no-sddm-theme` / `--no-aur` / `--no-mirrors` | 跳过对应步骤 |
 | `--no-browser` / `--no-vscode` | 不装 Chrome / VS Code |
 | `--no-gpu-amd` / `--no-gpu-nvidia` | 手动去掉某个厂商的显卡驱动 |
