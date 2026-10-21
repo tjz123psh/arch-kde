@@ -46,6 +46,17 @@ zram 配置不动，只确认有没有起来。
 换机器时改 `modules/10-packages.sh` 里"硬件驱动：固定按目标机装"那一段和
 `hw_policy_resolve()` 的开关；打印、指纹、WWAN 已按用户要求移除。
 
+## 旧桌面遗留（可选清理）
+
+本安装器只装自己的清单，**不会把旧桌面 linux-macos 的包带进来**。旧桌面专属的
+`aurorae`、`breeze-gtk`、`kvantum`、`sassc`、`optipng`、`fuzzel`、
+`plasma6-applets-window-title`、`kwin-effect-rounded-corners-git`、
+`kwin-effects-better-blur-dx`、`latte-dock-ng`、`crystal-dock-git` 都不在安装列表里。
+
+但 pacman 不会自动卸载已经装上的包。在被旧桌面污染过的系统上，默认**不删任何东西**；
+加 `--clean-old-desktop` 才会先列出、再确认卸载这些旧桌面专属包。VS Code、pi、
+Chrome、QQ/微信等常用软件不在清理名单里。
+
 ## 镜像（中国网络）
 
 archinstall 会按 reflector / `--mirror-region` 生成 `/etc/pacman.d/mirrorlist`
@@ -115,6 +126,7 @@ archlinuxcn 12 个）；加 `--no-mirrors` 可保留你原来的列表。
 ├── lib/common.sh         日志 / 备份 / install_file / sudo 保活
 ├── modules/              每个阶段一个文件，按序号执行
 │   ├── 00-preflight.sh   发行版、磁盘、网络、GPU、archinstall 前置状态预检
+│   ├── 05-cleanup.sh     可选：卸载旧桌面 linux-macos 遗留包
 │   ├── 10-packages.sh    镜像、系统更新、官方包、AUR 包
 │   ├── 20-hardware.sh    硬件探测（只读 /sys /proc lspci）
 │   ├── 30-locale.sh      语言环境
@@ -146,6 +158,7 @@ archlinuxcn 12 个）；加 `--no-mirrors` 可保留你原来的列表。
 | `--nvidia-legacy` | 旧 NVIDIA 卡改用 archlinuxcn 的 nvidia-580xx（默认 nvidia-open-dkms） |
 | `--spatial` | 同时构建空间景深（自动装 OpenCV + ONNX Runtime） |
 | `--skip-update` | 不更新 KOS 源码（离线安装） |
+| `--clean-old-desktop` | 卸载旧桌面 linux-macos 遗留的专属包（默认不删） |
 
 完整列表：`bash install.sh --help`
 

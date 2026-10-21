@@ -24,6 +24,7 @@ ASSUME_YES=0
 CHECK_ONLY=0
 VERBOSE=0
 SKIP_UPDATE=0
+CLEAN_OLD=0
 NO_AUR=0
 NO_MIRRORS=0
 NO_ARCHLINUXCN=0
@@ -72,6 +73,7 @@ usage() {
   --no-browser       不装 Chrome
   --no-vscode        不装 VS Code
   --skip-update      不更新 KOS 源码（离线安装）
+  --clean-old-desktop  卸载旧桌面（linux-macos）遗留的专属包（默认不删）
 
 硬件与驱动（固定按目标机 ASUS TUF A15；名单在 modules/10-packages.sh）:
   --no-gpu-amd --no-gpu-nvidia   手动去掉某个厂商的驱动
@@ -110,6 +112,7 @@ parse_args() {
       --no-browser) NO_BROWSER=1 ;;
       --no-vscode) NO_VSCODE=1 ;;
       --skip-update) SKIP_UPDATE=1 ;;
+      --clean-old-desktop) CLEAN_OLD=1 ;;
       --no-gpu-amd) HW_GPU_AMD=0 ;;
       --no-gpu-nvidia) HW_GPU_NVIDIA=0 ;;
       --nvidia-legacy|--nvidia-closed) HW_NVIDIA_DRIVER=legacy ;;
@@ -132,6 +135,7 @@ print_plan() {
   log " 独立应用: $([ "$KOS_WITH_APPS" -eq 1 ] && echo 是 || echo 否)   锁屏: $([ "$KOS_WITH_LOCKSCREEN" -eq 1 ] && echo 是 || echo 否)"
   log " SDDM 主题: $([ "$NO_SDDM_THEME" -eq 1 ] && echo 保留现有 || echo SilentSDDM)"
   log " 空间景深: $([ "$KOS_SPATIAL" -eq 1 ] && echo 构建 || echo 跳过)"
+  log " 旧桌面清理: $([ "$CLEAN_OLD" -eq 1 ] && echo 卸载旧桌面专属包 || echo 不做)"
   log " 动效: KOS 玻璃（genie 已停用，源码归档在 genie-effect-2026-10-21.tar.gz）"
   if declare -F hw_report >/dev/null 2>&1; then hw_report; fi
   if declare -F hw_policy_summary >/dev/null 2>&1; then hw_policy_summary; fi
@@ -167,6 +171,7 @@ main() {
     start_sudo_keepalive
   fi
 
+  cleanup_old_desktop
   setup_official_mirrors
   setup_archlinuxcn_repo
   setup_multilib
