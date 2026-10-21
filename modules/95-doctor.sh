@@ -29,7 +29,7 @@ run_doctor() {
     if have kreadconfig6; then
       echo -n "Decoration:  "; kreadconfig6 --file kwinrc --group org.kde.kdecoration2 --key theme
       echo -n "InputMethod: "; kreadconfig6 --file kwinrc --group Wayland --key InputMethod
-      echo -n "Genie:       "; kreadconfig6 --file kwinrc --group Plugins --key kwin4_effect_linuxmacosgenieEnabled
+      echo -n "KOS 动画:    "; kreadconfig6 --file kwinrc --group Plugins --key kos_dock_window_animationEnabled
       echo -n "Glass:       "; kreadconfig6 --file kwinrc --group Plugins --key glassEnabled
     fi
     if declare -F kos_repo_dir >/dev/null 2>&1; then kos_dir=$(kos_repo_dir); fi

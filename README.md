@@ -91,8 +91,8 @@ archlinuxcn 12 个）；加 `--no-mirrors` 可保留你原来的列表。
 
 - 克隆上游仓库，用它的 `kosctl` 构建并安装 Quickshell 外壳、KOS 设置与控制中心
 - 独立应用（日历 / 计算器 / 待办 / 天气）、锁屏、全局快捷键（可选）
-- KWin 玻璃效果 + genie 最小化动效（genie 插件源码归档在本仓库 `assets/genie`；开启 genie 时会关掉
-  KOS 自带的 `kos_dock_window_animation`，两套最小化动效同时开会互相抢窗口）
+- KWin 玻璃效果；genie 最小化动效已停用（插件源码压缩归档在仓库根目录 `genie-effect-2026-10-21.tar.gz`，
+  以后要恢复再解压；当前最小化动画交回 KOS 自带的 `kos_dock_window_animation`）
 - SilentSDDM 登录主题、11 张壁纸的图集（进 KOS 壁纸选择器）
 
 ## 关键约定
@@ -100,7 +100,7 @@ archlinuxcn 12 个）；加 `--no-mirrors` 可保留你原来的列表。
 - **以桌面用户身份运行，不要 sudo**：KOS 配置在 `~/.config/quickshell/kos`，服务是用户单元；用 root 跑会写进 root 的 HOME
 - 只写自己的东西：`~/.local/state/kos-installer`（日志、备份清单）、`~/.config/...`、`~/.local/share/kos`；改系统文件前一律先备份
 - 破坏性动作（分区、内核、bootloader）不做
-- KOS 本体安装失败即中断；可选项（应用 / 锁屏 / 主题 / genie / 壁纸）失败只警告
+- KOS 本体安装失败即中断；可选项（应用 / 锁屏 / 主题 / 壁纸）失败只警告
 - 桌面本体源码默认克隆到 `~/.cache/kos-src`，可用 `KOS_SRC_DIR` 改位置；本地已有检出时用 `KOS_REPO_DIR` 指过去，跳过克隆
 
 ## 结构
@@ -108,6 +108,7 @@ archlinuxcn 12 个）；加 `--no-mirrors` 可保留你原来的列表。
 ~~~
 .
 ├── install.sh            调度：参数解析、阶段顺序、计划与总结
+├── genie-effect-2026-10-21.tar.gz  genie 插件源码（已停用归档，待以后处理）
 ├── .shellcheckrc         shellcheck 配置（跨文件变量的误报说明）
 ├── lib/common.sh         日志 / 备份 / install_file / sudo 保活
 ├── modules/              每个阶段一个文件，按序号执行
@@ -120,13 +121,11 @@ archlinuxcn 12 个）；加 `--no-mirrors` 可保留你原来的列表。
 │   ├── 50-terminal.sh    kitty / fish / starship
 │   ├── 55-apps.sh        QQ 启动器去重
 │   ├── 60-kos.sh         KOS 构建依赖 + 取源码 + kosctl 构建安装 + 快捷键
-│   ├── 70-genie.sh       genie 最小化动效（归档原生 KWin 插件）
 │   ├── 80-sddm.sh        SilentSDDM 登录主题（AUR）
 │   ├── 85-config.sh      桌面环境变量 / GTK / 字体 / 壁纸库
 │   └── 95-doctor.sh      安装后复查
 └── assets/
     ├── config/           fcitx5 / kitty / fish / gtk / fontconfig / environment
-    ├── genie/            genie 插件源码
     └── wallpapers/       壁纸库
 ~~~
 
@@ -161,7 +160,7 @@ archlinuxcn 12 个）；加 `--no-mirrors` 可保留你原来的列表。
 
 ## 状态
 
-- 已验证：`--check` 通过、`--dry-run` 全链路通过、genie 插件在本机 KWin 6.8 上编译成功
+- 已验证：`--check` 通过、`--dry-run` 全链路通过；genie 插件已停用并归档，当前使用 KOS 自带窗口动画
 - CI：`.github/workflows/ci.yml`，bash -n + shellcheck + 干净 Arch 容器里跑 `--check` 与 `--dry-run`（只读检出）
 - `--spatial`：已在干净 Arch 容器里验证（OpenCV 5.0.0 + onnxruntime-cpu 1.29，`KOS_BUILD_SPATIAL=ON` 下
   产出 `kos-spatial-enabled=ON`、`kos-ai-worker`、`libkos_spatial3d.so`）

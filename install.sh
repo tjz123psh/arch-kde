@@ -4,7 +4,7 @@
 # KOS 桌面安装器（Arch Linux）
 #
 # 目标：一台能登录 TTY 的干净 Arch → 完整可用的 KOS 桌面。
-# 结构：install.sh（调度） + modules/*.sh（阶段） + assets/（配置、壁纸、genie 源码）
+# 结构：install.sh（调度） + modules/*.sh（阶段） + assets/（配置、壁纸）
 #
 # 用法（以桌面用户身份运行，不要 sudo）：
 #   bash install.sh --check          # 只预检，不改系统
@@ -132,7 +132,7 @@ print_plan() {
   log " 独立应用: $([ "$KOS_WITH_APPS" -eq 1 ] && echo 是 || echo 否)   锁屏: $([ "$KOS_WITH_LOCKSCREEN" -eq 1 ] && echo 是 || echo 否)"
   log " SDDM 主题: $([ "$NO_SDDM_THEME" -eq 1 ] && echo 保留现有 || echo SilentSDDM)"
   log " 空间景深: $([ "$KOS_SPATIAL" -eq 1 ] && echo 构建 || echo 跳过)"
-  log " 动效: genie 最小化（归档原生插件）+ KOS 玻璃"
+  log " 动效: KOS 玻璃（genie 已停用，源码归档在 genie-effect-2026-10-21.tar.gz）"
   if declare -F hw_report >/dev/null 2>&1; then hw_report; fi
   if declare -F hw_policy_summary >/dev/null 2>&1; then hw_policy_summary; fi
   log " 不改动: 分区 / 内核 / 时区 / bootloader"
@@ -184,7 +184,6 @@ main() {
   install_kos_deps
   fetch_kos_source
   build_install_kos
-  build_genie_effect
   setup_sddm_theme
   install_desktop_config
   install_wallpapers

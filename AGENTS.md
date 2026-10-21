@@ -14,7 +14,7 @@
 - 一键把**干净 Arch（archinstall 之后、能登录 TTY）**装成 KDE Plasma 6 (Wayland) + KOS/NextKDE 桌面。
 - **这里只有安装器**：桌面本体（Quickshell 外壳、kosctl、KWin 插件）在上游 `SuceV587/NextKde`，安装时克隆到 `~/.cache/kos-src`。
 - 公开仓库，remote `https://github.com/tjz123psh/arch-kde.git`，GPL-3.0-or-later。
-- 数据资产是核心：`assets/config/`（fcitx5 / kitty / fish / gtk / fontconfig / environment）、`assets/genie/`（KWin 插件源码）、`assets/wallpapers/`（11 张）。
+- 数据资产是核心：`assets/config/`（fcitx5 / kitty / fish / gtk / fontconfig / environment）、`assets/wallpapers/`（11 张）；genie 插件源码已压缩归档在仓库根目录 `genie-effect-2026-10-21.tar.gz`（已停用，待以后处理）。
 
 ## 三、结构约定
 
@@ -22,7 +22,7 @@
 install.sh          调度：参数解析、阶段顺序、计划与总结
 lib/common.sh       日志 / 备份 / install_file / write_file / sudo 保活
 modules/00..95      每个阶段一个文件，按序号 source 进同一个 shell
-assets/             配置、genie 源码、壁纸
+assets/             配置、壁纸
 ```
 
 - 阶段函数由 `install.sh` 的 `main()` 顺序调用；模块之间共享变量，所以 `.shellcheckrc` 关了 SC2034/SC1091。
@@ -36,15 +36,15 @@ assets/             配置、genie 源码、壁纸
 3. **硬件固定按目标机**：ASUS TUF A15（AMD 7735H + RTX 4050 + RTL8852BE）。驱动名单写死在 `modules/10-packages.sh` 的"硬件驱动：固定按目标机装"一段，**不再按探测结果决定装包**；换机器时改那一段和 `hw_policy_resolve()`。蓝牙固定装 `bluez` + `bluedevil` + `bluez-obex`，`bluetooth.service` 常开；打印、指纹、WWAN 不装。
 4. **archinstall 前提只做 `--needed` 兜底**：内核 headers、`neovim`、`exfatprogs`、`os-prober`、`zram-generator`。装过就跳过。
 5. **镜像文件策略**：默认整份覆盖 `/etc/pacman.d/mirrorlist`（archinstall 常留 aliyun 单源）与 `/etc/pacman.d/archlinuxcn-mirrorlist`；清华必须第一，官方 16 个 / archlinuxcn 12 个国内镜像；网络失败自动降级（注释当前第一条 `Server =`，最多 3 次）。改镜像清单要重新用 curl 验证 `core.db` / `archlinuxcn.db`。
-6. **失败分级**：KOS 本体安装失败即 `die`；独立应用 / 锁屏 / 主题 / genie / 壁纸失败只 `warn`。
+6. **失败分级**：KOS 本体安装失败即 `die`；独立应用 / 锁屏 / 主题 / 壁纸失败只 `warn`。
 7. **不要"顺手"扩展**：微信启动器不需要去重（用户 2026-10-21 确认）；QQ 需要（`modules/55-apps.sh`）。
 
 ## 五、改动规则
 
 - 提交前必跑，任一失败不得提交：
   ```bash
-  for f in install.sh lib/*.sh modules/*.sh assets/genie/build.sh; do bash -n "$f"; done
-  shellcheck install.sh lib/*.sh modules/*.sh assets/genie/build.sh
+  for f in install.sh lib/*.sh modules/*.sh; do bash -n "$f"; done
+  shellcheck install.sh lib/*.sh modules/*.sh
   bash install.sh --check
   bash install.sh --dry-run --yes
   bash install.sh --dry-run --yes --no-archlinuxcn --no-aur
@@ -57,7 +57,7 @@ assets/             配置、genie 源码、壁纸
 ## 六、验收基线
 
 - `install.sh --check` 通过；`install.sh --dry-run` 全阶段走通。
-- 干净 VM 全装后：能进 SDDM → KDE → KOS shell；doctor 无 MISS（硬件没有的项除外）；genie 动效、壁纸库、fcitx5、kitty/fish 可用。
+- 干净 VM 全装后：能进 SDDM → KDE → KOS shell；doctor 无 MISS（硬件没有的项除外）；KOS 窗口动画、壁纸库、fcitx5、kitty/fish 可用。
 - 装完立即重启一次，确认没有黑屏/起不来（尤其 NVIDIA 与微码改动）。
 
 ## 七、已知缺口 / 待办
