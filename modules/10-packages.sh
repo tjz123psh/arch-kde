@@ -82,6 +82,10 @@ WANT_PPD=0
 WANT_WIFI_AUR=0
 WIFI_AUR_LIST=
 
+# 只在 archlinuxcn 里的可选应用：archlinuxcn 没配好时逐个跳过，
+# 绝不让它们把官方包那条 pacman -S 整条拖垮（原因见 build_official_list 的注释）。
+CN_EXTRA_PKGS="flclash nomacs"
+
 # 已装包判断（pacman -Qq 只看本地库，不联网）
 pkg_installed() {
   pacman -Qq "$1" >/dev/null 2>&1
@@ -383,10 +387,11 @@ base-devel git curl jq unzip xdg-utils xdg-user-dirs man-db cmake extra-cmake-mo
   # 只写实体包，避免以后 provides 改名时整条 pacman 命令失败（CI 2026-10-19 的教训）。
   # ---- 用户自选应用（2026-10-20 用户要求）----
   # yazi      终端文件管理器（Rust，官方仓库）
-  # flclash   FlClash 代理客户端（官方仓库）
   # obsidian  Obsidian 笔记（官方仓库）
-  # nomacs：看图（macOS 预览那种双击看图体验），官方仓库
-  pkgs="$pkgs yazi flclash obsidian nomacs"
+  # flclash / nomacs 只在 archlinuxcn（2026-10-21 用 pacman -Si 核实过），
+  # 不能混进这条 pacman -S：pacman 遇到一个 "target not found" 会整条事务失败，
+  # 一个包都不装。它们走下面的 CN_EXTRA_PKGS + install_archlinuxcn_apps()。
+  pkgs="$pkgs yazi obsidian"
 
   # JDK 21：开发用（Arch 的默认 jdk-openjdk 已经是 27，这里显式锁 21 的 LTS）
   pkgs="$pkgs jdk21-openjdk"
@@ -535,6 +540,29 @@ base-devel git curl jq unzip xdg-utils xdg-user-dirs man-db cmake extra-cmake-mo
   fi
 
   PKGS="$pkgs"
+}
+
+# archlinuxcn 可选应用：仓库里没有就跳过并说清楚，不影响其余安装。
+# 用 pacman -Si 判断"当前配置的仓库里有没有"，而不是猜它该在哪个仓库。
+install_archlinuxcn_apps() {
+  local p skipped=
+  [ -n "${CN_EXTRA_PKGS:-}" ] || return 0
+  log "检查 archlinuxcn 可选应用（${CN_EXTRA_PKGS}）..."
+  for p in $CN_EXTRA_PKGS; do
+    if [ "$DRY_RUN" -eq 1 ]; then
+      log "[dry-run] pacman -Si $p 成功则 sudo pacman -S --needed --noconfirm $p"
+      continue
+    fi
+    if ! pacman -Si "$p" >/dev/null 2>&1; then
+      warn "跳过 $p：当前仓库里没有它（archlinuxcn 没配？见 --no-archlinuxcn）"
+      skipped="$skipped $p"
+      continue
+    fi
+    sudo pacman -S --needed --noconfirm "$p" || warn "安装 $p 失败，跳过"
+  done
+  if [ -n "$skipped" ]; then
+    warn "未安装的可选应用:$skipped（配好 archlinuxcn 后手动 sudo pacman -S$skipped）"
+  fi
 }
 
 install_official_packages() {

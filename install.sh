@@ -184,6 +184,7 @@ main() {
   setup_archlinuxcn_repo
   system_update
   install_official_packages
+  install_archlinuxcn_apps
   setup_locale
   setup_aur_helper
   install_aur_packages

@@ -25,7 +25,8 @@ bash install.sh --all       # 全装（含独立应用 + 锁屏）
 - 输入法：fcitx5 + 中文输入方案，按 KWin Wayland 的方式接管
 - 终端：**kitty**、**fish**、**starship**，外加 fzf / eza / bat / fd / ripgrep / zoxide / fastfetch
 - 外观：WhiteSur 的图标 / 光标 / GTK 主题（GTK 应用跟着走，Chrome、VS Code 不会掉回默认主题）
-- 常用应用：Chrome、VS Code、yazi、flclash、Obsidian、nomacs 等（可用参数关掉）
+- 常用应用：Chrome、VS Code、yazi、Obsidian、flclash、nomacs 等（Chrome / VS Code 可用参数关掉；
+  flclash / nomacs 来自 archlinuxcn，没配这个源时自动跳过）
 - 开发工具：**JDK 21**（LTS）、命令行 AI 工具 **pi** 与 **opencode**（AUR 的 -bin 包）
 - ASUS 笔记本：**asusctl** + **rog-control-center**（风扇曲线/键盘灯/性能模式；按主板厂商自动判断，
   `--no-asus` 可关），有 archlinuxcn 源时再加 `supergfxctl` 做 GPU 模式切换
