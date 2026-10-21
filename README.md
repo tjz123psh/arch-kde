@@ -91,7 +91,8 @@ archlinuxcn 12 个）；加 `--no-mirrors` 可保留你原来的列表。
 
 - 克隆上游仓库，用它的 `kosctl` 构建并安装 Quickshell 外壳、KOS 设置与控制中心
 - 独立应用（日历 / 计算器 / 待办 / 天气）、锁屏、全局快捷键（可选）
-- KWin 玻璃效果 + genie 最小化动效（genie 插件源码归档在本仓库 `assets/genie`）
+- KWin 玻璃效果 + genie 最小化动效（genie 插件源码归档在本仓库 `assets/genie`；开启 genie 时会关掉
+  KOS 自带的 `kos_dock_window_animation`，两套最小化动效同时开会互相抢窗口）
 - SilentSDDM 登录主题、11 张壁纸的图集（进 KOS 壁纸选择器）
 
 ## 关键约定

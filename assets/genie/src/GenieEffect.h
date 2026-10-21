@@ -5,8 +5,8 @@
  * SPDX-FileCopyrightText: 2008 Martin Graesslin <mgraesslin@kde.org>
  * SPDX-License-Identifier: GPL-2.0-or-later
  *
- * The effect lifecycle (OffscreenEffect, EffectWindowVisibleRef, pending
- * iconGeometry resolution, prePaint/postPaint handling) is derived from
+ * The effect lifecycle (OffscreenEffect, EffectWindowVisibleRef, prePaint /
+ * postPaint handling) is derived from
  * "Yet Another Magic Lamp (reloaded)" (GPL-2.0-or-later) and from KWin's
  * built-in Magic Lamp effect (GPL-2.0-or-later). The deformation model is
  * replaced with a macOS-style genie mesh, see GenieModel.h.
@@ -92,8 +92,6 @@ private:
     GenieModel::Parameters m_modelParameters;
 
     QMap<KWin::EffectWindow *, GenieAnimation> m_animations;
-    // Windows waiting for iconGeometry to become valid before the animation starts.
-    QMap<KWin::EffectWindow *, KWin::EffectWindowVisibleRef> m_pendingMinimize;
 };
 
 inline int GenieEffect::requestedEffectChainPosition() const

@@ -21,9 +21,7 @@
 #include <KSharedConfig>
 
 // Qt
-#include <QPointer>
 #include <QRegion>
-#include <QTimer>
 
 // std
 #include <cmath>
@@ -207,6 +205,24 @@ QRectF resolveIconGeometry(KWin::EffectWindow *w)
         tgt.bottom() - iconRect.height() / 2);
     return QRectF(cx - iconRect.width() / 2, cy - iconRect.height() / 2,
         iconRect.width(), iconRect.height());
+}
+
+// Fallback target when the dock does not publish _NET_WM_ICON_GEOMETRY.
+// Quickshell-based docks (KOS shell) currently don't, and the old code kept a
+// minimized window visible forever waiting for the icon rect: the user saw a
+// window "collapse" and immediately reappear. Aim at the bottom-center of the
+// work area instead - a slightly wrong genie is much better than a stuck window.
+QRectF fallbackIconGeometry(KWin::EffectWindow *w)
+{
+    KWin::LogicalOutput *screen = KWin::effects->screenAt(w->frameGeometry().center().toPoint());
+    if (!screen) {
+        return QRectF();
+    }
+    const QRectF area = KWin::effects->clientArea(KWin::FullScreenArea, screen);
+    const qreal iconSize = 48.0;
+    return QRectF(area.center().x() - iconSize / 2.0,
+        area.bottom() - iconSize,
+        iconSize, iconSize);
 }
 
 // Determines the screen edge the genie target is attached to. Bottom docks
@@ -442,22 +458,12 @@ void GenieEffect::startMinimize(KWin::EffectWindow *w)
         return;
     }
 
-    const QRectF iconRect = resolveIconGeometry(w);
+    QRectF iconRect = resolveIconGeometry(w);
     if (!iconRect.isValid()) {
-        // On Wayland Plasma sets the icon geometry asynchronously (after QML
-        // layout). Keep the window visible and retry once it arrives.
-        if (m_pendingMinimize.contains(w)) {
-            return;
-        }
-        m_pendingMinimize.insert(w, KWin::EffectWindowVisibleRef(w, KWin::EffectWindow::PAINT_DISABLED_BY_MINIMIZE));
-        QPointer<KWin::EffectWindow> weakRef(w);
-        QTimer::singleShot(150, this, [this, weakRef]() {
-            KWin::EffectWindow *win = weakRef.data();
-            m_pendingMinimize.remove(win);
-            if (win && win->isMinimized()) {
-                startMinimize(win);
-            }
-        });
+        iconRect = fallbackIconGeometry(w);
+    }
+    if (!iconRect.isValid()) {
+        // No screen at all: leave the normal minimize path alone.
         return;
     }
 
@@ -483,7 +489,10 @@ void GenieEffect::startUnminimize(KWin::EffectWindow *w)
         return;
     }
 
-    const QRectF iconRect = resolveIconGeometry(w);
+    QRectF iconRect = resolveIconGeometry(w);
+    if (!iconRect.isValid()) {
+        iconRect = fallbackIconGeometry(w);
+    }
     if (!iconRect.isValid()) {
         return;
     }
@@ -505,14 +514,12 @@ void GenieEffect::startUnminimize(KWin::EffectWindow *w)
 
 void GenieEffect::slotWindowDeleted(KWin::EffectWindow *w)
 {
-    m_pendingMinimize.remove(w);
     m_animations.remove(w);
 }
 
 void GenieEffect::slotActiveFullScreenEffectChanged()
 {
     if (KWin::effects->activeFullScreenEffect() != nullptr) {
-        m_pendingMinimize.clear();
         for (auto it = m_animations.constBegin(); it != m_animations.constEnd(); ++it) {
             unredirect(it.key());
         }

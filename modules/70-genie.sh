@@ -18,9 +18,15 @@ build_genie_effect() {
 
   if [ "$DRY_RUN" -eq 1 ]; then
     log "[dry-run] $ASSET_DIR/genie/build.sh"
-    log "[dry-run] kwinrc: genie 开 / magiclamp 关 / Duration=700 / GridResolution=50"
+    log "[dry-run] kwinrc: genie 开 / magiclamp 关 / KOS dock 动画关 / Duration=700 / GridResolution=50"
     return 0
   fi
+
+  # KOS 桌面自带 kos_dock_window_animation，它也监听 minimizedChanged、也抢
+  # PAINT_DISABLED_BY_MINIMIZE 的可见引用。两个最小化动效同时开时，同一窗口
+  # 会被两套重定向/可见引用互相拉扯，实测表现为"收起后立刻又出现"。
+  # genie（或回退的 magiclamp）开启时，关掉 KOS 的 dock 动画，统一交给 genie。
+  kwriteconfig6 --file kwinrc --group Plugins --key kos_dock_window_animationEnabled false
 
   if "$ASSET_DIR/genie/build.sh"; then
     kwriteconfig6 --file kwinrc --group Plugins --key kwin4_effect_linuxmacosgenieEnabled true
