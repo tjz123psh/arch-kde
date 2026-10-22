@@ -186,6 +186,7 @@ main() {
   setup_terminal
   install_user_configs
   fix_qq_launcher
+  install_vellum
 
   install_kos_deps
   fetch_kos_source
@@ -199,6 +200,7 @@ main() {
   install_user_scripts || warn "维护/包管理脚本安装失败，可稍后重跑"
   install_kde_shortcuts || warn "KDE 快捷键配置失败，可稍后重跑"
   install_wallpaper_shortcut || warn "壁纸快捷键配置失败，可稍后重跑"
+  install_vellum_shortcuts || warn "Vellum 快捷键配置失败，可稍后重跑"
   configure_keyboard_repeat || warn "键盘重复设置失败，可稍后重跑"
 
   run_doctor quick || true

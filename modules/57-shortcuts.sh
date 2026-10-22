@@ -99,6 +99,53 @@ EOF
   log "Alt+W → 全屏壁纸预览"
 }
 
+install_vellum_shortcuts() {
+  log "配置 Vellum 截图快捷键（Print / Ctrl+Print）..."
+
+  if [ "$DRY_RUN" -eq 1 ]; then
+    log "[dry-run] 写入 vellum-region/long.desktop 并设置 Print / Ctrl+Print"
+    return 0
+  fi
+  if ! have kwriteconfig6; then
+    warn "缺少 kwriteconfig6，跳过 Vellum 快捷键"
+    return 0
+  fi
+
+  backup_file "$HOME/.config/kglobalshortcutsrc"
+  write_file "$HOME/.local/share/applications/vellum-region.desktop" <<EOF
+[Desktop Entry]
+Type=Application
+Name=Vellum Region Screenshot
+Comment=Capture a region with Vellum
+Exec=$HOME/.local/bin/vellum region
+Icon=ai.vellum
+Terminal=false
+NoDisplay=true
+StartupNotify=true
+X-KDE-GlobalAccel-CommandShortcut=true
+EOF
+
+  write_file "$HOME/.local/share/applications/vellum-long.desktop" <<EOF
+[Desktop Entry]
+Type=Application
+Name=Vellum Long Screenshot
+Comment=Start or finish a scrolling screenshot with Vellum
+Exec=$HOME/.local/bin/vellum long
+Icon=ai.vellum
+Terminal=false
+NoDisplay=true
+StartupNotify=true
+X-KDE-GlobalAccel-CommandShortcut=true
+EOF
+
+  kwriteconfig6 --file kglobalshortcutsrc --group services --group vellum-region.desktop --key _launch "Print" --notify
+  kwriteconfig6 --file kglobalshortcutsrc --group services --group vellum-long.desktop --key _launch "Ctrl+Print" --notify
+  if have kbuildsycoca6; then
+    kbuildsycoca6 --noincremental >/dev/null 2>&1 || true
+  fi
+  log "Vellum：Print → 区域截图，Ctrl+Print → 长截图"
+}
+
 configure_keyboard_repeat() {
   log "配置键盘重复延迟/速率（250ms / 50Hz）..."
 

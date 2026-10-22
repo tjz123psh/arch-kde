@@ -364,7 +364,7 @@ base-devel git curl jq unzip xdg-utils xdg-user-dirs man-db cmake extra-cmake-mo
   #   wl-clipboard + cliphist  KOS 的 Meta+V 剪贴板历史
   #   brightnessctl            KOS 亮度控制
   #   kcalendarcore            KOS 日历/待办应用构建依赖
-  pkgs="$pkgs wl-clipboard cliphist brightnessctl python-gobject"
+  pkgs="$pkgs wl-clipboard cliphist brightnessctl python-gobject gtk4-layer-shell grim tesseract-data-chi_sim"
   if [ "${KOS_WITH_APPS:-1}" -eq 1 ]; then pkgs="$pkgs kcalendarcore"; fi
 
   # ---- archinstall 阶段已经装好的基础工具（只做 --needed 兜底）----

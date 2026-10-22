@@ -42,3 +42,31 @@ EOF
   fi
   log "QQ 启动器整理完成（Dock 里残留的旧图标右键取消固定即可）"
 }
+
+# 截图工具 Vellum：官方发行包（Rust/GTK4，不本地编译）。
+# 依赖由官方包列表提前装好，因此用 --no-deps，避免安装器内再次 sudo。
+install_vellum() {
+  local tmp
+  log "安装截图工具 Vellum（最新发行版）..."
+  if [ "$DRY_RUN" -eq 1 ]; then
+    log "[dry-run] 下载并运行 Vellum 官方 install.sh --no-deps"
+    return 0
+  fi
+  if ! have curl; then
+    warn "缺少 curl，跳过 Vellum"
+    return 0
+  fi
+
+  tmp=$(mktemp)
+  if ! curl -fsSL --retry 3 --connect-timeout 20 \
+      https://github.com/tjz123psh/-Screenshot-Tool/releases/latest/download/install.sh \
+      -o "$tmp"; then
+    rm -f "$tmp"
+    warn "下载 Vellum 安装脚本失败，可稍后重试"
+    return 0
+  fi
+  if ! bash "$tmp" --no-deps; then
+    warn "Vellum 安装失败，可稍后重试"
+  fi
+  rm -f "$tmp"
+}
