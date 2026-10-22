@@ -32,9 +32,11 @@ set -euo pipefail
 snapshot=$(qs -c kos ipc call wallpaper-settings snapshot 2>/dev/null) || exit 1
 exec python3 - "$snapshot" <<'PY'
 import json
+import os
 import shutil
 import subprocess
 import sys
+from pathlib import Path
 
 try:
     state = json.loads(sys.argv[1])
@@ -47,6 +49,20 @@ try:
     catalog = json.loads(raw_catalog) if isinstance(raw_catalog, str) else list(raw_catalog)
 except Exception:
     catalog = []
+
+# The Shell's snapshot only has the active image until Settings opens its
+# gallery; merge the managed gallery so the full-screen grid is complete.
+data_home = Path(os.environ.get("XDG_DATA_HOME", Path.home() / ".local/share"))
+gallery_dir = data_home / "kos" / "gallery"
+extensions = {".png", ".jpg", ".jpeg", ".webp", ".avif"}
+if gallery_dir.is_dir():
+    for path in sorted(gallery_dir.iterdir()):
+        if path.is_file() and path.suffix.lower() in extensions:
+            value = str(path)
+            if value not in catalog:
+                catalog.append(value)
+if image and image not in catalog:
+    catalog.insert(0, image)
 if not image and catalog:
     image = catalog[0]
 if not image:
