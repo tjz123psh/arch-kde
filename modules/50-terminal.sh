@@ -5,7 +5,10 @@
 setup_terminal() {
   log "配置 kitty / fish / starship..."
   install_file "$CONFIG_DIR/kitty/kitty.conf" "$HOME/.config/kitty/kitty.conf"
-  install_file "$CONFIG_DIR/kitty/macos.conf" "$HOME/.config/kitty/themes/macos.conf"
+  install_file "$CONFIG_DIR/kitty/themes/noctalia.conf" "$HOME/.config/kitty/themes/noctalia.conf"
+  install_file "$CONFIG_DIR/fish/config.fish" "$HOME/.config/fish/config.fish"
+  install_file "$CONFIG_DIR/fish/conf.d/proxy.fish" "$HOME/.config/fish/conf.d/proxy.fish"
+  install_file "$CONFIG_DIR/fish/functions/y.fish" "$HOME/.config/fish/functions/y.fish"
   install_file "$CONFIG_DIR/fish/kos.fish" "$HOME/.config/fish/conf.d/kos.fish"
   install_file "$CONFIG_DIR/starship.toml" "$HOME/.config/starship.toml"
 }
