@@ -6,5 +6,6 @@ Comment=Resource monitor that shows usage and stats
 Exec=/usr/bin/kitty --title "btop" -e /usr/bin/btop
 Icon=btop
 Terminal=false
+X-KDE-GlobalAccel-CommandShortcut=true
 Categories=System;Monitor;
 Keywords=system;process;task;monitor;

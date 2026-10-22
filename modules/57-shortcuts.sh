@@ -9,10 +9,10 @@
 # 使用 KGlobalAccel 的 command shortcut desktop 文件，不依赖 KOS 私有快捷键。
 
 install_kde_shortcuts() {
-  log "配置 KDE 快捷键（term-menu / 终端 / 关闭窗口）..."
+  log "配置 KDE 快捷键（term-menu / 终端 / btop / fuzzel / 关闭窗口）..."
 
   if [ "$DRY_RUN" -eq 1 ]; then
-    log "[dry-run] 写入 term-menu.desktop / kitty-terminal.desktop 并设置 KGlobalAccel"
+    log "[dry-run] 写入 term-menu / kitty-terminal / btop / fuzzel-launcher 的 desktop 并设置 KGlobalAccel"
     return 0
   fi
   if ! have kwriteconfig6; then
@@ -50,6 +50,8 @@ EOF
 
   kwriteconfig6 --file kglobalshortcutsrc --group services --group term-menu.desktop --key _launch "Meta+Shift+C" --notify
   kwriteconfig6 --file kglobalshortcutsrc --group services --group kitty-terminal.desktop --key _launch "Alt+Return" --notify
+  kwriteconfig6 --file kglobalshortcutsrc --group services --group btop.desktop --key _launch "Meta+M" --notify
+  kwriteconfig6 --file kglobalshortcutsrc --group services --group fuzzel-launcher.desktop --key _launch "Ctrl+M" --notify
   kwriteconfig6 --file kglobalshortcutsrc --group kwin --key "Window Close" "Alt+Q,Alt+F4,关闭窗口" --notify
 
   if have kbuildsycoca6; then

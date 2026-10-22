@@ -1,0 +1,10 @@
+[Desktop Entry]
+Type=Application
+Name=Fuzzel Launcher
+Comment=Open the fuzzel application launcher
+Exec=/usr/bin/fuzzel
+Icon=utilities-terminal
+Terminal=false
+NoDisplay=true
+StartupNotify=false
+X-KDE-GlobalAccel-CommandShortcut=true
