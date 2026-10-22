@@ -9,7 +9,9 @@
 # 装的时候克隆到 KOS_SRC_DIR。本地开发已有检出时，用 KOS_REPO_DIR 指过去即可跳过克隆。
 
 KOS_SRC_URL="${KOS_SRC_URL:-https://github.com/SuceV587/NextKde.git}"
-KOS_SRC_REF="${KOS_SRC_REF:-main}"
+# 默认装最新稳定发布 tag；要开发版可显式 KOS_SRC_REF=main。
+# 上游发新版时同步改这里，并用 curl 验证 tag 可 clone。
+KOS_SRC_REF="${KOS_SRC_REF:-v0.1.1}"
 KOS_SRC_DIR="${KOS_SRC_DIR:-${XDG_CACHE_HOME:-$HOME/.cache}/kos-src}"
 
 kos_repo_dir() {

@@ -85,7 +85,7 @@ usage() {
   KOS_SRC_DIR        KOS 源码检出位置（默认 ~/.cache/kos-src）
   KOS_REPO_DIR       已有的 KOS 源码检出，设置后不再克隆
   KOS_SRC_URL        源码仓库地址（默认上游仓库）
-  KOS_SRC_REF        源码分支或标签（默认 main）
+  KOS_SRC_REF        源码分支或标签（默认最新稳定版 v0.1.1）
 
   -h, --help         显示本帮助
 USAGE
