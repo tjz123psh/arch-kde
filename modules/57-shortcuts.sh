@@ -99,6 +99,52 @@ EOF
   log "Alt+W → 全屏壁纸预览"
 }
 
+configure_launcher_shortcuts() {
+  log "配置启动器快捷键（Win / Win+O）..."
+
+  if [ "$DRY_RUN" -eq 1 ]; then
+    log "[dry-run] 写入 KOS 快捷方式覆盖与 plasmashell 的 Meta 禁用"
+    return 0
+  fi
+
+  if have kwriteconfig6; then
+    backup_file "$HOME/.config/kglobalshortcutsrc"
+    # KDE 的 Meta 单键会抢在 KOS 启动器之前打开 Plasma 应用菜单，先释放它。
+    kwriteconfig6 --file kglobalshortcutsrc --group plasmashell --key "activate application launcher" "none" --notify
+    # 立即让 KGlobalAccel 释放已被 KDE 占用的 Meta 单键；下次登录会从配置恢复。
+    qdbus6 org.kde.kglobalaccel /kglobalaccel org.kde.KGlobalAccel.unregister plasmashell "activate application launcher" >/dev/null 2>&1 || true
+    qdbus6 org.kde.KWin /KWin reconfigure >/dev/null 2>&1 || true
+  fi
+
+  local state_dir="${XDG_STATE_HOME:-$HOME/.local/state}/quickshell/kos/shortcuts"
+  local config="$state_dir/config.json"
+  mkdir -p "$state_dir"
+  python3 - "$config" <<'PY'
+from pathlib import Path
+import json
+import sys
+
+path = Path(sys.argv[1])
+data = {"version": 1, "overrides": {}}
+if path.exists():
+    try:
+        loaded = json.loads(path.read_text())
+        if isinstance(loaded, dict):
+            data.update(loaded)
+    except Exception:
+        pass
+overrides = data.get("overrides")
+if not isinstance(overrides, dict):
+    overrides = {}
+overrides["net.local.kos-launcher"] = "Meta"
+overrides["net.local.kos-window-switcher"] = "Meta+O"
+data["version"] = 1
+data["overrides"] = overrides
+path.write_text(json.dumps(data, ensure_ascii=False, indent=2) + "\n")
+PY
+  log "Win → Dock 应用启动器，Win+O → KOS 快速搜索/启动器"
+}
+
 install_vellum_shortcuts() {
   log "配置 Vellum 截图快捷键（Print / Ctrl+Print）..."
 
