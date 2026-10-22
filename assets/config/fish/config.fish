@@ -10,7 +10,7 @@ end
 # 注：旧的 tty1「exec niri」自动启动已移除 —— 它会截胡 greetd→niri-session，
 # 使 graphical-session.target 不激活、xdg-desktop-portal-gnome 起不来（录屏/共享失效）。
 
-# ── starship 提示符（配色由 Noctalia 从壁纸生成）
+# ── starship 提示符（配色由 KOS 从壁纸生成）
 if type -q starship
     starship init fish | source
 end

@@ -1,9 +1,9 @@
 # yazi 行为配置（手工维护）
 #
-# 【配色不在这里】颜色与语法高亮由 Noctalia 的「Yazi」模板生成，在本文件写颜色会被覆盖：
-#   ~/.config/yazi/theme.toml                ← 模板写：[flavor] dark/light = "noctalia"
-#   ~/.config/yazi/flavors/noctalia.yazi/    ← flavor.toml（界面配色）+ tmtheme.xml（语法高亮）
-#   换壁纸 / 换调色板后 Noctalia 自动重渲染，不需要手动同步。
+# 【配色不在这里】颜色与语法高亮由 KOS 的「Yazi」模板生成，在本文件写颜色会被覆盖：
+#   ~/.config/yazi/theme.toml                ← 模板写：[flavor] dark/light = "kos"
+#   ~/.config/yazi/flavors/kos.yazi/    ← flavor.toml（界面配色）+ tmtheme.xml（语法高亮）
+#   换壁纸 / 换调色板后 KOS 自动重渲染，不需要手动同步。
 #
 # 【键位】说明文字已整份汉化：~/.config/yazi/keymap.toml（来自 yazi v26.9.1 默认键位，行为一致）。
 # 本文件只放"行为"相关的少量设置，其余全部沿用 yazi 默认值。

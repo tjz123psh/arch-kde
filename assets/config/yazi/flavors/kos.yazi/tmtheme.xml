@@ -3,13 +3,13 @@
 <plist version="1.0">
   <dict>
     <key>name</key>
-    <string>Noctalia</string>
+    <string>KOS</string>
     <key>semanticClass</key>
-    <string>theme.noctalia</string>
+    <string>theme.kos</string>
     <key>uuid</key>
     <string>627ce890-fabb-4d39-9819-7be71f4bdca7</string>
     <key>author</key>
-    <string>Noctalia</string>
+    <string>KOS</string>
     <key>colorSpaceName</key>
     <string>sRGB</string>
     <key>settings</key>
