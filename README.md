@@ -171,7 +171,7 @@ archlinuxcn 12 个）；加 `--no-mirrors` 可保留你原来的列表。
 | `KOS_SRC_DIR` | `~/.cache/kos-src` | KOS 源码检出位置 |
 | `KOS_REPO_DIR` | 空 | 已有的源码检出，设置后跳过克隆（本地开发用） |
 | `KOS_SRC_URL` | 上游仓库 | 源码地址 |
-| `KOS_SRC_REF` | `v0.1.1` | 源码分支或标签；默认最新稳定发布，开发版用 `main` |
+| `KOS_SRC_REF` | 自动 | 自动解析最新稳定发布 tag；开发版用 `main` |
 
 离线装机：先把源码放到 `KOS_SRC_DIR`，再加 `--skip-update`。
 

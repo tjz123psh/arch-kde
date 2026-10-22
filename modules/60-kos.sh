@@ -9,10 +9,28 @@
 # 装的时候克隆到 KOS_SRC_DIR。本地开发已有检出时，用 KOS_REPO_DIR 指过去即可跳过克隆。
 
 KOS_SRC_URL="${KOS_SRC_URL:-https://github.com/SuceV587/NextKde.git}"
-# 默认装最新稳定发布 tag；要开发版可显式 KOS_SRC_REF=main。
-# 上游发新版时同步改这里，并用 curl 验证 tag 可 clone。
-KOS_SRC_REF="${KOS_SRC_REF:-v0.1.1}"
+# 默认自动解析最新稳定发布 tag；要开发版可显式 KOS_SRC_REF=main。
+# 网络不可用时回退到最近一次已知稳定版。
+KOS_SRC_REF="${KOS_SRC_REF:-}"
+KOS_SRC_REF_FALLBACK="${KOS_SRC_REF_FALLBACK:-v0.1.1}"
 KOS_SRC_DIR="${KOS_SRC_DIR:-${XDG_CACHE_HOME:-$HOME/.cache}/kos-src}"
+
+resolve_kos_ref() {
+  [ -n "${KOS_SRC_REF:-}" ] && return 0
+  local ref
+  ref=$(git ls-remote --tags --refs "$KOS_SRC_URL" 2>/dev/null |
+    awk -F/ '{print $NF}' |
+    grep -E '^v[0-9]+\.[0-9]+\.[0-9]+' |
+    grep -v -- '-' |
+    sort -V | tail -n 1 || true)
+  if [ -n "$ref" ]; then
+    KOS_SRC_REF="$ref"
+    log "KOS 最新稳定发布: $KOS_SRC_REF"
+  else
+    KOS_SRC_REF="$KOS_SRC_REF_FALLBACK"
+    warn "无法查询 KOS 最新发布，回退到 $KOS_SRC_REF"
+  fi
+}
 
 kos_repo_dir() {
   if [ -n "${KOS_REPO_DIR:-}" ]; then printf '%s' "$KOS_REPO_DIR"; else printf '%s' "$KOS_SRC_DIR"; fi
@@ -57,12 +75,14 @@ install_kos_deps() {
 fetch_kos_source() {
   local dir; dir=$(kos_repo_dir)
 
+  if [ -d "$dir/.git" ] && [ "$SKIP_UPDATE" -eq 1 ]; then
+    log "跳过源码更新（--skip-update）"
+    return 0
+  fi
+  resolve_kos_ref
+
   if [ -d "$dir/.git" ]; then
     log "KOS 源码已存在：$dir"
-    if [ "$SKIP_UPDATE" -eq 1 ]; then
-      log "跳过源码更新（--skip-update）"
-      return 0
-    fi
     log "更新 KOS 源码（$KOS_SRC_REF）..."
     run git -C "$dir" fetch --depth 1 origin "$KOS_SRC_REF" || warn "拉取失败，继续用现有源码"
     run git -C "$dir" checkout -q FETCH_HEAD || warn "切到最新源码失败，继续用现有源码"
