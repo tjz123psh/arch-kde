@@ -65,9 +65,9 @@ run_doctor() {
     echo
     echo "== 常驻脚本 =="
     for cmd in term-menu pac pacr pacd gsudo; do
-      if test -x "$HOME/.local/bin/$cmd"; then echo "  [OK]   $cmd"; else echo "  [MISS] $cmd"; fi
+      if test -x "$HOME/bin/$cmd"; then echo "  [OK]   $cmd"; else echo "  [MISS] $cmd"; fi
     done
-    test -d "$HOME/.local/share/arch-kde/scripts" && echo "  脚本目录: yes" || echo "  脚本目录: no"
+    test -d "$HOME/scripts" && echo "  脚本目录: yes" || echo "  脚本目录: no"
     echo
     echo "== 应用配置 =="
     for dir in yazi fastfetch mpv fuzzel; do

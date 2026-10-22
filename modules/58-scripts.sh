@@ -3,13 +3,13 @@
 # shellcheck shell=bash
 #
 # 用户常驻工具：maintenance / package / share 三组脚本。
-# 源文件在 assets/scripts，安装到 ~/.local/share/arch-kde/scripts，
-# 再把命令软链接到 ~/.local/bin；这样脚本更新不会丢用户配置。
+# 源文件在 assets/scripts，安装到 ~/scripts，
+# 再把命令软链接到 ~/bin；这样脚本更新不会丢用户配置。
 
 install_user_scripts() {
   local src="$ASSET_DIR/scripts"
-  local dest="$HOME/.local/share/arch-kde/scripts"
-  local bin="$HOME/.local/bin"
+  local dest="$HOME/scripts"
+  local bin="$HOME/bin"
   local f name
 
   if [ ! -d "$src" ]; then
@@ -20,7 +20,7 @@ install_user_scripts() {
   log "安装维护 / 包管理脚本..."
   if [ "$DRY_RUN" -eq 1 ]; then
     log "[dry-run] 复制 $src -> $dest"
-    log "[dry-run] 链接 term-menu / pac / pacr / pacd 及维护工具到 $bin"
+    log "[dry-run] 链接 term-menu / pac / pacr / pacd / gsudo 及维护工具到 $bin"
     return 0
   fi
 
