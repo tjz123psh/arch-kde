@@ -194,7 +194,7 @@ frosted_window_rule() {
 }
 
 enable_frosted_kde_windows() {
-  log "配置 KDE 设置/系统监视器的磨砂玻璃窗口..."
+  log "配置 KDE 设置/系统监视器/Dolphin 的磨砂玻璃窗口..."
   if [ "$DRY_RUN" -eq 1 ]; then
     log "[dry-run] 写入 kwinrulesrc：systemsettings / plasma-systemmonitor / kos-settings 半透明规则"
     return 0
@@ -211,10 +211,14 @@ enable_frosted_kde_windows() {
   kwriteconfig6 --file kwinrulesrc --group frosted_systemmonitor --key opacityactive 75 --notify
   kwriteconfig6 --file kwinrulesrc --group frosted_systemmonitor --key opacityinactive 80 --notify
   frosted_window_rule frosted_kos_settings kos-settings
+  frosted_window_rule frosted_dolphin org.kde.dolphin
+  # 文件管理器阅读为主，保留更实的底，不跟系统监视器一样透。
+  kwriteconfig6 --file kwinrulesrc --group frosted_dolphin --key opacityactive 90 --notify
+  kwriteconfig6 --file kwinrulesrc --group frosted_dolphin --key opacityinactive 92 --notify
 
   local order group
   order=$(kreadconfig6 --file kwinrulesrc --group General --key Order 2>/dev/null || true)
-  for group in frosted_systemsettings frosted_systemmonitor frosted_kos_settings; do
+  for group in frosted_systemsettings frosted_systemmonitor frosted_kos_settings frosted_dolphin; do
     case ",$order," in
       *,$group,*) ;;
       *) order="${order:+$order,}$group" ;;
