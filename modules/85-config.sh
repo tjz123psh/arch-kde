@@ -436,6 +436,48 @@ PY
   log "窗口动效与玻璃参数已写入"
 }
 
+# Dolphin 默认详情视图：16px 图标、紧凑行距、完整路径、小状态栏。
+# Places 侧栏保持 Dolphin 默认显示；不写 places 数据，避免覆盖用户书签。
+configure_dolphin_layout() {
+  log "配置 Dolphin 详情视图与紧凑布局..."
+  if [ "$DRY_RUN" -eq 1 ]; then
+    log "[dry-run] 写入 dolphinrc 详情视图与 global view properties"
+    return 0
+  fi
+  if ! have kwriteconfig6; then
+    warn "缺少 kwriteconfig6，跳过 Dolphin 布局"
+    return 0
+  fi
+
+  backup_file "$HOME/.config/dolphinrc"
+  kwriteconfig6 --file dolphinrc --group General --key ShowFullPath true --notify
+  kwriteconfig6 --file dolphinrc --group General --key ShowStatusBar Small --notify
+  kwriteconfig6 --file dolphinrc --group General --key FilterBar false --notify
+  kwriteconfig6 --file dolphinrc --group General --key ShowToolTips false --notify
+  kwriteconfig6 --file dolphinrc --group DetailsMode --key IconSize 16 --notify
+  kwriteconfig6 --file dolphinrc --group DetailsMode --key PreviewSize 64 --notify
+  kwriteconfig6 --file dolphinrc --group DetailsMode --key ExpandableFolders false --notify
+  kwriteconfig6 --file dolphinrc --group DetailsMode --key HighlightEntireRow true --notify
+  kwriteconfig6 --file dolphinrc --group DetailsMode --key LeftPadding 8 --notify
+  kwriteconfig6 --file dolphinrc --group DetailsMode --key RightPadding 8 --notify
+  kwriteconfig6 --file dolphinrc --group MainWindow --key MenuBar Disabled --notify
+
+  local view="${XDG_DATA_HOME:-$HOME/.local/share}/dolphin/view_properties/global/.directory"
+  mkdir -p "$(dirname "$view")"
+  if [ ! -e "$view" ]; then
+    write_file "$view" <<'EOF'
+[Dolphin]
+GroupedSorting=false
+PreviewsShown=true
+SortFoldersFirst=true
+SortOrder=0
+SortRole=text
+ViewMode=1
+EOF
+  fi
+  log "Dolphin 详情视图已写入"
+}
+
 install_desktop_config() {
   log "写入桌面环境配置（环境变量 / GTK / 字体）..."
   install_file "$CONFIG_DIR/environment/90-kos.conf" "$HOME/.config/environment.d/90-kos.conf"
@@ -454,4 +496,5 @@ install_desktop_config() {
   install_default_apps
   configure_kde_global_appearance
   configure_kos_motion
+  configure_dolphin_layout
 }
