@@ -113,6 +113,7 @@ archlinuxcn 12 个）；加 `--no-mirrors` 可保留你原来的列表。
 - KWin 玻璃效果；桌面小组件默认 **Glass / 液体玻璃** 卡片（安装器只在新装、尚无外观配置时预置，已有配置不覆盖）
 - 动态主题默认 **有窗口打开时也继续动画**（`themeAnimated=true`；锁屏 / 减少动态效果仍会暂停）
 - Dock 默认 **智能隐藏**（安装器只在新装、尚无 Dock 配置时预置，已有配置不覆盖）
+- kitty 默认 **无标题栏**（KWin 窗口规则，只保留终端内容）
 - genie 最小化动效已停用（插件源码压缩归档在仓库根目录 `genie-effect-2026-10-21.tar.gz`，
   以后要恢复再解压；当前最小化动画交回 KOS 自带的 `kos_dock_window_animation`）
 - SilentSDDM 登录主题、13 张壁纸的图集（进 KOS 壁纸选择器）

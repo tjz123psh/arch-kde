@@ -108,6 +108,41 @@ EOF
 }
 
 # 环境变量 / GTK / 字体：从老项目的 kde.sh 抽出来，只保留与桌面观感相关的部分
+# 终端只保留内容：用 KWin 规则把 kitty 的标题栏/窗口边框隐藏。
+# KWin 6.8 用 decorationpolicy=none 表达无边框（旧的 noborder 键不再适用）。
+install_kitty_no_decorations() {
+  log "配置 kitty 无标题栏（KWin 窗口规则）..."
+  if [ "$DRY_RUN" -eq 1 ]; then
+    log "[dry-run] 写入 kwinrulesrc：kitty_no_decorations（decorationpolicy=none）"
+    return 0
+  fi
+  if ! have kwriteconfig6; then
+    warn "缺少 kwriteconfig6，跳过 kitty 窗口规则"
+    return 0
+  fi
+
+  backup_file "$HOME/.config/kwinrulesrc"
+  kwriteconfig6 --file kwinrulesrc --group kitty_no_decorations --key Description "Kitty: no window decorations" --notify
+  kwriteconfig6 --file kwinrulesrc --group kitty_no_decorations --key decorationpolicy none --notify
+  kwriteconfig6 --file kwinrulesrc --group kitty_no_decorations --key decorationpolicyrule 2 --notify
+  kwriteconfig6 --file kwinrulesrc --group kitty_no_decorations --key types 1 --notify
+  kwriteconfig6 --file kwinrulesrc --group kitty_no_decorations --key wmclass kitty --notify
+  kwriteconfig6 --file kwinrulesrc --group kitty_no_decorations --key wmclasscomplete false --notify
+  kwriteconfig6 --file kwinrulesrc --group kitty_no_decorations --key wmclassmatch 1 --notify
+
+  local order
+  order=$(kreadconfig6 --file kwinrulesrc --group General --key Order 2>/dev/null || true)
+  case ",$order," in
+    *,kitty_no_decorations,*) ;;
+    *) kwriteconfig6 --file kwinrulesrc --group General --key Order "${order:+$order,}kitty_no_decorations" --notify ;;
+  esac
+
+  if have qdbus6; then
+    qdbus6 org.kde.KWin /KWin reconfigure >/dev/null 2>&1 || true
+  fi
+  log "kitty 窗口规则已写入；新开终端只显示内容"
+}
+
 install_desktop_config() {
   log "写入桌面环境配置（环境变量 / GTK / 字体）..."
   install_file "$CONFIG_DIR/environment/90-kos.conf" "$HOME/.config/environment.d/90-kos.conf"
@@ -119,4 +154,5 @@ install_desktop_config() {
   install_file "$CONFIG_DIR/display/kos-display-1920x1080.sh" "$HOME/.local/bin/kos-display-1920x1080" 755
   install_file "$CONFIG_DIR/display/kos-display-1920x1080.desktop" "$HOME/.config/autostart/kos-display-1920x1080.desktop"
   enable_kos_theme_animation
+  install_kitty_no_decorations
 }
