@@ -311,6 +311,7 @@ image/heic|org.nomacs.ImageLounge.desktop
 image/heif|org.nomacs.ImageLounge.desktop
 image/tiff|org.nomacs.ImageLounge.desktop
 image/jxl|org.nomacs.ImageLounge.desktop
+image/svg+xml|org.nomacs.ImageLounge.desktop
 image/x-icon|org.nomacs.ImageLounge.desktop
 inode/directory|org.kde.dolphin.desktop
 EOF

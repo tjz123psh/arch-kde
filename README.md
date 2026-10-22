@@ -86,7 +86,7 @@ archlinuxcn 12 个）；加 `--no-mirrors` 可保留你原来的列表。
 
 **系统层**
 
-- KDE Plasma 6 + KWin + SDDM + 一套 KDE 应用（Dolphin / Ark / Gwenview / Spectacle / System Monitor）
+- KDE Plasma 6 + KWin + SDDM + KDE 应用（Dolphin / Ark / System Monitor）
 - 图形栈：mesa / vulkan / VA-API；按目标机固定装 AMD 核显 + NVIDIA 独显驱动（换机器改 `modules/10-packages.sh`）
 - 声音：pipewire + wireplumber + ALSA 兼容层
 - 快照：**Snapper** root/home 配置 + **Btrfs Assistant** 图形界面；timeline 每周日 03:00，保留 4 个 weekly
