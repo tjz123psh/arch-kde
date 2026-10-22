@@ -95,8 +95,69 @@ fetch_kos_source() {
     die "克隆 KOS 源码失败：$KOS_SRC_URL（可离线预置到 $dir，或用 KOS_REPO_DIR 指定已有检出）"
 }
 
+# KWin 6.8 移除了 /org/kde/KWin 上的 org.kde.kwin.Effects，KOS 设置页的
+# 集成状态探针会因此把已加载的 glass / dock / context-menu 效果误报为未连接。
+# 在构建 Settings 前补一个 supportInformation 回退，保持与 KWin 版本兼容。
+patch_kos_settings_integration_probe() {
+  local repo="$1"
+  local src="$repo/apps/settings/src/SettingsBridgeDesktop.cpp"
+
+  if [ ! -f "$src" ]; then
+    warn "找不到 SettingsBridgeDesktop.cpp，跳过 KWin 6.8 集成状态兼容补丁"
+    return 0
+  fi
+  if [ "$DRY_RUN" -eq 1 ]; then
+    log "[dry-run] 为 KOS Settings 增加 KWin supportInformation 回退"
+    return 0
+  fi
+
+  python3 - "$src" <<'PY'
+from pathlib import Path
+import sys
+
+path = Path(sys.argv[1])
+source = path.read_text()
+marker = "Fall back to the stable supportInformation report"
+anchor = '''            result.insert(
+                QStringLiteral("glassLoaded"), loadedEffects.contains(QStringLiteral("glass")));'''
+fallback = '''            // KWin 6.8 removed org.kde.kwin.Effects from /org/kde/KWin.
+            // Fall back to the stable supportInformation report so the Settings
+            // integration page does not report loaded effects as disconnected.
+            if (!interrupted && (!kwinAvailable || loadedEffects.isEmpty())) {
+                const QDBusMessage supportReply = boundedBusCall(sessionBus,
+                    QStringLiteral("org.kde.KWin"), QStringLiteral("/KWin"),
+                    QStringLiteral("org.kde.KWin"),
+                    QStringLiteral("supportInformation"));
+                if (supportReply.type() == QDBusMessage::ReplyMessage
+                        && !supportReply.arguments().isEmpty()) {
+                    const QString info = supportReply.arguments().constFirst().toString();
+                    bool inLoaded = false;
+                    for (const QString &rawLine : info.split(QLatin1Char('\\n'))) {
+                        const QString line = rawLine.trimmed();
+                        if (line == QStringLiteral("Loaded Effects:")) {
+                            inLoaded = true;
+                            continue;
+                        }
+                        if (inLoaded && line == QStringLiteral("Currently Active Effects:"))
+                            break;
+                        if (inLoaded && !line.isEmpty())
+                            loadedEffects.append(line);
+                    }
+                }
+            }
+'''
+if marker not in source:
+    if anchor not in source:
+        print("SettingsBridgeDesktop.cpp: unexpected integration probe shape", file=sys.stderr)
+        sys.exit(0)
+    source = source.replace(anchor, fallback + anchor, 1)
+    path.write_text(source)
+PY
+}
+
 build_install_kos() {
   local repo; repo=$(kos_repo_dir)
+  patch_kos_settings_integration_probe "$repo"
   local spatial=OFF
   [ "${KOS_SPATIAL:-0}" -eq 1 ] && spatial=ON
 
