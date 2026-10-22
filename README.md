@@ -94,7 +94,7 @@ archlinuxcn 12 个）；加 `--no-mirrors` 可保留你原来的列表。
 - 外观：WhiteSur 的图标 / 光标 / GTK 主题（GTK 应用跟着走，Chrome、VS Code 不会掉回默认主题）
 - 常用应用：Chrome、VS Code、yazi、Obsidian、flclash、nomacs 等（Chrome / VS Code 可用参数关掉；
   flclash / nomacs 来自 archlinuxcn，没配这个源时自动跳过）
-- 开发工具：**Neovim**、**JDK 21**（LTS）、命令行 AI 工具 **pi**（`pi-coding-agent-bin`）与 **opencode**（`opencode-bin`）
+- 开发工具：**Neovim**、**JDK 21**（LTS）、**GitHub CLI**（`gh`）、**Docker + Compose**、命令行 AI 工具 **pi**（`pi-coding-agent-bin`）与 **opencode**（`opencode-bin`）
 - ASUS 笔记本：**asusctl** + **rog-control-center**（风扇曲线/键盘灯/性能模式），有 archlinuxcn 源时再加
   `supergfxctl` 做 GPU 模式切换；`--no-asus` 可关
 - 蓝牙：**bluez** + **bluedevil**（KDE 蓝牙页/托盘）+ **bluez-obex**（文件传输），`bluetooth.service` 常开

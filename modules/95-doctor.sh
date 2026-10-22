@@ -23,7 +23,7 @@ run_doctor() {
     echo "locale: LANG=$(printenv LANG 2>/dev/null || echo unset)"
     echo
     echo "== 关键包 =="
-    pacman -Q kwin plasma-workspace sddm kitty fish fcitx5 quickshell 2>&1 || true
+    pacman -Q kwin plasma-workspace sddm kitty fish fcitx5 quickshell github-cli docker docker-compose 2>&1 || true
     echo
     echo "== KOS 外观 =="
     if have kreadconfig6; then

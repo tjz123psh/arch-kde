@@ -5,7 +5,7 @@
 USER_NAME=$(id -un)
 
 add_groups() {
-  local g groups="video render input audio optical storage"
+  local g groups="video render input audio optical storage docker"
   # 打印/扫描（lp/scanner）与 WWAN（uucp）不再处理：目标机不需要。
   for g in $groups; do
     if getent group "$g" >/dev/null 2>&1; then
@@ -31,6 +31,7 @@ enable_services() {
   log "启用系统服务（不会立刻启动图形界面）..."
   sudo_run systemctl enable sddm
   sudo_run systemctl enable NetworkManager
+  sudo_run systemctl enable docker || warn "启用 docker.service 失败，请手动检查"
 
   # 蓝牙常装常开：没有硬件时 bluez 只是空跑，插上适配器即用；不再按 hci 设备门控
   sudo_run systemctl enable bluetooth || warn "启用 bluetooth.service 失败，请手动检查"
