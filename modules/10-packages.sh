@@ -349,7 +349,7 @@ build_official_list() {
 plasma-desktop plasma-workspace kwin plasma-integration plasma-pa plasma-nm
 powerdevil kscreen polkit-kde-agent xdg-desktop-portal-kde kde-cli-tools
 systemsettings kde-gtk-config kdecoration breeze
-dolphin kio-extras ark plasma-systemmonitor
+dolphin kio-extras ark plasma-systemmonitor kooha gst-plugins-ugly
 sddm qt6-tools qt6-translations libxml2
 noto-fonts noto-fonts-cjk noto-fonts-emoji inter-font ttf-jetbrains-mono-nerd
 fcitx5 fcitx5-configtool fcitx5-gtk fcitx5-qt fcitx5-chinese-addons
