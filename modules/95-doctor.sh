@@ -80,6 +80,7 @@ run_doctor() {
     for f in term-menu kitty-terminal btop fuzzel-launcher kos-settings-wallpaper; do
       test -f "$HOME/.local/share/applications/$f.desktop" && echo "  [OK]   $f.desktop" || echo "  [MISS] $f.desktop"
     done
+    test -x "$HOME/.local/bin/kos-wallpaper-preview" && echo "  [OK]   kos-wallpaper-preview" || echo "  [MISS] kos-wallpaper-preview"
     echo
     echo "== 快照 =="
     snapper list-configs 2>&1 || true

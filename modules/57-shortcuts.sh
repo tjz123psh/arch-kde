@@ -6,11 +6,11 @@
 #   Win+Shift+C -> kitty -e term-menu
 #   Alt+Enter   -> 打开 kitty
 #   Alt+Q       -> 关闭当前窗口（KWin Window Close）
-#   Alt+W       -> 打开 KOS 设置 → 壁纸
+#   Alt+W       -> 打开全屏壁纸预览
 # 使用 KGlobalAccel 的 command shortcut desktop 文件，不依赖 KOS 私有快捷键。
 
 install_wallpaper_shortcut() {
-  log "配置 Alt+W 打开 KOS 设置 → 壁纸..."
+  log "配置 Alt+W 打开全屏壁纸预览..."
 
   if [ "$DRY_RUN" -eq 1 ]; then
     log "[dry-run] 写入 kos-settings-wallpaper.desktop 并设置 Alt+W"
@@ -22,13 +22,51 @@ install_wallpaper_shortcut() {
   fi
 
   backup_file "$HOME/.config/kglobalshortcutsrc"
+  write_file "$HOME/.local/bin/kos-wallpaper-preview" <<'SCRIPT'
+#!/usr/bin/env bash
+# Open the KOS fullscreen wallpaper preview for the current wallpaper.
+set -euo pipefail
+snapshot=$(qs -c kos ipc call wallpaper-settings snapshot 2>/dev/null) || exit 1
+exec python3 - "$snapshot" <<'PY'
+import json
+import shutil
+import subprocess
+import sys
+
+try:
+    state = json.loads(sys.argv[1])
+except Exception:
+    sys.exit(1)
+
+image = str(state.get("image") or "")
+raw_catalog = state.get("previewCatalog") or "[]"
+try:
+    catalog = json.loads(raw_catalog) if isinstance(raw_catalog, str) else list(raw_catalog)
+except Exception:
+    catalog = []
+if not image and catalog:
+    image = catalog[0]
+if not image:
+    sys.exit(1)
+
+qs = shutil.which("qs") or "qs"
+# qs ipc splits comma-separated argv; pass the catalog as a JSON string
+# whose commas are escaped, then KOS parses it back into a list.
+catalog_arg = json.dumps(json.dumps(catalog, separators=(",", ":")),
+                         ensure_ascii=False).replace(",", "\\u002c")
+subprocess.run([qs, "-c", "kos", "ipc", "call", "wallpaper-settings",
+                "previewImage", image, catalog_arg], check=False)
+PY
+SCRIPT
+  chmod 755 "$HOME/.local/bin/kos-wallpaper-preview"
+
   write_file "$HOME/.local/share/applications/kos-settings-wallpaper.desktop" <<EOF
 [Desktop Entry]
 Type=Application
-Name=KOS Settings (Wallpaper)
-Comment=Open KOS Settings on the wallpaper page
-Exec=$HOME/.local/bin/kos-settings --page=8
-Icon=preferences-system
+Name=KOS Wallpaper Preview
+Comment=Open the fullscreen wallpaper preview
+Exec=$HOME/.local/bin/kos-wallpaper-preview
+Icon=preferences-desktop-wallpaper
 Terminal=false
 NoDisplay=true
 StartupNotify=true
@@ -39,7 +77,7 @@ EOF
   if have kbuildsycoca6; then
     kbuildsycoca6 --noincremental >/dev/null 2>&1 || true
   fi
-  log "Alt+W → KOS 设置壁纸页"
+  log "Alt+W → 全屏壁纸预览"
 }
 
 configure_keyboard_repeat() {
