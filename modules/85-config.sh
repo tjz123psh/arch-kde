@@ -391,6 +391,51 @@ sizesJson={"clock":"large","weather":"small","calendar":"large","system":"large"
 EOF
 }
 
+# 窗口动效：KOS 的 dock-window-animation 负责打开/关闭/最小化/恢复；
+# 玻璃部分只轻加全局模糊，保持 liquid 的清晰折射。
+configure_kos_motion() {
+  log "配置窗口动效与玻璃参数..."
+  if [ "$DRY_RUN" -eq 1 ]; then
+    log "[dry-run] 写入 kwinrc 动效时长并设置 glass blur=0.10"
+    return 0
+  fi
+  if ! have kwriteconfig6; then
+    warn "缺少 kwriteconfig6，跳过窗口动效"
+    return 0
+  fi
+
+  backup_file "$HOME/.config/kwinrc"
+  kwriteconfig6 --file kwinrc --group Effect-kos_dock_window_animation --key OpenDuration 240 --notify
+  kwriteconfig6 --file kwinrc --group Effect-kos_dock_window_animation --key GenieDuration 260 --notify
+  kwriteconfig6 --file kwinrc --group Effect-kos_dock_window_animation --key RestoreDuration 180 --notify
+  kwriteconfig6 --file kwinrc --group Effect-kos_dock_window_animation --key CloseDuration 160 --notify
+  kwriteconfig6 --file kwinrc --group Effect-kos_dock_window_animation --key HideAnimation scale --notify
+  kwriteconfig6 --file kwinrc --group Effect-kos_dock_window_animation --key CloseAnimation scale --notify
+
+  if have qdbus6; then
+    qdbus6 org.kde.KWin /Effects org.kde.kwin.Effects.reconfigureEffect kos_dock_window_animation >/dev/null 2>&1 || true
+  fi
+
+  local config="${XDG_STATE_HOME:-$HOME/.local/state}/quickshell/kos/appearance/config.json"
+  if [ -f "$config" ]; then
+    python3 - "$config" <<'PY'
+from pathlib import Path
+import json
+import sys
+path = Path(sys.argv[1])
+try:
+    data = json.loads(path.read_text())
+except Exception:
+    raise SystemExit
+if isinstance(data, dict):
+    data["globalBlurStrength"] = 0.10
+    data["globalLiquidStrength"] = 1
+    path.write_text(json.dumps(data, ensure_ascii=False, indent=2) + "\n")
+PY
+  fi
+  log "窗口动效与玻璃参数已写入"
+}
+
 install_desktop_config() {
   log "写入桌面环境配置（环境变量 / GTK / 字体）..."
   install_file "$CONFIG_DIR/environment/90-kos.conf" "$HOME/.config/environment.d/90-kos.conf"
@@ -408,4 +453,5 @@ install_desktop_config() {
   enable_kos_frosted_settings
   install_default_apps
   configure_kde_global_appearance
+  configure_kos_motion
 }
