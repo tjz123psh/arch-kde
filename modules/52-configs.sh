@@ -19,6 +19,7 @@ install_user_configs() {
   install_config_tree "$CONFIG_DIR/fastfetch" "$HOME/.config/fastfetch"
   install_config_tree "$CONFIG_DIR/mpv" "$HOME/.config/mpv"
   install_config_tree "$CONFIG_DIR/fuzzel" "$HOME/.config/fuzzel"
+  install_config_tree "$CONFIG_DIR/btop" "$HOME/.config/btop"
 
   # mpv 的 assrt token 不进公开仓库：首次安装只放示例，已有配置不覆盖。
   if [ ! -e "$HOME/.config/mpv/script-opts/assrt.conf" ]; then
