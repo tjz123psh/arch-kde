@@ -1,0 +1,77 @@
+#!/usr/bin/env bash
+# KOS shortcut viewer: KOS + KDE custom shortcuts, opened with fzf.
+set -u
+
+export LC_ALL=C.UTF-8
+export PATH="$HOME/.local/bin:$HOME/bin:/usr/local/bin:/usr/bin:/bin:${PATH:-}"
+
+emit_shortcuts() {
+  local qs_bin snapshot
+  qs_bin=$(command -v qs 2>/dev/null || true)
+  [ -n "$qs_bin" ] || qs_bin=/usr/bin/qs
+
+  if [ -x "$qs_bin" ]; then
+    snapshot=$("$qs_bin" -c kos ipc call shortcuts-settings snapshot 2>/dev/null || true)
+    if [ -n "$snapshot" ] && command -v jq >/dev/null 2>&1; then
+      printf '%s\n' "$snapshot" |
+        jq -r '.shortcuts[]? | [.combo, "KOS", .description] | @tsv' 2>/dev/null || true
+    fi
+  fi
+
+  python3 - "$HOME/.config/kglobalshortcutsrc" <<'PY'
+import re
+import sys
+from pathlib import Path
+
+path = Path(sys.argv[1])
+if not path.exists():
+    raise SystemExit
+
+section = ""
+sub = ""
+for raw in path.read_text(errors="replace").splitlines():
+    line = raw.strip()
+    if not line or line.startswith("#"):
+        continue
+    if line.startswith("["):
+        match = re.match(r"^\[([^\]]+)\](?:\[([^\]]+)\])?$", line)
+        if match:
+            section = match.group(1)
+            sub = match.group(2) or ""
+        continue
+    if "=" not in line:
+        continue
+    key, value = line.split("=", 1)
+    fields = value.split(",")
+    current = fields[0].strip()
+    if not current or current == "none":
+        continue
+    if section == "kos-platform":
+        # KOS snapshot already covers these; KGlobalAccel mirrors them.
+        continue
+    if section == "services" and sub:
+        label = "应用快捷键" if key == "_launch" else key
+        print(f"{current}\tKDE · {sub}\t{label}")
+    elif section == "kwin" and key == "Window Close":
+        print(f"{current}\tKDE · kwin\t{key}")
+PY
+}
+
+emit_shortcuts | sort -u | awk -F '\t' 'NF >= 3'
+
+if [ "${1:-}" = "--list" ]; then
+  exit 0
+fi
+
+self=$(readlink -f "$0")
+if ! command -v fzf >/dev/null 2>&1; then
+  printf '缺少 fzf，无法打开快捷键查看器\n' >&2
+  exit 1
+fi
+
+# Enter closes the picker; Ctrl-R reloads the live KOS/KDE configuration.
+emit_shortcuts | sort -u |
+  fzf --delimiter=$'\t' --with-nth=1,2,3 --reverse --height=88% \
+      --prompt='快捷键 > ' \
+      --header=$'快捷键\t来源\t功能\nCtrl-R 刷新 · 读取 KOS / KDE 当前配置' \
+      --bind="ctrl-r:reload($self --list)"
