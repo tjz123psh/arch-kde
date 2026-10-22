@@ -1,0 +1,1280 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+SELF="$(readlink -f "${BASH_SOURCE[0]}" 2>/dev/null || realpath "${BASH_SOURCE[0]}" 2>/dev/null || printf '%s\n' "${BASH_SOURCE[0]}")"
+readonly SELF
+# 缓存目录 2026-10-04 从 ~/.cache/paru-ui 改名成 ~/.cache/pac；旧目录存在就自动搬一次，
+# 免得已经下好的包索引和预览白扔
+readonly CACHE_ROOT="${XDG_CACHE_HOME:-$HOME/.cache}/pac"
+readonly LEGACY_CACHE_ROOT="${XDG_CACHE_HOME:-$HOME/.cache}/paru-ui"
+if [[ -d "$LEGACY_CACHE_ROOT" && ! -e "$CACHE_ROOT" ]]; then
+  mv -- "$LEGACY_CACHE_ROOT" "$CACHE_ROOT" 2>/dev/null || true
+fi
+readonly INDEX_CACHE="$CACHE_ROOT/package-index.tsv"
+readonly FLATPAK_INDEX_CACHE="$CACHE_ROOT/flatpak-index.tsv"
+readonly ORIGINAL_LANG="${LC_ALL:-${LC_MESSAGES:-${LANG:-C}}}"
+readonly AUR_PACKAGE_LIST_CACHE="$CACHE_ROOT/aur-packages.txt"
+readonly INDEX_MAX_AGE="${PAC_INDEX_MAX_AGE:-${PARU_UI_INDEX_MAX_AGE:-3600}}"
+readonly AUR_INDEX_MAX_AGE="${PAC_AUR_INDEX_MAX_AGE:-${PARU_UI_AUR_INDEX_MAX_AGE:-86400}}"
+SCRIPT_DIR="$(cd -- "$(dirname -- "$SELF")" && pwd -P)"
+readonly SCRIPT_DIR
+
+REVIEW_ONLY=false
+FLATPAK_ONLY=false
+NO_AI=false
+DRY_RUN=false
+# 本批 AUR 包的数量，以及其中真的跑出过审查结论的数量。只有两者相等，才允许跳过
+# paru 自带的 PKGBUILD 复核（见 paru_install）。
+AUR_REF_TOTAL=0
+AUR_REF_REVIEWED=0
+SESSION_CACHE_TO_CLEAN=""
+[[ "${PAC_DRY_RUN:-${PARU_UI_DRY_RUN:-}}" == "1" ]] && DRY_RUN=true
+
+cleanup_session_cache() {
+  if [[ -n "${SESSION_CACHE_TO_CLEAN:-}" ]]; then
+    rm -rf -- "$SESSION_CACHE_TO_CLEAN"
+  fi
+}
+
+AUR_REVIEW_PROMPT=""
+for candidate in \
+  "$SCRIPT_DIR/share/prompts/aur-review.md" \
+  "$SCRIPT_DIR/aur-review.md" \
+  "$SCRIPT_DIR/../share/prompts/aur-review.md" \
+  "/usr/share/shorin-contrib/prompts/aur-review.md"
+do
+  if [[ -f "$candidate" ]]; then
+    AUR_REVIEW_PROMPT="$candidate"
+    break
+  fi
+done
+
+deps=(fzf paru pacman awk sed mktemp curl gzip)
+missing=()
+for cmd in "${deps[@]}"; do
+  command -v "$cmd" >/dev/null 2>&1 || missing+=("$cmd")
+done
+if (( ${#missing[@]} > 0 )); then
+  printf 'pac: 缺少依赖: %s\n' "${missing[*]}" >&2
+  exit 127
+fi
+
+cache_dir() {
+  if [[ -n "${PARU_UI_SESSION_CACHE_DIR:-}" ]]; then
+    printf '%s\n' "$PARU_UI_SESSION_CACHE_DIR"
+  else
+    printf '%s\n' "$CACHE_ROOT/previews"
+  fi
+}
+
+cache_key() {
+  local ref="$1"
+  printf '%s' "$ref" | sed 's#[^[:alnum:]._-]#_#g'
+}
+
+cache_file_for() {
+  local ref="$1"
+  printf '%s/%s.txt\n' "$(cache_dir)" "$(cache_key "$ref")"
+}
+
+ensure_cache_dir() {
+  mkdir -p -- "$(cache_dir)"
+}
+
+build_preview_content() {
+  local ref="$1"
+  local src="${2:-}"
+  local source pkg available installed origin appid
+
+  if [[ -z "$ref" || "$ref" != */* ]]; then
+    printf '没有可预览的包\n'
+    return 0
+  fi
+
+  source="$(resolve_source "$ref" "$src")"
+  pkg="${ref#*/}"
+
+  case "$source" in
+    aur)
+      available="$(paru -Si --color=never --aur -- "$pkg" 2>/dev/null || true)"
+      installed="$(pacman -Qi -- "$pkg" 2>/dev/null || true)"
+      ;;
+    flatpak)
+      origin="${ref%%/*}"
+      appid="$pkg"
+      available="$(LC_ALL="$ORIGINAL_LANG" flatpak remote-info --cached "$origin" "$appid" 2>/dev/null \
+        || LC_ALL="$ORIGINAL_LANG" flatpak remote-info "$origin" "$appid" 2>/dev/null || true)"
+      installed="$(LC_ALL="$ORIGINAL_LANG" flatpak info "$appid" 2>/dev/null || true)"
+      ;;
+    *)
+      available="$(pacman -Si -- "$pkg" 2>/dev/null || true)"
+      if [[ -z "$available" ]]; then
+        available="$(paru -Si --color=never -- "$pkg" 2>/dev/null || true)"
+      fi
+      installed="$(pacman -Qi -- "$pkg" 2>/dev/null || true)"
+      ;;
+  esac
+
+  if [[ -n "$available" ]]; then
+    printf '\033[1;36m== Available ==\033[0m\n%s\n' "$available"
+  fi
+
+  if [[ -n "$installed" ]]; then
+    if [[ -n "$available" ]]; then
+      printf '\n'
+    fi
+    printf '\033[1;33m== Installed ==\033[0m\n%s\n' "$installed"
+  fi
+
+  if [[ -z "$available" && -z "$installed" ]]; then
+    printf '无法读取包信息: %s\n' "$pkg"
+  fi
+}
+
+prime_preview_cache() {
+  local ref="$1"
+  local src="${2:-}"
+  local cache_file tmp_file
+
+  ensure_cache_dir
+  cache_file="$(cache_file_for "$ref")"
+
+  if [[ -s "$cache_file" ]]; then
+    printf '%s\n' "$cache_file"
+    return 0
+  fi
+
+  tmp_file="$(mktemp "$(cache_dir)/.tmp.XXXXXX")"
+  build_preview_content "$ref" "$src" >"$tmp_file"
+  mv -- "$tmp_file" "$cache_file"
+  printf '%s\n' "$cache_file"
+}
+
+clear_preview_cache() {
+  local dir file
+  dir="$(cache_dir)"
+
+  rm -f -- "$INDEX_CACHE"
+  rm -f -- "$FLATPAK_INDEX_CACHE"
+  rm -f -- "$AUR_PACKAGE_LIST_CACHE"
+  rm -rf -- "$CACHE_ROOT/review"
+
+  if [[ ! -d "$dir" ]]; then
+    return 0
+  fi
+
+  shopt -s nullglob dotglob
+  for file in "$dir"/*; do
+    rm -f -- "$file"
+  done
+  shopt -u nullglob dotglob
+
+}
+
+aur_package_list() {
+  local tmp_file
+
+  mkdir -p -- "$CACHE_ROOT"
+
+  if cache_is_fresh "$AUR_PACKAGE_LIST_CACHE" "$AUR_INDEX_MAX_AGE"; then
+    cat -- "$AUR_PACKAGE_LIST_CACHE"
+    return 0
+  fi
+
+  tmp_file="$(mktemp "$CACHE_ROOT/aur-packages.XXXXXX")"
+  if curl -fsSL https://aur.archlinux.org/packages.gz | gzip -dc >"$tmp_file"; then
+    mv -- "$tmp_file" "$AUR_PACKAGE_LIST_CACHE"
+    cat -- "$AUR_PACKAGE_LIST_CACHE"
+    return 0
+  fi
+
+  rm -f -- "$tmp_file"
+  if [[ -s "$AUR_PACKAGE_LIST_CACHE" ]]; then
+    printf 'pac: AUR package index refresh failed; using stale cache\n' >&2
+    cat -- "$AUR_PACKAGE_LIST_CACHE"
+    return 0
+  fi
+
+  printf 'pac: AUR package index refresh failed; falling back to paru completion cache\n' >&2
+  paru -P --complete | awk '$2 == "AUR" { print $1 }'
+}
+
+flatpak_available() {
+  command -v flatpak >/dev/null 2>&1
+}
+
+# Flatpak 应用列表：优先走本地缓存（本机实测 0.9s），缓存为空才实时拉（实测可能 >30s，
+# 界面会干等），所以只在缓存为空时兜底一次。
+flatpak_app_list() {
+  local raw
+
+  raw="$(flatpak remote-ls --app --cached --columns=origin,application,name 2>/dev/null || true)"
+  if [[ -z "$raw" ]]; then
+    raw="$(flatpak remote-ls --app --columns=origin,application,name 2>/dev/null || true)"
+  fi
+  printf '%s\n' "$raw"
+}
+
+flatpak_installed_apps() {
+  flatpak list --app --columns=application 2>/dev/null || true
+}
+
+is_flatpak_origin() {
+  local name="$1"
+
+  flatpak_available || return 1
+  flatpak remotes --columns=name 2>/dev/null | grep -qxF -- "$name"
+}
+
+# 判断一个 ref 属于哪一端：界面传下来的来源列优先，没有来源列时按前缀猜
+resolve_source() {
+  local ref="$1" src="${2:-}" first
+
+  first="${ref%%/*}"
+  if [[ "$first" == "aur" ]]; then
+    printf 'aur'
+    return 0
+  fi
+
+  # 只有来源列（或 ref 前缀）确实是本机配置的 flatpak remote 才算 Flatpak，
+  # 免得把 extra/flathub 这类仓库名误判
+  if [[ -n "$src" ]] && is_flatpak_origin "$src"; then
+    printf 'flatpak'
+    return 0
+  fi
+  if is_flatpak_origin "$first"; then
+    printf 'flatpak'
+    return 0
+  fi
+
+  printf 'repo'
+}
+
+strip_ansi_file() {
+  sed $'s/\033\\[[0-9;]*[a-zA-Z]//g' "$1"
+}
+
+extract_review_json() {
+  # extract_review_json IN OUT：从模型输出里抠出那个 JSON 对象（容忍前后废话与代码围栏）
+  local in="$1" out="$2" tmp fence
+  tmp="$(mktemp)"
+  fence="$(printf '\140\140\140')"
+
+  if jq -e 'type == "object"' "$in" >/dev/null 2>&1; then
+    cp -- "$in" "$out"; rm -f -- "$tmp"; return 0
+  fi
+
+  sed -n "/^[[:space:]]*${fence}/,\$p" "$in" | sed '1d' | sed "/^[[:space:]]*${fence}/,\$d" > "$tmp" || true
+  if [[ -s "$tmp" ]] && jq -e 'type == "object"' "$tmp" >/dev/null 2>&1; then
+    cp -- "$tmp" "$out"; rm -f -- "$tmp"; return 0
+  fi
+
+  awk '{ if (!s) { i = index($0, "{"); if (i > 0) { s = 1; print substr($0, i) } } else print }' "$in" > "$tmp" || true
+  if [[ -s "$tmp" ]]; then
+    awk 'BEGIN { last = 0 } { lines[NR] = $0; if ($0 ~ /\}/) last = NR } END { for (i = 1; i <= last; i++) print lines[i] }' "$tmp" > "${tmp}.2"
+    mv -f -- "${tmp}.2" "$tmp"
+    if jq -e 'type == "object"' "$tmp" >/dev/null 2>&1; then
+      cp -- "$tmp" "$out"; rm -f -- "$tmp"; return 0
+    fi
+  fi
+
+  rm -f -- "$tmp"
+  return 1
+}
+
+aur_build_root() {
+  printf '%s/review/%s' "$CACHE_ROOT" "$1"
+}
+
+fetch_aur_build_dir() {
+  local pkg="$1"
+  local build_root="$2"
+  local pkgbuild
+
+  rm -rf -- "$build_root"
+  mkdir -p -- "$build_root"
+
+  if ! (cd "$build_root" && paru --aur --redownload -G -- "$pkg" >&2); then
+    return 1
+  fi
+
+  shopt -s nullglob
+  for pkgbuild in "$build_root"/PKGBUILD "$build_root"/*/PKGBUILD; do
+    if [[ -f "$pkgbuild" ]]; then
+      dirname -- "$pkgbuild"
+      shopt -u nullglob
+      return 0
+    fi
+  done
+  shopt -u nullglob
+
+  return 1
+}
+
+# ==============================================================================
+# AUR 审查：脚本备齐证据 → 模型只报"看到了什么" → 脚本按固定规则定级
+#   为什么这样分：让模型自己按提示词数阈值定级时，上游 A/B 实测正常包约四分之一被
+#   判成高风险，满屏警告的结果是用户学会一路按 y。级别必须由确定性的规则算出来。
+# ==============================================================================
+REVIEW_JQ_CHECK='(.intent | type == "string") and (.findings | type == "array")
+    and all(.findings[]; (.category | type == "string") and ((.evidence // "") | type == "string") and (.summary | type == "string"))'
+
+# 定级规则（照搬 shorin-pac 冻结的版本，别自己改数值）：
+#   证据核实：引用的那一行要在证据包里找得到，或它引用的所有 URL 主机都出现过，才算数；
+#            找不到出处的"恶意"信号降为可疑，其余直接不计。
+#   malicious 任一条 → 高；suspicious 按类别计数：≥2 → 高，1 条且信誉弱 → 高，1 条 → 中；
+#   hygiene 且信誉弱 → 中；构建期拉取未锁定依赖且信誉不强 → 中；其余 → 低。
+REVIEW_SCORE_JQ='
+def clean: if type == "string" then gsub("\\p{Cc}+"; " ") else . end;
+def norm: gsub("\\s+"; " ") | ltrimstr(" ") | rtrimstr(" ");
+def hosts: [ scan("://([A-Za-z0-9.-]+)") | .[0] | ascii_downcase ] | unique;
+def tier:
+  if IN("remote_code_exec","obfuscated_exec","credential_access","data_exfiltration",
+        "persistence","install_script_exec","privilege_abuse","backdoor_other") then "malicious"
+  elif IN("impersonation","upstream_mismatch","srcinfo_mismatch","suspicious_host",
+          "risky_recent_change","reviewer_manipulation","hidden_logic") then "suspicious"
+  elif IN("binary_repack","unpinned_build_fetch","weak_integrity","system_change") then "hygiene"
+  else "unknown" end;
+
+walk(clean) as $in | $d[0] as $dos | $dos.trust_context as $trust | $k[0] as $checks
+| ([ ($dos.files[] | .content // empty), ($dos.recent_changes // ""), ($dos.aur_rpc | tostring),
+     $dos.aur_helper_info, $dos.aur_git_history ] | map(norm) | join("\n")) as $corpus
+| ($corpus | ascii_downcase) as $lc
+| ($checks.srcinfo_extra_hosts // []) as $extra
+| [ ($in.findings[] | . + {origin: "model"}),
+    (if ($extra | length) > 0 then
+       {category: "srcinfo_mismatch", origin: "pac", evidence: ($extra | join(", ")),
+        summary: ($srcinfo_msg | sub("%s"; $extra | join(", ")))} else empty end) ]
+| map(
+    . + {tier: (.category | tier)}
+    | ((.evidence // "") | norm) as $ev
+    | ($ev | hosts) as $h
+    | . + {verified: (.origin == "pac"
+                      or (($ev | length) >= 4 and ($corpus | contains($ev)))
+                      or (($h | length) > 0 and all($h[]; . as $x | $lc | contains($x))))}
+    | . + {counted_tier: (if .verified then .tier
+                          elif .tier == "malicious" then "suspicious"
+                          else "discarded" end)}
+  )
+| (if any(.[]; .origin == "model" and .category == "srcinfo_mismatch" and .verified)
+   then map(select(.origin != "pac")) else . end) as $f
+| ([ $f[] | select(.counted_tier == "malicious") ] | length) as $m
+| ([ $f[] | select(.counted_tier == "suspicious") | .category ] | unique | length) as $s
+| ([ $f[] | select(.counted_tier == "hygiene") ] | length) as $h
+| ([ $f[] | select(.counted_tier == "hygiene" and .category == "unpinned_build_fetch") ] | length) as $unpinned
+| (if $m > 0 then {level:"high", why:"malicious"}
+   elif $s >= 2 then {level:"high", why:"multiple_suspicious"}
+   elif $s == 1 and $trust.trust == "weak" then {level:"high", why:"suspicious_weak_trust"}
+   elif $s == 1 then {level:"medium", why:"one_suspicious"}
+   elif $h > 0 and $trust.trust == "weak" then {level:"medium", why:"hygiene_weak_trust"}
+   elif $unpinned > 0 and $trust.trust != "strong" then {level:"medium", why:"unpinned_fetch"}
+   else {level:"low", why:(if $h > 0 then "hygiene_only" else "no_findings" end)} end) as $lv
+| {level: $lv.level,
+   recommendation: ({"high":"cancel","medium":"caution","low":"continue"}[$lv.level]),
+   why: $lv.why, trust_context: $trust,
+   findings: ($f | sort_by({"malicious":0,"suspicious":1,"hygiene":2}[.counted_tier] // 3)),
+   intent: $in.intent, notes: $in.notes}'
+
+REVIEW_MAX_FILES="${PAC_REVIEW_MAX_FILES:-60}"
+REVIEW_MAX_FILE_BYTES="${PAC_REVIEW_MAX_FILE_BYTES:-262144}"
+REVIEW_MAX_TOTAL_BYTES="${PAC_REVIEW_MAX_TOTAL_BYTES:-1048576}"
+REVIEW_RECENT_COMMITS="${PAC_REVIEW_RECENT_COMMITS:-3}"
+REVIEW_RISK=""
+REVIEW_RECOMMENDATION=""
+REVIEW_WHY=""
+REVIEW_SCORED=""
+
+aur_rpc_info() {
+  curl --silent --show-error --fail --connect-timeout 10 --max-time 30 \
+    --get --data-urlencode "arg[]=$1" "https://aur.archlinux.org/rpc/v5/info" 2>/dev/null || true
+}
+
+aur_git_history() {
+  git -C "$1" log --max-count=128 --format='%h %ad %an <%ae> %s' --date=short -- . 2>/dev/null || true
+}
+
+collect_recent_changes() {
+  # 投毒几乎都以一次更新进来，最近几次提交的 diff 是最关键的证据
+  local build_dir="$1" n="$2"
+  git -C "$build_dir" log -n "$n" -p --stat -- . 2>/dev/null | head -c 262144 || true
+}
+
+review_trust_context() {
+  # 信誉背景：新包（上架 <90 天）或最新提交者是近 60 天才出现的新人 → weak
+  local build_dir="$1" pkg="$2" rpc="$3"
+  local now first votes pop maint newest first_seen oldest span seen new_author=false trust=normal
+
+  now=$(date +%s)
+  first=""; votes=0; pop=0; maint=""
+  if [[ -n "$rpc" ]]; then
+    { read -r first; read -r votes; read -r pop; read -r maint; } < <(jq -r --arg pkg "$pkg" \
+      'first(.results[]? | select(.Name == $pkg)) | .FirstSubmitted, (.NumVotes // 0), (.Popularity // 0), (.Maintainer // "")' <<< "$rpc" 2>/dev/null) || true
+  fi
+  [[ "$first" =~ ^[0-9]+$ ]] || first="$now"
+  [[ "$votes" =~ ^[0-9]+$ ]] || votes=0
+
+  seen=0
+  if newest=$(git -C "$build_dir" log -1 --format='%ae' -- . 2>/dev/null) && [[ -n "$newest" ]]; then
+    first_seen=$(git -C "$build_dir" log --reverse --format='%ae %at' -- . 2>/dev/null | awk -v e="$newest" '$1 == e { print $2; exit }')
+    oldest=$(git -C "$build_dir" log --reverse --format='%at' -- . 2>/dev/null | head -n1)
+    span=$(( (now - ${oldest:-$now}) / 86400 ))
+    seen=$(( (now - ${first_seen:-$now}) / 86400 ))
+    (( span > 90 && seen < 60 )) && new_author=true
+  fi
+
+  age=$(( (now - first) / 86400 ))
+  if (( age < 90 )) || [[ "$new_author" == true ]]; then
+    trust=weak
+  elif (( age >= 365 && votes >= 50 )); then
+    trust=strong
+  fi
+
+  jq -nc --argjson age "$age" --argjson votes "$votes" --argjson pop "$pop" --arg maint "$maint" \
+    --argjson new_author "$new_author" --argjson seen "$seen" --arg trust "$trust" \
+    '{package_age_days:$age, votes:$votes, popularity:$pop, orphan:($maint==""),
+      newest_commit_author_is_new:$new_author, newest_author_first_seen_days_ago:$seen, trust:$trust}'
+}
+
+review_srcinfo_check() {
+  # PKGBUILD 的 source 里字面写出、却没在 .SRCINFO 里出现的主机：AUR 网页展示的是 .SRCINFO，
+  # 两边对不上就可能藏了真实下载地址。只比字面主机、只比一个方向。
+  local build_dir="$1" pk_hosts si_hosts
+  pk_hosts=$(awk '
+      /^[[:space:]]*source(_[A-Za-z0-9_]+)?[+]?=\(/ { on = 1 }
+      on { print }
+      on && /\)/ { on = 0 }
+    ' "$build_dir/PKGBUILD" 2>/dev/null | grep -v '^[[:space:]]*#' |
+      grep -oE '://[A-Za-z0-9.-]+' | sed 's#^://##' | tr 'A-Z' 'a-z' | grep '[.]' | sort -u)
+  si_hosts=$(grep -E '^[[:space:]]*(source(_[A-Za-z0-9_]+)?|url)[[:space:]]*=' "$build_dir/.SRCINFO" 2>/dev/null |
+      grep -oE '://[A-Za-z0-9.-]+' | sed 's#^://##' | tr 'A-Z' 'a-z' | sort -u)
+  comm -23 <(printf '%s\n' $pk_hosts | sort -u) <(printf '%s\n' $si_hosts | sort -u) |
+    { grep -v '^$' || true; } | jq -R . | jq -sc '{srcinfo_extra_hosts: .}'
+}
+
+collect_dossier_files() {
+  # 构建目录里的每个文件：文本带全文，二进制/软链/超大只记元信息
+  local build_dir="$1" f rel size count=0 total=0
+  while IFS= read -r -d '' f; do
+    (( count < REVIEW_MAX_FILES )) || break
+    rel="${f#"$build_dir"/}"
+    if [[ -L "$f" ]]; then
+      jq -cn --arg name "$rel" --arg target "$(readlink -- "$f" 2>/dev/null || true)" \
+        '{name:$name,type:"symlink",target:$target}'
+      count=$((count + 1)); continue
+    fi
+    [[ -f "$f" ]] || continue
+    size=$(stat -c %s -- "$f" 2>/dev/null || printf 0)
+    if (( size > REVIEW_MAX_FILE_BYTES )); then
+      jq -cn --arg name "$rel" --argjson bytes "$size" '{name:$name,type:"large",bytes:$bytes}'
+      count=$((count + 1)); continue
+    fi
+    if ! iconv -f UTF-8 -t UTF-8 -- "$f" >/dev/null 2>&1; then
+      jq -cn --arg name "$rel" --argjson bytes "$size" '{name:$name,type:"binary",bytes:$bytes}'
+      count=$((count + 1)); continue
+    fi
+    total=$((total + size))
+    (( total <= REVIEW_MAX_TOTAL_BYTES )) || break
+    jq -cn --arg name "$rel" --rawfile content "$f" '{name:$name,type:"text",content:$content}'
+    count=$((count + 1))
+  done < <(find -P "$build_dir" -path "$build_dir/.git" -prune -o \( -type f -o -type l \) -print0 2>/dev/null | LC_ALL=C sort -z)
+}
+
+build_review_dossier() {
+  # build_review_dossier PKG BUILD_DIR OUT：备齐证据（.SRCINFO 比对结果写到 OUT.checks）
+  local pkg="$1" build_dir="$2" out="$3"
+  local helper_info rpc pretty trust files history recent
+
+  helper_info="$(NO_COLOR=1 LC_ALL=C paru -Si "aur/$pkg" 2>/dev/null || true)"
+
+  # 三处输入都可能拿不到（RPC 挂了、候选为空等），一律校验后兜底，
+  # 别让一个空字符串把整条审查送进 --argjson 报错
+  rpc="$(aur_rpc_info "$pkg")"
+  pretty='{}'
+  if [[ -n "$rpc" ]]; then
+    pretty="$(jq -c '.' <<< "$rpc" 2>/dev/null)" || pretty='{}'
+    [[ -n "$pretty" ]] || pretty='{}'
+  fi
+  jq -e 'type == "object"' <<< "$pretty" >/dev/null 2>&1 || pretty='{}'
+
+  trust="$(review_trust_context "$build_dir" "$pkg" "$pretty" 2>/dev/null)"
+  jq -e 'type == "object"' <<< "$trust" >/dev/null 2>&1 || trust='{"package_age_days":0,"votes":0,"popularity":0,"orphan":false,"newest_commit_author_is_new":false,"newest_author_first_seen_days_ago":0,"trust":"normal"}'
+
+  review_srcinfo_check "$build_dir" > "${out}.checks" 2>/dev/null || printf '{"srcinfo_extra_hosts":[]}' > "${out}.checks"
+  jq -e 'type == "object"' "${out}.checks" >/dev/null 2>&1 || printf '{"srcinfo_extra_hosts":[]}' > "${out}.checks"
+
+  files="$(collect_dossier_files "$build_dir" | jq -s '.' 2>/dev/null)"
+  jq -e 'type == "array"' <<< "$files" >/dev/null 2>&1 || files='[]'
+  history="$(aur_git_history "$build_dir")"
+  recent="$(collect_recent_changes "$build_dir" "$REVIEW_RECENT_COMMITS")"
+
+  jq -n --arg pkg "$pkg" --arg helper "$helper_info" --argjson rpc "$pretty" \
+    --argjson trust "$trust" --argjson files "$files" \
+    --arg history "$history" --arg recent "$recent" \
+    '{schema:"pac_aur_review_v1", package:$pkg, aur_helper:"paru", aur_helper_info:$helper,
+      aur_rpc:$rpc, trust_context:$trust, aur_git_history:$history,
+      recent_changes:$recent, files:$files}' > "$out"
+}
+
+score_review_result() {
+  # score_review_result RESULT_JSON DOSSIER：按固定规则定级，结果写 RESULT_JSON.scored
+  local result="$1" dossier="$2" scored
+  scored="${1}.scored"
+
+  jq --slurpfile d "$dossier" --slurpfile k "${dossier}.checks" \
+    --arg srcinfo_msg 'AUR 网页展示的 .SRCINFO 里没有这个下载地址：%s' \
+    "$REVIEW_SCORE_JQ" "$result" > "$scored" || return 1
+
+  REVIEW_SCORED="$scored"
+  REVIEW_RISK="$(jq -r '.level' "$scored")"
+  REVIEW_RECOMMENDATION="$(jq -r '.recommendation' "$scored")"
+  REVIEW_WHY="$(jq -r '.why' "$scored")"
+}
+
+review_human_age() {
+  local days="$1"
+  if (( days < 60 )); then printf '%s 天' "$days"
+  elif (( days < 730 )); then printf '%s 个月' "$(( days / 30 ))"
+  else printf '%s 年多' "$(( days / 365 ))"; fi
+}
+
+review_weak_reason() {
+  local age seen
+  { read -r age; read -r seen; } < <(jq -r '.trust_context | .package_age_days, .newest_author_first_seen_days_ago' "$1") || true
+  if (( ${age:-0} < 90 )); then printf '上架才 %s 天' "${age:-0}"; else printf '最新提交者是 %s 天前才出现的新人' "${seen:-0}"; fi
+}
+
+review_why_label() {
+  local scored="$1"
+  case "$REVIEW_WHY" in
+    malicious) printf '模型报出了可核实的恶意行为' ;;
+    multiple_suspicious) printf '可疑之处有两类以上' ;;
+    suspicious_weak_trust) printf '有一处可疑，且这个包信誉偏弱（%s）' "$(review_weak_reason "$scored")" ;;
+    one_suspicious) printf '有一处可疑' ;;
+    hygiene_weak_trust) printf '只有没法完全检查的地方，且这个包信誉偏弱（%s）' "$(review_weak_reason "$scored")" ;;
+    unpinned_fetch) printf '构建时会联网拉取没锁定版本的依赖' ;;
+    hygiene_only) printf '只有没法完全检查的地方' ;;
+    *) printf '没有发现异常' ;;
+  esac
+}
+
+review_trust_line() {
+  local scored="$1" age votes orphan new_author seen out
+  { read -r age; read -r votes; read -r orphan; read -r new_author; read -r seen; } < <(jq -r \
+    '.trust_context | .package_age_days, .votes, .orphan, .newest_commit_author_is_new, .newest_author_first_seen_days_ago' "$scored") || true
+  out="上架 $(review_human_age "${age:-0}") · ${votes:-0} 票"
+  [[ "$orphan" == true ]] && out+=" · 无人维护"
+  [[ "$new_author" == true ]] && out+=" · 最新提交者是 ${seen:-0} 天前出现的新人"
+  printf '%s' "$out"
+}
+
+render_review_report() {
+  # render_review_report SCORED REPORT：写人看的报告，并在终端按级别着色
+  local scored="$1" report="$2" risk_cn rec_cn tier category origin verified summary evidence label note
+  case "$REVIEW_RISK" in
+    high)   risk_cn="高风险" ;;
+    medium) risk_cn="中风险" ;;
+    *)      risk_cn="低风险" ;;
+  esac
+  case "$REVIEW_RECOMMENDATION" in
+    cancel)  rec_cn="建议取消安装" ;;
+    caution) rec_cn="建议谨慎" ;;
+    *)       rec_cn="可以安装" ;;
+  esac
+
+  {
+    printf '## PKGBUILD意图\n%s\n' "$(jq -r '.intent // ""' "$scored")"
+    printf '## 具体风险\n'
+    if [[ "$(jq -r '.findings | length' "$scored")" == "0" ]]; then
+      printf '（模型没有报出任何信号）\n'
+    else
+      while IFS=$'\t' read -r tier category origin verified summary evidence; do
+        case "$tier" in
+          malicious) label="恶意" ;;
+          suspicious) label="可疑" ;;
+          hygiene) label="没法完全检查" ;;
+          *) label="未计入定级" ;;
+        esac
+        if [[ "$verified" == true ]]; then
+          printf -- '- [%s] %s（已核实）：%s\n' "$label" "$category" "$summary"
+        else
+          printf -- '- [%s] %s（出处不明，未计入定级）：%s\n' "$label" "$category" "$summary"
+        fi
+        [[ -n "$evidence" ]] && printf '  证据：%s\n' "$evidence"
+        [[ "$origin" == "pac" ]] && printf '  （这条是 pac 自己比对 .SRCINFO 得到的）\n'
+      done < <(jq -r '.findings[] | "\(.counted_tier)\t\(.category)\t\(.origin)\t\(.verified)\t\(.summary)\t\(.evidence // "")"' "$scored")
+    fi
+    printf '## 审查结论\n'
+    printf '结论：%s · %s\n' "$risk_cn" "$rec_cn"
+    printf '原因：%s\n' "$(review_why_label "$scored")"
+    printf '包的情况：%s\n' "$(review_trust_line "$scored")"
+    while IFS= read -r note; do
+      [[ -n "$note" ]] && printf '提醒：%s\n' "$note"
+    done < <(jq -r '.notes[]? // empty' "$scored")
+  } > "$report"
+
+  sed -e 's/^## /\x1b[1;36m## /' -e 's/$/\x1b[0m/' \
+      -e $'s/结论：高风险.*/\x1b[1;31m&\x1b[0m/' \
+      -e $'s/结论：中风险.*/\x1b[1;33m&\x1b[0m/' \
+      -e $'s/结论：低风险.*/\x1b[1;32m&\x1b[0m/' \
+      -e 's/- \[恶意\]/\x1b[1;31m- [恶意]\x1b[0m/' \
+      -e 's/- \[可疑\]/\x1b[1;33m- [可疑]\x1b[0m/' "$report"
+}
+
+# AI 后端模块：pac 与 pacr 共用（见 lib/pac-ai.sh）
+if [[ -r "$SCRIPT_DIR/lib/pac-ai.sh" ]]; then
+  # shellcheck source=/dev/null
+  source "$SCRIPT_DIR/lib/pac-ai.sh"
+else
+  printf 'pac: 缺少 $SCRIPT_DIR/lib/pac-ai.sh，AI 审查不可用\n' >&2
+fi
+
+run_aur_review() {
+  local pkg="$1"
+  local build_root build_dir dossier review_log review_report review_json review_status
+
+  if ! ai_config_load; then
+    printf '\033[33mpac: AI 审查后端还没配好（%s）。\033[0m\n' "$AI_CONF" >&2
+    printf '\033[33m     先运行：pac ai init，然后填好 url / model / key。\033[0m\n' >&2
+    return 2
+  fi
+
+  if [[ -z "$AUR_REVIEW_PROMPT" ]]; then
+    printf '\033[33mpac: 未找到 AUR 审查提示词，无法执行 AUR 审查。\033[0m\n' >&2
+    return 2
+  fi
+
+  mkdir -p -- "$CACHE_ROOT/review"
+  build_root="$(aur_build_root "$pkg")"
+
+  printf '\n\033[35m>> 正在获取 AUR 构建文件：\033[0m %s\n' "$pkg"
+  build_dir="$(fetch_aur_build_dir "$pkg" "$build_root")" || {
+    printf '\033[31mpac: AUR 构建文件获取失败：%s\033[0m\n' "$pkg" >&2
+    return 1
+  }
+  if [[ ! -d "$build_dir" ]]; then
+    printf '\033[31mpac: AUR 构建目录无效：%s\033[0m\n' "$build_dir" >&2
+    return 1
+  fi
+
+  # 审查产物统一放 review/ 子目录（构建目录也在里面，但用的是包名做目录名，不会撞）
+  local review_dir="$CACHE_ROOT/review"
+  mkdir -p -- "$review_dir"
+  dossier="$review_dir/${pkg}.dossier.json"
+  review_log="$review_dir/${pkg}.log"
+  review_report="$review_dir/${pkg}.report"
+  review_json="$review_dir/${pkg}.json"
+
+  printf '\n\033[35m>> 正在收集审查证据：\033[0m %s\n' "$pkg"
+  if ! build_review_dossier "$pkg" "$build_dir" "$dossier"; then
+    printf '\033[31mpac: 证据包构建失败：%s\033[0m\n' "$pkg" >&2
+    return 1
+  fi
+  printf '   \033[90m证据包 %s 个文件 · %s 字节 · 含最近 %s 次提交的 diff\033[0m\n' \
+    "$(jq -r '.files | length' "$dossier")" "$(stat -c %s -- "$dossier")" "$REVIEW_RECENT_COMMITS"
+
+  printf '\n\033[35m>> 正在审查 AUR 包：\033[0m %s \033[90m(模型只报信号，级别由 pac 按固定规则算)\033[0m\n' "$pkg"
+  printf '%s\n' '----------------------------------------'
+
+  # AI 审查就是一次普通 HTTP 请求：没有工具、没有插件、不碰构建目录。
+  # 提示词当 system，证据包当 user，正文写进 review_log（后面从里面抠 JSON）。
+  set +e
+  ai_chat "$AUR_REVIEW_PROMPT" "$dossier" "$review_log"
+  review_status=$?
+  set -e
+
+  if [[ $review_status -ne 0 ]]; then
+    [[ $review_status -eq 2 ]] || printf '\033[31mpac: AUR 审查失败：%s\033[0m\n' "$pkg" >&2
+    return 1
+  fi
+
+  if [[ -s "$review_log" ]]; then
+    printf '\033[90m'
+    head -c 2000 -- "$review_log"
+    printf '\033[0m\n'
+  fi
+
+  if ! extract_review_json "$review_log" "$review_json"; then
+    printf '\033[31mpac: 审查输出不是合法 JSON：%s\033[0m\n' "$pkg" >&2
+    return 1
+  fi
+
+  if ! jq -e "$REVIEW_JQ_CHECK" "$review_json" >/dev/null 2>&1; then
+    printf '\033[31mpac: 审查输出字段不完整（缺 intent 或 findings）：%s\033[0m\n' "$pkg" >&2
+    return 1
+  fi
+
+  if ! score_review_result "$review_json" "$dossier"; then
+    printf '\033[31mpac: 审查定级失败：%s\033[0m\n' "$pkg" >&2
+    return 1
+  fi
+
+  render_review_report "$REVIEW_SCORED" "$review_report"
+  printf '\n\033[36m>> 审查报告已存：\033[0m %s\n' "$review_report"
+
+  [[ "$REVIEW_RISK" == "low" ]] && return 0
+  return 3
+}
+
+aur_review_complete() {
+  (( AUR_REF_TOTAL > 0 )) && (( AUR_REF_REVIEWED == AUR_REF_TOTAL ))
+}
+
+# 唯一的安装入口。只有本批每个 AUR 包都真的跑出过审查结论，才追加 --skipreview；
+# 其余情况都保留 paru 自带的 PKGBUILD 复核——审查没跑成时那道复核就是最后一道防线。
+paru_install() {
+  local args=(-S)
+
+  if aur_review_complete; then
+    args+=(--skipreview)
+  fi
+  args+=(--)
+  args+=("$@")
+
+  if [[ "$DRY_RUN" == true ]]; then
+    printf '\033[36mpac: [DRY_RUN] 将执行：\033[0m paru %s\n' "${args[*]}"
+    return 0
+  fi
+
+  paru "${args[@]}"
+}
+
+confirm_aur_install_after_review() {
+  local pkg="$1"
+  local answer review_status
+
+  AUR_REF_TOTAL=$((AUR_REF_TOTAL + 1))
+
+  if [[ "$NO_AI" == true ]]; then
+    printf '\033[36mpac: --no-ai：本次跳过 AUR 审查，保留 paru 自带的 PKGBUILD 复核。\033[0m\n' >&2
+    return 0
+  fi
+
+  if [[ -z "$AUR_REVIEW_PROMPT" ]]; then
+    printf '\033[33mpac: 没找到审查提示词，按普通 paru 安装流程继续（保留 paru 自带的 PKGBUILD 复核）。\033[0m\n' >&2
+    return 0
+  fi
+
+  printf '\n\033[35m检测到 AUR 包：%s\033[0m\n' "$pkg"
+  while true; do
+    if ai_config_load; then
+      printf '\033[90mAI 后端：%s @ %s\033[0m\n' "$AI_MODEL" "$(ai_host)"
+    else
+      printf '\033[33mAI 后端还没配好（pac ai init），现在只能跳过审查。\033[0m\n' >&2
+    fi
+    printf '是否先进行 PKGBUILD 审查? [Y/n/m] '
+    read -r answer || answer="n"
+    case "${answer:-Y}" in
+      y|Y|yes|YES)
+        if ! ai_config_load; then
+          printf '\033[33mpac: 后端没配好，跳过审查（保留 paru 自带的 PKGBUILD 复核）。\033[0m\n' >&2
+          return 0
+        fi
+        break
+        ;;
+      m|M) ai_select_model || true ;;
+      *) return 0 ;;
+    esac
+  done
+
+  set +e
+  run_aur_review "$pkg"
+  review_status=$?
+  set -e
+
+  # 只有真的产出了审查结论（0=放行 / 3=建议谨慎）才算"审过"；审查失败不算，
+  # 那时 paru 自带的复核不能跟着一起跳掉。
+  case "$review_status" in
+    0|3) AUR_REF_REVIEWED=$((AUR_REF_REVIEWED + 1)) ;;
+  esac
+
+  case "$review_status" in
+    0)
+      printf '\n审查未给出中高风险默认阻断。继续安装? [Y/n] '
+      read -r answer || answer="n"
+      case "${answer:-Y}" in
+        y|Y|yes|YES) return 0 ;;
+        *) return 1 ;;
+      esac
+      ;;
+    3)
+      printf '\n审查结果建议谨慎或取消。仍然安装? [y/N] '
+      read -r answer || answer="n"
+      case "$answer" in
+        y|Y|yes|YES) return 0 ;;
+        *) return 1 ;;
+      esac
+      ;;
+    *)
+      printf '\n审查失败。仍然安装? [y/N] '
+      read -r answer || answer="n"
+      case "$answer" in
+        y|Y|yes|YES) return 0 ;;
+        *) return 1 ;;
+      esac
+      ;;
+  esac
+}
+
+cache_is_fresh() {
+  local file="$1"
+  local max_age="$2"
+  local now file_time
+
+  [[ -s "$file" ]] || return 1
+  now="$(date +%s)"
+  file_time="$(stat -c %Y -- "$file" 2>/dev/null || printf 0)"
+  (( now - file_time < max_age ))
+}
+
+pacman_state_newer_than() {
+  local file="$1"
+
+  if [[ -n "$(find /var/lib/pacman/sync -type f -name '*.db' -newer "$file" -print -quit 2>/dev/null)" ]]; then
+    return 0
+  fi
+
+  if [[ -n "$(find /var/lib/pacman/local -mindepth 1 -maxdepth 1 -type d -newer "$file" -print -quit 2>/dev/null)" ]]; then
+    return 0
+  fi
+
+  return 1
+}
+
+index_cache_file() {
+  if [[ "$FLATPAK_ONLY" == true ]]; then
+    printf '%s' "$FLATPAK_INDEX_CACHE"
+  else
+    printf '%s' "$INDEX_CACHE"
+  fi
+}
+
+index_cache_is_valid() {
+  local cache
+
+  cache="$(index_cache_file)"
+  cache_is_fresh "$cache" "$INDEX_MAX_AGE" || return 1
+  # Flatpak 模式下 pacman 库变了不影响这份索引
+  [[ "$FLATPAK_ONLY" == true ]] || ! pacman_state_newer_than "$cache"
+}
+
+build_package_index_uncached() {
+  {
+    if [[ "$FLATPAK_ONLY" == true ]]; then
+      flatpak_installed_apps | awk '{ print "installed-flatpak\t" $0 }'
+      flatpak_app_list | awk -F '\t' '{ print "flatpak\t" $1 "\t" $2 "\t" $3 }'
+    else
+      pacman -Qq | awk '{ print "installed\t" $0 }'
+      pacman -Sl | awk '{ print "repo\t" $1 "\t" $2 }'
+      aur_package_list | awk '{ print "aur\t" $0 }'
+      if flatpak_available; then
+        flatpak_installed_apps | awk '{ print "installed-flatpak\t" $0 }'
+        flatpak_app_list | awk -F '\t' '{ print "flatpak\t" $1 "\t" $2 "\t" $3 }'
+      fi
+    fi
+  } | awk -F '\t' '
+    $1 == "installed" {
+      installed[$2] = 1
+      next
+    }
+
+    $1 == "installed-flatpak" {
+      finstalled[$2] = 1
+      next
+    }
+
+    $1 == "flatpak" {
+      origin = $2
+      appid = $3
+      if (origin == "" || appid == "") {
+        next
+      }
+
+      state = finstalled[appid] ? "[installed]" : ""
+      printf "%-34s\t%-12s\t%-12s\t%s\n", origin "/" appid, origin, state, $4
+      next
+    }
+
+    $1 == "repo" {
+      source = $2
+      pkg = $3
+      if (pkg == "" || source == "") {
+        next
+      }
+
+      ref = source "/" pkg
+      state = installed[pkg] ? "[installed]" : ""
+      printf "%-34s\t%-12s\t%-12s\t%s\n", ref, source, state, "package index"
+      next
+    }
+
+    $1 == "aur" {
+      pkg = $2
+      if (pkg == "") {
+        next
+      }
+
+      state = installed[pkg] ? "[installed]" : ""
+      printf "%-34s\t%-12s\t%-12s\t%s\n", "aur/" pkg, "AUR", state, "package index"
+    }
+  '
+}
+
+build_package_index() {
+  local tmp_file cache
+
+  mkdir -p -- "$CACHE_ROOT"
+  cache="$(index_cache_file)"
+
+  if index_cache_is_valid; then
+    cat -- "$cache"
+    return 0
+  fi
+
+  tmp_file="$(mktemp "$CACHE_ROOT/package-index.XXXXXX")"
+  build_package_index_uncached >"$tmp_file"
+  mv -- "$tmp_file" "$cache"
+  cat -- "$cache"
+}
+
+preview_package() {
+  local ref="${1:-}"
+  local src="${2:-}"
+  local pkg="${ref#*/}"
+  local cache_file
+
+  if [[ -z "$ref" || -z "$pkg" ]]; then
+    printf '没有可预览的包\n'
+    exit 0
+  fi
+
+  cache_file="$(prime_preview_cache "$ref" "$src")"
+  cat -- "$cache_file"
+}
+
+flatpak_install() {
+  local apps=("$@")
+
+  (( ${#apps[@]} > 0 )) || return 0
+  printf '\n\033[36m>> 安装 Flatpak：\033[0m\n'
+  printf '   %s\n' "${apps[*]}"
+  if [[ "$DRY_RUN" == true ]]; then
+    printf '   \033[36m[DRY_RUN]\033[0m flatpak install %s\n' "${apps[*]}"
+    return 0
+  fi
+
+  flatpak install "${apps[@]}"
+}
+
+install_selected() {
+  local ref="$1"
+  local src="${2:-}"
+  local pkg="${ref#*/}"
+
+  if [[ -z "$pkg" || "$pkg" == "$ref" ]]; then
+    printf 'pac: 无效包引用: %s\n' "$ref" >&2
+    return 1
+  fi
+
+  if [[ "$(resolve_source "$ref" "$src")" == "flatpak" ]]; then
+    flatpak_install "$pkg"
+    return $?
+  fi
+
+  if [[ "$ref" == aur/* ]]; then
+    confirm_aur_install_after_review "$pkg" || {
+      printf 'pac: 已取消安装: %s\n' "$pkg" >&2
+      return 1
+    }
+    paru_install "$pkg"
+    return $?
+  fi
+
+  paru_install "$ref"
+}
+
+install_refs() {
+  # 入参每项是 "ref<TAB>来源"；按来源分派到 paru 或 flatpak
+  local entries=("$@")
+  local install_args=()
+  local flatpak_apps=()
+  local entry ref src pkg
+  local tab=$'\t'
+
+  for entry in "${entries[@]}"; do
+    ref="${entry%%"$tab"*}"
+    src="${entry#*"$tab"}"
+    pkg="${ref#*/}"
+    if [[ -z "$pkg" || "$pkg" == "$ref" ]]; then
+      printf 'pac: 无效包引用: %s\n' "$ref" >&2
+      continue
+    fi
+
+    if [[ "$(resolve_source "$ref" "$src")" == "flatpak" ]]; then
+      flatpak_apps+=("$pkg")
+      continue
+    fi
+
+    if [[ "$ref" == aur/* ]]; then
+      confirm_aur_install_after_review "$pkg" || {
+        printf 'pac: 已跳过安装: %s\n' "$pkg" >&2
+        continue
+      }
+      install_args+=("$pkg")
+    else
+      install_args+=("$ref")
+    fi
+  done
+
+  if (( ${#install_args[@]} > 0 )); then
+    paru_install "${install_args[@]}"
+  fi
+  if (( ${#flatpak_apps[@]} > 0 )); then
+    flatpak_install "${flatpak_apps[@]}"
+  fi
+
+  if (( ${#install_args[@]} == 0 && ${#flatpak_apps[@]} == 0 )); then
+    printf 'pac: 没有需要安装的包。\n' >&2
+    return 1
+  fi
+}
+
+review_selected() {
+  local ref="$1"
+  local src="${2:-}"
+  local pkg
+  local review_status
+  local tab=$'\t'
+
+  ref="${ref%%"$tab"*}"
+  pkg="${ref#*/}"
+  if [[ "$(resolve_source "$ref" "$src")" != "aur" ]]; then
+    printf 'pac: 仅 AUR 包需要审查，已跳过: %s\n' "$ref" >&2
+    return 0
+  fi
+
+  set +e
+  run_aur_review "$pkg"
+  review_status=$?
+  set -e
+
+  case "$review_status" in
+    0|3)
+      printf '\npac: 审查完成，未执行安装。\n'
+      return 0
+      ;;
+    *)
+      return "$review_status"
+      ;;
+  esac
+}
+
+review_refs() {
+  local status=0
+  local entry ref src
+  local tab=$'\t'
+
+  for entry in "$@"; do
+    ref="${entry%%"$tab"*}"
+    src="${entry#*"$tab"}"
+    review_selected "$ref" "$src" || status=1
+  done
+
+  return "$status"
+}
+
+launch_ui() {
+  local initial_query="$*"
+  local header index_cmd preview_cmd result session_cache
+  local refs=()
+
+  if [[ "$REVIEW_ONLY" == true ]]; then
+    header='输入关键词本地过滤  Tab 多选  Enter 审查 AUR  Ctrl-R 重建索引/刷新预览  Esc 退出'
+  else
+    header='输入关键词本地过滤  Tab 多选  Enter 安装  Ctrl-R 重建索引/刷新预览  Esc 退出'
+  fi
+  index_cmd="$SELF --index"
+  preview_cmd="$SELF --preview {1} {2}"
+  mkdir -p -- "$CACHE_ROOT"
+  session_cache="$(mktemp -d "$CACHE_ROOT/session.XXXXXX")"
+  SESSION_CACHE_TO_CLEAN="$session_cache"
+  export PARU_UI_SESSION_CACHE_DIR="$session_cache"
+  trap cleanup_session_cache EXIT
+
+  result="$(
+    "$SELF" --index |
+    fzf \
+      --ansi \
+      --exact \
+      --height=95% \
+      --layout=reverse \
+      --border=rounded \
+      --margin=1 \
+      --padding=1 \
+      --prompt='paru > ' \
+      --pointer='▶' \
+      --marker='◆' \
+      --multi \
+      --info='right' \
+      --header="$header" \
+      --header-first \
+      --delimiter=$'\t' \
+      --with-nth=1,2,3,4 \
+      --preview="$preview_cmd" \
+      --preview-window='down,62%,border-top,wrap' \
+      --preview-label=' Package Details ' \
+      --bind="ctrl-r:execute-silent($SELF --clear-cache)+reload($index_cmd)+refresh-preview" \
+      --bind='enter:accept' \
+      --query="$initial_query"
+  )" || return $?
+
+  mapfile -t refs < <(printf '%s\n' "$result" | awk -F '\t' '
+    {
+      ref = $1
+      src = $2
+      sub(/[[:space:]]+$/, "", ref)
+      gsub(/^[[:space:]]+/, "", src)
+      gsub(/[[:space:]]+$/, "", src)
+      if (ref ~ /^[^[:space:]]+\/[^[:space:]]+$/ && src != "") {
+        print ref "\t" src
+      }
+    }
+  ')
+
+  if (( ${#refs[@]} == 0 )); then
+    return 0
+  fi
+
+  if [[ "$REVIEW_ONLY" == true ]]; then
+    review_refs "${refs[@]}"
+  else
+    install_refs "${refs[@]}"
+  fi
+}
+
+usage() {
+  cat <<'EOF'
+pac —— 装软件：官方源、AUR、Flatpak 一起搜
+
+用法
+  pac [关键词]              打开界面搜索并安装
+  pac --check [关键词]      只审查 AUR 包，不安装
+  pac --flatpak             只看 Flatpak
+  pac ai <子命令>           配置 AI 审查后端（init / show / model / models）
+
+选项
+  -h, --help, help          显示这份帮助
+  -y, --refresh             重建索引与预览缓存后再打开界面
+  --index                   打印缓存的包索引（界面内部用）
+  --clear-cache             清掉包索引、预览缓存与审查产物
+  --no-ai                   本次跳过 AI 审查，直接安装
+
+AI 配置（与 pac ai 等价）
+  --ai-init                 生成配置模板 ~/.config/pac/ai.conf（权限 600）
+  --ai-show                 查看当前配置（key 打码）
+  --ai-model <模型名>       设置审查用的模型
+  --ai-models               从服务端拉模型列表，用 fzf 挑一个
+
+界面里
+  Tab 多选 · Enter 安装 · Ctrl-R 重建索引 · Esc 退出
+
+AUR 包怎么审
+  低风险                    默认继续安装（回车即可）
+  中 / 高风险               默认不装，要按 y 才继续
+  没配后端 / 审查失败       保留 paru 自带的 PKGBUILD 复核，不会两头都空
+
+例子
+  pac firefox               搜 firefox
+  pac --check yay-bin       只看 yay-bin 的审查报告
+  pac ai init               生成 AI 配置模板
+
+环境变量
+  PAC_DRY_RUN=1             只打印将执行的命令，不真装
+  PAC_INDEX_MAX_AGE=秒      包索引有效期，默认 3600（旧的 PARU_UI_* 也认）
+
+不配 AI 也能用，AUR 包只是少一道检查。
+EOF
+}
+
+# 逐个解析前置选项，解析完剩下的都当搜索词。原来的写法只看第一个参数，
+# 导致 --no-ai 无法与 --check/--install 组合使用。
+while (( $# > 0 )); do
+  case "$1" in
+    --help|-h)
+      usage
+      exit 0
+      ;;
+    --preview)
+      preview_package "${2:-}"
+      exit 0
+      ;;
+    --clear-cache)
+      clear_preview_cache
+      exit 0
+      ;;
+    --index)
+      build_package_index
+      exit 0
+      ;;
+    --install)
+      install_selected "${2:?missing package name}"
+      exit $?
+      ;;
+    --refresh|-y)
+      clear_preview_cache
+      shift
+      ;;
+    --flatpak)
+      FLATPAK_ONLY=true
+      shift
+      ;;
+    --check|-c)
+      REVIEW_ONLY=true
+      shift
+      ;;
+    --no-ai)
+      NO_AI=true
+      shift
+      ;;
+    --ai-init)
+      ai_init
+      exit $?
+      ;;
+    --ai-show)
+      ai_show
+      exit $?
+      ;;
+    --ai-models)
+      ai_select_model
+      exit $?
+      ;;
+    --ai-model)
+      [[ -n "${2:-}" ]] || { printf '用法: pac --ai-model <模型名>\n' >&2; exit 2; }
+      ai_write_conf model "$2"
+      printf '\033[36mpac: 审查模型已设为：\033[0m %s\n' "$2"
+      shift 2
+      ;;
+    *)
+      # 只敲一个 help 时当帮助用（否则会被当成搜索词，直接开界面，让人以为没有帮助）
+      if [[ $# -eq 1 && "$1" == "help" ]]; then
+        usage
+        exit 0
+      fi
+      break
+      ;;
+  esac
+done
+
+# --check 是"只做审查"，和"关掉审查"自相矛盾，直接拒绝而不是静默装下去。
+if [[ "$REVIEW_ONLY" == true && "$NO_AI" == true ]]; then
+  printf 'pac: --check 与 --no-ai 不能同时使用。\n' >&2
+  exit 2
+fi
+
+# pac ai [子命令]：配置 AI 审查后端
+if [[ "${1:-}" == "ai" ]]; then
+  shift
+  ai_command "$@"
+  exit $?
+fi
+
+launch_ui "$@"

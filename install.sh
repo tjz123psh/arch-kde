@@ -192,6 +192,7 @@ main() {
   setup_sddm_theme
   install_desktop_config
   install_wallpapers
+  install_user_scripts || warn "维护/包管理脚本安装失败，可稍后重跑"
 
   run_doctor quick || true
   summary

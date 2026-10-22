@@ -95,6 +95,7 @@ archlinuxcn 12 个）；加 `--no-mirrors` 可保留你原来的列表。
 - 常用应用：Chrome、VS Code、yazi、Obsidian、flclash、nomacs 等（Chrome / VS Code 可用参数关掉；
   flclash / nomacs 来自 archlinuxcn，没配这个源时自动跳过）
 - 开发工具：**Neovim**、**JDK 25**（LTS）、**Kate**、**npm**、**GitHub CLI**（`gh`）、**Docker + Compose**、命令行 AI 工具 **pi**（`pi-coding-agent-bin`）与 **opencode**（`opencode-bin`）
+- 常驻脚本：**term-menu**（维护菜单）、**pac / pacr / pacd**（装 / 卸 / 降级）；脚本放在 `~/.local/share/arch-kde/scripts`，命令链接到 `~/.local/bin`
 - ASUS 笔记本：**asusctl** + **rog-control-center**（风扇曲线/键盘灯/性能模式），有 archlinuxcn 源时再加
   `supergfxctl` 做 GPU 模式切换；`--no-asus` 可关
 - 蓝牙：**bluez** + **bluedevil**（KDE 蓝牙页/托盘）+ **bluez-obex**（文件传输），`bluetooth.service` 常开
@@ -136,6 +137,7 @@ archlinuxcn 12 个）；加 `--no-mirrors` 可保留你原来的列表。
 │   ├── 45-ime.sh         fcitx5 配置
 │   ├── 50-terminal.sh    kitty / fish / starship
 │   ├── 55-apps.sh        QQ 启动器去重
+│   ├── 58-scripts.sh     安装 maintenance / package / share 常驻脚本
 │   ├── 60-kos.sh         KOS 构建依赖 + 取源码 + kosctl 构建安装 + 快捷键
 │   ├── 80-sddm.sh        SilentSDDM 登录主题（AUR）
 │   ├── 85-config.sh      桌面环境变量 / GTK / 字体 / 壁纸库

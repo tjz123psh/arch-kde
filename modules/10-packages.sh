@@ -41,7 +41,7 @@ WANT_PPD=1
 
 # 只在 archlinuxcn 里的包：archlinuxcn 没配好时逐个跳过，
 # 绝不让它们把官方包那条 pacman -S 整条拖垮。
-CN_EXTRA_PKGS="flclash nomacs supergfxctl"
+CN_EXTRA_PKGS="flclash nomacs supergfxctl downgrade"
 
 # 已装包判断（pacman -Qq 只看本地库，不联网）
 pkg_installed() {
@@ -398,6 +398,12 @@ base-devel git curl jq unzip xdg-utils xdg-user-dirs man-db cmake extra-cmake-mo
   # github-cli 提供 /usr/bin/gh；docker 组和 docker.service 在 40-system.sh 配置。
   # kate 是 KOS 默认 Dock 的文本编辑器入口；npm 是 Node.js 包管理器。
   pkgs="$pkgs github-cli docker docker-compose kate npm"
+
+  # 维护 / 包管理脚本依赖（assets/scripts）：
+  # maintenance 需要 snapper/reflector/rsync/zstd/upower/pacman-contrib/strace 等；
+  # package 的 pac/pacr 需要 fzf/strace，pacd 需要 downgrade（在 archlinuxcn，走 CN_EXTRA_PKGS）。
+  # pciutils/usbutils/libnotify/efibootmgr 供 hw-doctor、通知、boot-check 使用。
+  pkgs="$pkgs git-delta strace reflector snapper flatpak rsync zstd upower pacman-contrib fakeroot pciutils usbutils libnotify efibootmgr"
 
   # ---- 硬件驱动：固定按目标机装（2026-10-21 用户要求，不再看探测结果）----
   # 目标机：ASUS TUF A15 / AMD Ryzen 7 7735H（Radeon 680M）+ RTX 4050 + RTL8852BE。

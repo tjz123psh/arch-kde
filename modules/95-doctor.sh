@@ -63,6 +63,12 @@ run_doctor() {
       done
     fi
     echo
+    echo "== 常驻脚本 =="
+    for cmd in term-menu pac pacr pacd; do
+      if test -x "$HOME/.local/bin/$cmd"; then echo "  [OK]   $cmd"; else echo "  [MISS] $cmd"; fi
+    done
+    test -d "$HOME/.local/share/arch-kde/scripts" && echo "  脚本目录: yes" || echo "  脚本目录: no"
+    echo
     echo "== 字体 =="
     fc-match "Noto Sans CJK SC" 2>/dev/null | head -1 || true
     fc-match "Maple Mono NF CN" 2>/dev/null | head -1 || true

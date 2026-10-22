@@ -1,0 +1,141 @@
+#!/usr/bin/env bash
+# 描述：显示电池信息
+# Description: Show battery info
+
+set -euo pipefail
+
+UI_LIB="$(dirname "$(readlink -f "$0")")/lib/ui.sh"
+# shellcheck source=lib/ui.sh
+. "$UI_LIB"
+
+usage() {
+  cat <<'EOF'
+用法: check-battery [options]
+
+选项:
+  -h, --help    显示帮助并退出
+
+说明:
+  读取 upower 暴露的第一个电池设备，显示型号、充放电状态、电量、健康度、
+  设计容量和当前满充容量。脚本只读，不会修改电源配置。
+EOF
+}
+
+if (( $# > 1 )); then
+  ui_err "参数过多；用法: check-battery [--help]"
+  exit 2
+fi
+
+case "${1:-}" in
+  -h|--help)
+    usage
+    exit 0
+    ;;
+  "")
+    ;;
+  *)
+    ui_err "未知参数: %s" "$1"
+    usage >&2
+    exit 2
+    ;;
+esac
+
+if ! command -v upower >/dev/null 2>&1; then
+  ui_err "未找到 upower，请先安装：sudo pacman -S upower"
+  exit 127
+fi
+
+# upower 的失败必须显式报错：set -e 下裸命令替换会让脚本静默退出，
+# 退出码透传 1/3，与"确实没有电池"的 1 混淆，无法区分"无法检查"和"没有"。
+UPOWER_RC=0
+UPOWER_DEVICES="$(upower -e 2>&1)" || UPOWER_RC=$?
+if [[ "$UPOWER_RC" -ne 0 ]]; then
+  ui_err "upower 设备枚举失败（退出码 %s），无法检查电池。" "$UPOWER_RC"
+  [[ -z "$UPOWER_DEVICES" ]] || printf '%s\n' "$UPOWER_DEVICES" | sed -n '1,4p' >&2
+  exit 1
+fi
+BAT_PATH="$(awk '/battery/ {print; exit}' <<< "$UPOWER_DEVICES")"
+
+if [[ -z "$BAT_PATH" ]]; then
+  ui_err "未检测到电池设备（虚拟机 / 台式机属正常）；upower 查询本身正常。"
+  exit 1
+fi
+
+UPOWER_RC=0
+INFO="$(upower -i "$BAT_PATH" 2>&1)" || UPOWER_RC=$?
+if [[ "$UPOWER_RC" -ne 0 ]]; then
+  ui_err "upower 读取电池 %s 失败（退出码 %s），无法检查电池。" "$BAT_PATH" "$UPOWER_RC"
+  [[ -z "$INFO" ]] || printf '%s\n' "$INFO" | sed -n '1,4p' >&2
+  exit 1
+fi
+if [[ -z "$INFO" ]]; then
+  ui_err "upower 对 %s 没有返回任何信息，无法检查电池。" "$BAT_PATH"
+  exit 1
+fi
+
+field() {
+  local key="$1"
+  awk -F: -v key="$key" '
+    $1 ~ "^[[:space:]]*" key "$" {
+      sub(/^[[:space:]]+/, "", $2)
+      sub(/[[:space:]]+$/, "", $2)
+      print $2
+      exit
+    }
+  ' <<< "$INFO"
+}
+
+first_number() {
+  awk '{print $1}' <<< "${1:-}"
+}
+
+MODEL="$(field model)"
+STATUS="$(field state)"
+PERCENT="$(field percentage)"
+HEALTH="$(field capacity)"
+FULL_DESIGN_TXT="$(field energy-full-design)"
+FULL_NOW_TXT="$(field energy-full)"
+FULL_DESIGN="$(first_number "$FULL_DESIGN_TXT")"
+FULL_NOW="$(first_number "$FULL_NOW_TXT")"
+
+MODEL="${MODEL:-未知}"
+STATUS="${STATUS:-未知}"
+PERCENT="${PERCENT:-未知}"
+
+if [[ -z "$HEALTH" && -n "$FULL_DESIGN" && -n "$FULL_NOW" ]]; then
+  HEALTH="$(awk -v now="$FULL_NOW" -v design="$FULL_DESIGN" 'BEGIN { if (design > 0) printf "%.2f%%", (now / design) * 100 }')"
+fi
+HEALTH="${HEALTH:-未知}"
+FULL_DESIGN_TXT="${FULL_DESIGN_TXT:-未知}"
+FULL_NOW_TXT="${FULL_NOW_TXT:-未知}"
+
+# 充放电状态 → 颜色 + 中文文本
+case "$STATUS" in
+  charging)      S_COLOR="$UI_C_GREEN";  STATUS_TEXT="充电中" ;;
+  discharging)   S_COLOR="$UI_C_YELLOW"; STATUS_TEXT="放电中" ;;
+  fully-charged) S_COLOR="$UI_C_BLUE";   STATUS_TEXT="已充满" ;;
+  *)             S_COLOR="$UI_C_SUBTLE"; STATUS_TEXT="$STATUS" ;;
+esac
+
+# 健康度 → 颜色（>=80 绿 / >=60 黄 / 其余红）
+HEALTH_NUM="$(awk '{gsub(/[^0-9.]/, "", $0); split($0, a, "."); print a[1]}' <<< "$HEALTH")"
+if [[ "$HEALTH_NUM" =~ ^[0-9]+$ ]]; then
+  # 10# 前缀：避免 "08" 之类的前导零被 bash 当作八进制
+  if   (( 10#$HEALTH_NUM >= 80 )); then H_COLOR="$UI_C_GREEN"
+  elif (( 10#$HEALTH_NUM >= 60 )); then H_COLOR="$UI_C_YELLOW"
+  else                              H_COLOR="$UI_C_RED"
+  fi
+else
+  H_COLOR="$UI_C_SUBTLE"
+fi
+
+ui_banner "电池健康报告" "check-battery · upower 只读电池状态"
+
+ui_panel_open "电池信息"
+ui_panel_kv "设备型号" "$MODEL"
+ui_panel_kv "当前状态" "${S_COLOR}${STATUS_TEXT}${UI_RESET}"
+ui_panel_kv "当前电量" "${S_COLOR}${PERCENT}${UI_RESET}"
+ui_panel_kv "电池健康度" "${H_COLOR}${HEALTH}${UI_RESET}"
+ui_panel_kv "设计容量" "$FULL_DESIGN_TXT"
+ui_panel_kv "实际容量" "$FULL_NOW_TXT"
+ui_panel_close

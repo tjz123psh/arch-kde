@@ -1,0 +1,18 @@
+# 复制为 ~/.config/maintenance/config 后按需修改。
+# 仅支持下列 KEY=VALUE，不执行 Shell 命令；路径含空格时可以加引号。
+
+BACKUP_TARGET=/mnt/offsite-backup
+BACKUP_KEEP=3
+BACKUP_ON_CALENDAR=weekly
+BACKUP_RANDOM_DELAY=1h
+MIRROR_BACKUP_KEEP=5
+MIRROR_MAX_AGE_DAYS=30
+# reflector 测速并发（1-32）；过高只会互相抢带宽
+MIRROR_THREADS=5
+# 待更新列表：单个来源的查询超时秒数，以及等待其它刷新完成的上限秒数
+UPDATE_QUERY_TIMEOUT=90
+UPDATE_LOCK_WAIT=300
+ROOT_MIN_FREE_MIB=5120
+BOOT_MIN_FREE_MIB=200
+JOURNAL_RETENTION=2weeks
+THUMBNAIL_MAX_AGE_DAYS=30
