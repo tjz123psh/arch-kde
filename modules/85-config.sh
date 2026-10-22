@@ -143,6 +143,41 @@ install_kitty_no_decorations() {
   log "kitty 窗口规则已写入；新开终端只显示内容"
 }
 
+# 让智能隐藏的 Dock 提示条更低调：降低白色主体和黑色 scrim，并略微变细。
+enable_kos_subtle_dock_reveal() {
+  local qml="$HOME/.config/quickshell/kos/desktop/modules/dock/DockRevealHandle.qml"
+
+  log "调低 Dock 隐藏提示条的灰暗/存在感..."
+  if [ "$DRY_RUN" -eq 1 ]; then
+    log "[dry-run] 修改 DockRevealHandle：半透明 0.30、scrim 0.25、厚度 5"
+    return 0
+  fi
+  if [ ! -f "$qml" ]; then
+    warn "找不到 DockRevealHandle.qml，跳过 Dock 提示条调整"
+    return 0
+  fi
+
+  python3 - "$qml" <<'PY'
+from pathlib import Path
+import sys
+
+path = Path(sys.argv[1])
+source = path.read_text()
+replacements = [
+    ("barBaseColor: Qt.rgba(1, 1, 1, 0.55)",
+     "barBaseColor: Qt.rgba(1, 1, 1, 0.30)"),
+    ("readonly property real visualThickness: 6",
+     "readonly property real visualThickness: 5"),
+    ("scrimCap: 0.90", "scrimCap: 0.25"),
+]
+for old, new in replacements:
+    if old in source:
+        source = source.replace(old, new, 1)
+path.write_text(source)
+PY
+  log "Dock 隐藏提示条已调低"
+}
+
 install_desktop_config() {
   log "写入桌面环境配置（环境变量 / GTK / 字体）..."
   install_file "$CONFIG_DIR/environment/90-kos.conf" "$HOME/.config/environment.d/90-kos.conf"
@@ -155,4 +190,5 @@ install_desktop_config() {
   install_file "$CONFIG_DIR/display/kos-display-1920x1080.desktop" "$HOME/.config/autostart/kos-display-1920x1080.desktop"
   enable_kos_theme_animation
   install_kitty_no_decorations
+  enable_kos_subtle_dock_reveal
 }
