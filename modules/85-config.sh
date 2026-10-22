@@ -178,6 +178,83 @@ PY
   log "Dock 隐藏提示条已调低"
 }
 
+# 三个设置/监视器窗口的轻量磨砂玻璃近似：KWin 只负责半透明窗口 +
+# 既有 Glass 背景模糊；不是 KOS Shell 的完整液体折射。
+frosted_window_rule() {
+  local group="$1" wmclass="$2"
+  kwriteconfig6 --file kwinrulesrc --group "$group" --key Description "Frosted glass: $wmclass" --notify
+  kwriteconfig6 --file kwinrulesrc --group "$group" --key opacityactive 86 --notify
+  kwriteconfig6 --file kwinrulesrc --group "$group" --key opacityactiverule 2 --notify
+  kwriteconfig6 --file kwinrulesrc --group "$group" --key opacityinactive 86 --notify
+  kwriteconfig6 --file kwinrulesrc --group "$group" --key opacityinactiverule 2 --notify
+  kwriteconfig6 --file kwinrulesrc --group "$group" --key types 1 --notify
+  kwriteconfig6 --file kwinrulesrc --group "$group" --key wmclass "$wmclass" --notify
+  kwriteconfig6 --file kwinrulesrc --group "$group" --key wmclasscomplete false --notify
+  kwriteconfig6 --file kwinrulesrc --group "$group" --key wmclassmatch 1 --notify
+}
+
+enable_frosted_kde_windows() {
+  log "配置 KDE 设置/系统监视器的磨砂玻璃窗口..."
+  if [ "$DRY_RUN" -eq 1 ]; then
+    log "[dry-run] 写入 kwinrulesrc：systemsettings / plasma-systemmonitor / kos-settings 半透明规则"
+    return 0
+  fi
+  if ! have kwriteconfig6; then
+    warn "缺少 kwriteconfig6，跳过磨砂玻璃窗口规则"
+    return 0
+  fi
+
+  backup_file "$HOME/.config/kwinrulesrc"
+  frosted_window_rule frosted_systemsettings systemsettings
+  frosted_window_rule frosted_systemmonitor plasma-systemmonitor
+  frosted_window_rule frosted_kos_settings kos-settings
+
+  local order group
+  order=$(kreadconfig6 --file kwinrulesrc --group General --key Order 2>/dev/null || true)
+  for group in frosted_systemsettings frosted_systemmonitor frosted_kos_settings; do
+    case ",$order," in
+      *,$group,*) ;;
+      *) order="${order:+$order,}$group" ;;
+    esac
+  done
+  kwriteconfig6 --file kwinrulesrc --group General --key Order "$order" --notify
+
+  if have qdbus6; then
+    qdbus6 org.kde.KWin /KWin reconfigure >/dev/null 2>&1 || true
+  fi
+  log "磨砂玻璃窗口规则已写入"
+}
+
+# KOS 设置是自绘 QML 窗口；让 ApplicationWindow 底色透明，交给 KWin Glass 模糊。
+enable_kos_frosted_settings() {
+  local qml="$HOME/.local/share/kos/settings/main.qml"
+
+  log "让 KOS 设置背景透明以接入磨砂玻璃..."
+  if [ "$DRY_RUN" -eq 1 ]; then
+    log "[dry-run] 修改 KOS Settings main.qml 背景 alpha=0.78"
+    return 0
+  fi
+  if [ ! -f "$qml" ]; then
+    warn "找不到 KOS Settings main.qml，跳过磨砂设置背景"
+    return 0
+  fi
+
+  python3 - "$qml" <<'PY'
+from pathlib import Path
+import sys
+
+path = Path(sys.argv[1])
+source = path.read_text()
+old = "    color: theme.background"
+new = "    color: Qt.rgba(theme.background.r, theme.background.g, theme.background.b, 0.78)"
+if old in source:
+    path.write_text(source.replace(old, new, 1))
+elif new not in source:
+    print("KOS Settings main.qml: unexpected background color line", file=sys.stderr)
+PY
+  log "KOS 设置背景已改为半透明"
+}
+
 install_desktop_config() {
   log "写入桌面环境配置（环境变量 / GTK / 字体）..."
   install_file "$CONFIG_DIR/environment/90-kos.conf" "$HOME/.config/environment.d/90-kos.conf"
@@ -191,4 +268,6 @@ install_desktop_config() {
   enable_kos_theme_animation
   install_kitty_no_decorations
   enable_kos_subtle_dock_reveal
+  enable_frosted_kde_windows
+  enable_kos_frosted_settings
 }
