@@ -13,7 +13,7 @@ install_wallpaper_shortcut() {
   log "配置 Alt+W 打开全屏壁纸预览..."
 
   if [ "$DRY_RUN" -eq 1 ]; then
-    log "[dry-run] 写入 kos-settings-wallpaper.desktop 并设置 Alt+W"
+    log "[dry-run] 写入 kos-wallpaper-preview.desktop 并设置 Alt+W"
     return 0
   fi
   if ! have kwriteconfig6; then
@@ -22,6 +22,9 @@ install_wallpaper_shortcut() {
   fi
 
   backup_file "$HOME/.config/kglobalshortcutsrc"
+  # 清理上一版误用 KOS Settings id 的入口，避免下一次登录出现两个 Alt+W。
+  rm -f "$HOME/.local/share/applications/kos-settings-wallpaper.desktop"
+  kwriteconfig6 --file kglobalshortcutsrc --group services --group kos-settings-wallpaper.desktop --key _launch --delete --notify >/dev/null 2>&1 || true
   write_file "$HOME/.local/bin/kos-wallpaper-preview" <<'SCRIPT'
 #!/usr/bin/env bash
 # Open the KOS fullscreen wallpaper preview for the current wallpaper.
@@ -60,7 +63,7 @@ PY
 SCRIPT
   chmod 755 "$HOME/.local/bin/kos-wallpaper-preview"
 
-  write_file "$HOME/.local/share/applications/kos-settings-wallpaper.desktop" <<EOF
+  write_file "$HOME/.local/share/applications/kos-wallpaper-preview.desktop" <<EOF
 [Desktop Entry]
 Type=Application
 Name=KOS Wallpaper Preview
@@ -73,7 +76,7 @@ StartupNotify=true
 X-KDE-GlobalAccel-CommandShortcut=true
 EOF
 
-  kwriteconfig6 --file kglobalshortcutsrc --group services --group kos-settings-wallpaper.desktop --key _launch "Alt+W" --notify
+  kwriteconfig6 --file kglobalshortcutsrc --group services --group kos-wallpaper-preview.desktop --key _launch "Alt+W" --notify
   if have kbuildsycoca6; then
     kbuildsycoca6 --noincremental >/dev/null 2>&1 || true
   fi
