@@ -52,6 +52,53 @@ install_kos_deps() {
   sudo_run pacman -S --needed --noconfirm "${missing[@]}"
 }
 
+# KOS 上游默认 Dock 里预置了 Kate（org.kde.kate.desktop），但安装器不装 Kate，
+# 图标会变成通用占位图。这里在 KOS 安装后把 Kate 从 Dock 状态里移除；
+# 有旧状态就只删这一项，没有状态就写一份不含 Kate 的初始配置。
+fix_kos_dock_kate() {
+  local cfg="${XDG_STATE_HOME:-$HOME/.local/state}/quickshell/kos/dock/config.json"
+  local tmp
+  if ! have jq; then
+    warn "未安装 jq，跳过 KOS Dock 的 Kate 清理"
+    return 0
+  fi
+  if [ -f "$cfg" ]; then
+    if ! jq -e '([.dockItems[]? | select(.type == "app" and .appId == "org.kde.kate.desktop")] | length > 0) or ((.pinnedAppIds // []) | index("org.kde.kate.desktop") != null)' "$cfg" >/dev/null 2>&1; then
+      return 0
+    fi
+    if [ "$DRY_RUN" -eq 1 ]; then
+      log "[dry-run] 从 KOS Dock 移除 org.kde.kate.desktop"
+      return 0
+    fi
+    backup_file "$cfg"
+    tmp=$(mktemp)
+    if jq '.dockItems = ((.dockItems // []) | map(select((.type == "app" and .appId == "org.kde.kate.desktop") | not))) | .pinnedAppIds = ((.pinnedAppIds // []) | map(select(. != "org.kde.kate.desktop")))' "$cfg" > "$tmp"; then
+      chmod 644 "$tmp"
+      mv "$tmp" "$cfg"
+      log "KOS Dock：已移除 org.kde.kate.desktop"
+    else
+      rm -f "$tmp"
+      warn "KOS Dock：清理 Kate 入口失败"
+    fi
+    return 0
+  fi
+  if [ "$DRY_RUN" -eq 1 ]; then
+    log "[dry-run] 写入不含 Kate 的 KOS Dock 初始配置"
+    return 0
+  fi
+  write_file "$cfg" <<'EOF'
+{
+  "version": 12,
+  "dockItems": [
+    { "type": "app", "appId": "kos-settings.desktop" },
+    { "type": "app", "appId": "org.kde.dolphin.desktop" }
+  ],
+  "pinnedAppIds": ["kos-settings.desktop", "org.kde.dolphin.desktop"]
+}
+EOF
+  log "KOS Dock：已写入不含 Kate 的初始配置"
+}
+
 fetch_kos_source() {
   local dir; dir=$(kos_repo_dir)
 
@@ -110,6 +157,8 @@ build_install_kos() {
 
   log "注册全局快捷键"
   run "$repo/tools/kosctl" shortcuts install || warn "快捷键注册失败（登录后可手动重跑）"
+
+  fix_kos_dock_kate
 
   if [ "$KOS_START" -eq 1 ]; then
     log "启动 KOS shell"
