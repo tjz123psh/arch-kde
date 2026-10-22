@@ -31,6 +31,7 @@ run_doctor() {
       echo -n "InputMethod: "; kreadconfig6 --file kwinrc --group Wayland --key InputMethod
       echo -n "KOS 动画:    "; kreadconfig6 --file kwinrc --group Plugins --key kos_dock_window_animationEnabled
       echo -n "键盘重复:    "; kreadconfig6 --file kcminputrc --group Keyboard --key RepeatDelay; echo -n "ms / "; kreadconfig6 --file kcminputrc --group Keyboard --key RepeatRate; echo " 次/秒"
+      echo -n "动态主题:    "; kreadconfig6 --file "$HOME/.local/state/quickshell/kos/wallpaper.ini" --group Wallpaper --key themeAnimated
       echo -n "Glass:       "; kreadconfig6 --file kwinrc --group Plugins --key glassEnabled
     fi
     if declare -F kos_repo_dir >/dev/null 2>&1; then kos_dir=$(kos_repo_dir); fi
