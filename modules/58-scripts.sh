@@ -57,6 +57,7 @@ install_user_scripts() {
 
   # desktop：gsudo 使用同目录的 fuzzel-askpass（内部脚本不单独暴露命令）。
   link_user_script gsudo "$dest/desktop/gsudo"
+  link_user_script shortcuts "$dest/desktop/shortcuts"
 
-  log "常驻脚本已安装：term-menu、pac、pacr、pacd、gsudo"
+  log "常驻脚本已安装：term-menu、pac、pacr、pacd、gsudo、shortcuts"
 }

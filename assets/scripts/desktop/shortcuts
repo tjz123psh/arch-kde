@@ -42,12 +42,10 @@ for raw in path.read_text(errors="replace").splitlines():
     if "=" not in line:
         continue
     key, value = line.split("=", 1)
-    fields = value.split(",")
-    current = fields[0].strip()
+    current = value.split(",", 1)[0].strip()
     if not current or current == "none":
         continue
     if section == "kos-platform":
-        # KOS snapshot already covers these; KGlobalAccel mirrors them.
         continue
     if section == "services" and sub:
         label = "应用快捷键" if key == "_launch" else key
@@ -57,9 +55,13 @@ for raw in path.read_text(errors="replace").splitlines():
 PY
 }
 
-emit_shortcuts | sort -u | awk -F '\t' 'NF >= 3'
+format_shortcuts() {
+  emit_shortcuts | sort -u | awk -F '\t' 'NF >= 3' |
+    column -t -s $'\t' -o '  '
+}
 
 if [ "${1:-}" = "--list" ]; then
+  format_shortcuts
   exit 0
 fi
 
@@ -70,8 +72,10 @@ if ! command -v fzf >/dev/null 2>&1; then
 fi
 
 # Enter closes the picker; Ctrl-R reloads the live KOS/KDE configuration.
-emit_shortcuts | sort -u |
-  fzf --delimiter=$'\t' --with-nth=1,2,3 --reverse --height=88% \
-      --prompt='快捷键 > ' \
-      --header=$'快捷键\t来源\t功能\nCtrl-R 刷新 · 读取 KOS / KDE 当前配置' \
+format_shortcuts |
+  fzf --reverse --height=80% --layout=reverse --border=rounded \
+      --border-label=' KOS / KDE 快捷键 ' --border-label-pos=2 \
+      --prompt=' 搜索 > ' --pointer='▶' --info=inline-right \
+      --header=$'  快捷键          来源                         功能\n  Ctrl-R 刷新 · 数据来自 KOS / KDE 当前配置' \
+      --color='fg:#d8dee9,bg:#1e2228,hl:#93cdf6,fg+:#ffffff,bg+:#2f343d,hl+:#93cdf6,info:#8b949e,prompt:#93cdf6,pointer:#e88ba4,marker:#93cdf6,spinner:#93cdf6,header:#8b949e,border:#3b4252' \
       --bind="ctrl-r:reload($self --list)"
