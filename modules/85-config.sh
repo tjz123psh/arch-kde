@@ -181,7 +181,7 @@ PY
 # 三个设置/监视器窗口的轻量磨砂玻璃近似：KWin 只负责半透明窗口 +
 # 既有 Glass 背景模糊；不是 KOS Shell 的完整液体折射。
 frosted_window_rule() {
-  local group="$1" wmclass="$2"
+  local group="$1" wmclass="$2" match="${3:-1}"
   kwriteconfig6 --file kwinrulesrc --group "$group" --key Description "Frosted glass: $wmclass" --notify
   kwriteconfig6 --file kwinrulesrc --group "$group" --key opacityactive 86 --notify
   kwriteconfig6 --file kwinrulesrc --group "$group" --key opacityactiverule 2 --notify
@@ -190,7 +190,7 @@ frosted_window_rule() {
   kwriteconfig6 --file kwinrulesrc --group "$group" --key types 1 --notify
   kwriteconfig6 --file kwinrulesrc --group "$group" --key wmclass "$wmclass" --notify
   kwriteconfig6 --file kwinrulesrc --group "$group" --key wmclasscomplete false --notify
-  kwriteconfig6 --file kwinrulesrc --group "$group" --key wmclassmatch 1 --notify
+  kwriteconfig6 --file kwinrulesrc --group "$group" --key wmclassmatch "$match" --notify
 }
 
 enable_frosted_kde_windows() {
@@ -206,7 +206,10 @@ enable_frosted_kde_windows() {
 
   backup_file "$HOME/.config/kwinrulesrc"
   frosted_window_rule frosted_systemsettings systemsettings
-  frosted_window_rule frosted_systemmonitor plasma-systemmonitor
+  frosted_window_rule frosted_systemmonitor plasma-systemmonitor 2
+  # 系统监视器窗口面积大，单独再透一点，别看起来像一整块暗色板。
+  kwriteconfig6 --file kwinrulesrc --group frosted_systemmonitor --key opacityactive 75 --notify
+  kwriteconfig6 --file kwinrulesrc --group frosted_systemmonitor --key opacityinactive 80 --notify
   frosted_window_rule frosted_kos_settings kos-settings
 
   local order group
