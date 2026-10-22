@@ -1,0 +1,83 @@
+# yazi 行为配置（手工维护）
+#
+# 【配色不在这里】颜色与语法高亮由 Noctalia 的「Yazi」模板生成，在本文件写颜色会被覆盖：
+#   ~/.config/yazi/theme.toml                ← 模板写：[flavor] dark/light = "noctalia"
+#   ~/.config/yazi/flavors/noctalia.yazi/    ← flavor.toml（界面配色）+ tmtheme.xml（语法高亮）
+#   换壁纸 / 换调色板后 Noctalia 自动重渲染，不需要手动同步。
+#
+# 【键位】说明文字已整份汉化：~/.config/yazi/keymap.toml（来自 yazi v26.9.1 默认键位，行为一致）。
+# 本文件只放"行为"相关的少量设置，其余全部沿用 yazi 默认值。
+
+#:schema https://yazi-rs.github.io/schemas/yazi.json
+
+[opener]
+# 文本 / 代码：直接用 nvim 打开。
+# 这里写死 nvim 而不用 $EDITOR —— 从启动器（desktop 项 → kitty）拉起时，环境里没有 fish 设的
+# 变量，默认 opener 会因为 $EDITOR 为空而打不开文件。
+edit = [
+	{ run = 'nvim %s', desc = "用 nvim 编辑", block = true, for = "unix" },
+]
+# 视频 / 音频：交给 mpv 单独跑（orphan = yazi 退出后继续播放，也不占住终端）。
+play = [
+	{ run = 'mpv %s', desc = "用 mpv 播放", orphan = true, for = "unix" },
+]
+# 图片 / PDF / Office 文档等：交给系统默认程序（由 ~/.config/mimeapps.list 决定，当前是 nomacs / WPS）。
+# open / reveal 这里重新定义，是为了让 Shift+O 菜单整份是中文、并且去掉上游那条依赖 exiftool 的
+# “Show EXIF”（本机没装 exiftool，点了只会报错；将来装了再单独加一条“查看 EXIF”）。
+open = [
+	{ run = 'xdg-open %s', desc = "用系统默认程序打开", for = "linux" },
+]
+reveal = [
+	{ run = 'xdg-open %d', desc = "在文件管理器里显示所在目录", for = "linux" },
+]
+# 压缩包：只留两条，区别是「散开」还是「装进一个文件夹」。
+#   解压到当前目录   —— 内容直接散在你正在看的这个目录里（yazi 内置实现；回车走的也是这条）。
+#   解压到同名文件夹 —— 在旁边新建一个与压缩包同名的文件夹再解进去（demo.tar.gz → demo/）。
+# tar 家族走 tar xf，其余走 7z；同名文件夹 = 去掉压缩后缀后的名字。
+# （原先还有一条「解压到压缩包所在目录」，实测正常浏览时与「当前目录」完全一样，只在搜索结果里
+#   选中深处文件时才不同；为免菜单啰嗦已去掉。）
+extract = [
+	{ run = 'ya pub extract --list %s', desc = "解压到当前目录", for = "unix" },
+	{ run = 'f=%s1; n="$(basename "$f" | sed -E "s/\.(tar|tbz2?|tgz|txz|zip|7z|rar|gz|xz|bz2|zst)$//" | sed -E "s/\.(tar|tbz2?|tgz|txz|zip|7z|rar|gz|xz|bz2|zst)$//")"; d="$(dirname "$f")/$n"; mkdir -p "$d" && case "$f" in *.tar|*.tar.*|*.tgz|*.txz|*.tbz2) tar xf "$f" -C "$d" ;; *) 7z x -y -o"$d" "$f" ;; esac', desc = "解压到同名文件夹", block = true, for = "unix" },
+	{ run = 'f=%s1; n="$(basename "$f" | sed -E "s/\.(tar|tbz2?|tgz|txz|zip|7z|rar|gz|xz|bz2|zst)$//" | sed -E "s/\.(tar|tbz2?|tgz|txz|zip|7z|rar|gz|xz|bz2|zst)$//")"; if command -v fuzzel >/dev/null 2>&1; then d="$({ echo "$(pwd)/"; fd --type d --max-depth 3 . "$(pwd)" 2>/dev/null; a="$(dirname "$f")"; [ "$a" != "$(pwd)" ] && echo "$a/"; fd --type d --hidden --exclude .git --max-depth 4 . "$HOME" 2>/dev/null; ls -d /tmp/ /mnt/*/ /run/media/*/*/ 2>/dev/null; } | awk "!seen[\$0]++" | fuzzel --dmenu --match-mode=fzf --prompt="解压到哪里 > " --search="$(pwd)/" --lines=15 --minimal-lines --width=80)"; else d="$(dirname "$f")/$n"; fi; [ -n "$d" ] || exit 0; d="$(echo "$d" | sed "s|^~|$HOME|")"; mkdir -p "$d" || exit 1; case "$f" in *.tar|*.tar.*|*.tgz|*.txz|*.tbz2) tar xf "$f" -C "$d" ;; *) 7z x -y -o"$d" "$f" ;; esac', desc = "解压到指定位置…", block = true, for = "unix" },
+]
+
+[open]
+# 兜底：有些压缩包的内容类型识别不出来（例如把 docx 改名成 .zip，会被认成 octet-stream），
+# 那时匹配不到 yazi 内置的"压缩包"规则，菜单里就没有解压选项。这里按扩展名兜在规则最前面
+# （yazi 的规则是"谁先匹配用谁"，且内置规则最后有一条全匹配兜底，所以只能 prepend 不能 append）。
+prepend_rules = [
+	{ url = "*.zip",   use = ["extract", "open", "reveal"] },
+	{ url = "*.7z",    use = ["extract", "open", "reveal"] },
+	{ url = "*.rar",   use = ["extract", "open", "reveal"] },
+	{ url = "*.tar",   use = ["extract", "open", "reveal"] },
+	{ url = "*.tar.*", use = ["extract", "open", "reveal"] },
+	{ url = "*.tgz",   use = ["extract", "open", "reveal"] },
+	{ url = "*.txz",   use = ["extract", "open", "reveal"] },
+	{ url = "*.gz",    use = ["extract", "open", "reveal"] },
+	{ url = "*.xz",    use = ["extract", "open", "reveal"] },
+	{ url = "*.bz2",   use = ["extract", "open", "reveal"] },
+	{ url = "*.zst",   use = ["extract", "open", "reveal"] },
+]
+
+[mgr]
+# 列表右侧那一列显示什么。size = 文件大小（下面两行是其它可选值，改这里换默认）。
+# 运行时也能随时换：m s 大小 / m m 修改时间 / m p 权限 / m o 所有者 / m b 创建时间 / m n 不显示。
+linemode = "size"
+# 默认不显示隐藏文件；想默认显示就取消下一行注释（运行时按 . 也能随时切换）。
+# show_hidden = true
+# 三栏宽度比例（父目录 : 当前目录 : 预览），按需调整。
+# ratio = [1, 4, 3]
+[preview]
+# 图片 / 视频缩略图的最大渲染尺寸。预览窗格装不下时会自动缩小，所以这里给大一点没关系（1920×1080 下
+# 预览窗格约 690px 宽）。
+max_width  = 1000
+max_height = 1000
+# 上下移动光标后，等多久开始加载图片（毫秒）：越小出图越快。
+image_delay = 10
+# 图片预览画质（1-100）：越大越清晰、越费时间；75 是 yazi 默认。
+image_quality = 90
+# 长行文本是否自动折行：yes = 换行显示全（默认 no = 截断，超长行看不全）。
+wrap = "yes"
+# tab 显示成几个空格宽（yazi 默认 2）。
+

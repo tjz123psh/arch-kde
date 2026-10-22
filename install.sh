@@ -184,6 +184,7 @@ main() {
   setup_system
   setup_ime
   setup_terminal
+  install_user_configs
   fix_qq_launcher
 
   install_kos_deps

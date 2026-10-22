@@ -1,0 +1,49 @@
+{
+  "$schema": "https://github.com/fastfetch-cli/fastfetch/raw/dev/doc/json_schema.json",
+
+  // ===== 外观 =====
+  // logo：取自 ~/Pictures/wallpapers/圣剑.png 的竖版长条（原图裁 x=900..1546、全高 1080，
+  // 缩到 414x684 并加圆角），以 23x19 字符格显示在左侧。想回内置 ASCII 版就把 logo 段换成下面注释里的。
+  "logo": {
+    "type": "kitty",
+    "source": "~/.config/fastfetch/arch-logo.png",
+    "width": 23,
+    "height": 18,
+    "padding": { "top": 0, "right": 3, "left": 2 }
+  },
+  // "logo": {
+  //   "type": "builtin",
+  //   "source": "arch",
+  //   "padding": { "top": 1, "right": 4, "left": 2 },
+  //   "color": { "1": "#63cafc", "2": "#63c8db" }
+  // },
+  "display": {
+    "separator": "",
+    "key": { "width": 0 },
+    "percent": {
+      "color": { "green": "#d6bee5", "yellow": "#9fcafc", "red": "#ffb4ab" }
+    }
+  },
+
+  // ===== 树形分组：系统 / 桌面 / 硬件 =====
+  // 每行图标+标签用各自的浅色（暖色组/冷色组），树线随行走同色；数值保持默认前台色。
+  "modules": [
+    { "type": "os", "key": "​", "keyColor": "#efe7d6" },
+    { "type": "kernel", "key": "├─    KER  ", "keyColor": "#f2c078" },
+    { "type": "packages", "key": "├─    PAK  ", "keyColor": "#e8a2b8", "format": "{pacman}" },
+    { "type": "title", "key": "└─    USR  ", "keyColor": "#d9a2e8" },
+    "break",
+    { "type": "wm", "key": "WM ", "keyColor": "#efe7d6" },
+    { "type": "shell", "key": "├─    SHE  ", "keyColor": "#a2b8f2" },
+    { "type": "terminal", "key": "├─    TER  ", "keyColor": "#7fc8d9" },
+    { "type": "command", "key": "└─    TFO  ", "keyColor": "#8fd9b0", "text": "fc-match -f '%{family}' monospace" },
+    "break",
+    { "type": "host", "key": "PC ", "keyColor": "#efe7d6" },
+    { "type": "cpu", "key": "├─    CPU  ", "keyColor": "#f5a97f" },
+    { "type": "memory", "key": "├─    MEM  ", "keyColor": "#b8a8f0" },
+    { "type": "gpu", "key": "├─  󰢮  GPU  ", "keyColor": "#93d9a0" },
+    { "type": "display", "key": "├─  󰍹  MON  ", "keyColor": "#e8c07a" },
+    { "type": "disk", "key": "├─    DIS  ", "keyColor": "#e89a9a", "folders": ["/"] },
+    { "type": "battery", "key": "└─    BAT  ", "keyColor": "#a8d9c8" }
+  ]
+}
