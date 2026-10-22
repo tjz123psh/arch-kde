@@ -181,20 +181,20 @@ PY
 # 三个设置/监视器窗口的轻量磨砂玻璃近似：KWin 只负责半透明窗口 +
 # 既有 Glass 背景模糊；不是 KOS Shell 的完整液体折射。
 frosted_window_rule() {
-  local group="$1" wmclass="$2" match="${3:-1}"
+  local group="$1" wmclass="$2" match="${3:-1}" types="${4:-1}"
   kwriteconfig6 --file kwinrulesrc --group "$group" --key Description "Frosted glass: $wmclass" --notify
   kwriteconfig6 --file kwinrulesrc --group "$group" --key opacityactive 86 --notify
   kwriteconfig6 --file kwinrulesrc --group "$group" --key opacityactiverule 2 --notify
   kwriteconfig6 --file kwinrulesrc --group "$group" --key opacityinactive 86 --notify
   kwriteconfig6 --file kwinrulesrc --group "$group" --key opacityinactiverule 2 --notify
-  kwriteconfig6 --file kwinrulesrc --group "$group" --key types 1 --notify
+  kwriteconfig6 --file kwinrulesrc --group "$group" --key types "$types" --notify
   kwriteconfig6 --file kwinrulesrc --group "$group" --key wmclass "$wmclass" --notify
   kwriteconfig6 --file kwinrulesrc --group "$group" --key wmclasscomplete false --notify
   kwriteconfig6 --file kwinrulesrc --group "$group" --key wmclassmatch "$match" --notify
 }
 
 enable_frosted_kde_windows() {
-  log "配置 KDE 设置/系统监视器/Dolphin 的磨砂玻璃窗口..."
+  log "配置 KDE 设置/KCM 子窗口/系统监视器/Dolphin 的磨砂玻璃窗口..."
   if [ "$DRY_RUN" -eq 1 ]; then
     log "[dry-run] 写入 kwinrulesrc：systemsettings / plasma-systemmonitor / kos-settings 半透明规则"
     return 0
@@ -212,13 +212,17 @@ enable_frosted_kde_windows() {
   kwriteconfig6 --file kwinrulesrc --group frosted_systemmonitor --key opacityinactive 80 --notify
   frosted_window_rule frosted_kos_settings kos-settings
   frosted_window_rule frosted_dolphin org.kde.dolphin
+  frosted_window_rule frosted_kcm_bluetooth kcm_bluetooth
+  frosted_window_rule frosted_kcm_networkmanagement kcm_networkmanagement
+  frosted_window_rule frosted_kcmshell6 kcmshell6 2
+  frosted_window_rule frosted_systemsettings_dialog systemsettings 1 2
   # 文件管理器阅读为主，保留更实的底，不跟系统监视器一样透。
   kwriteconfig6 --file kwinrulesrc --group frosted_dolphin --key opacityactive 90 --notify
   kwriteconfig6 --file kwinrulesrc --group frosted_dolphin --key opacityinactive 92 --notify
 
   local order group
   order=$(kreadconfig6 --file kwinrulesrc --group General --key Order 2>/dev/null || true)
-  for group in frosted_systemsettings frosted_systemmonitor frosted_kos_settings frosted_dolphin; do
+  for group in frosted_systemsettings frosted_systemmonitor frosted_kos_settings frosted_dolphin frosted_kcm_bluetooth frosted_kcm_networkmanagement frosted_kcmshell6 frosted_systemsettings_dialog; do
     case ",$order," in
       *,$group,*) ;;
       *) order="${order:+$order,}$group" ;;
