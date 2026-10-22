@@ -262,6 +262,66 @@ PY
   log "KOS 设置背景已改为半透明"
 }
 
+# 默认应用：文本/语言文件用 Neovim，PDF 用 WPS，图片用 nomacs，
+# 文件夹用 Dolphin；不覆盖这里没列出的关联。
+install_default_apps() {
+  log "配置默认应用（Neovim / WPS / nomacs / Dolphin）..."
+  if [ "$DRY_RUN" -eq 1 ]; then
+    log "[dry-run] 写入 mimeapps.list 与 kdeglobals 默认应用"
+    return 0
+  fi
+  if ! have xdg-mime; then
+    warn "缺少 xdg-mime，跳过默认应用"
+    return 0
+  fi
+
+  backup_file "$HOME/.config/mimeapps.list"
+  backup_file "$HOME/.config/kdeglobals"
+
+  local mime desktop
+  while IFS='|' read -r mime desktop; do
+    [ -n "$mime" ] || continue
+    if [ -f "/usr/share/applications/$desktop" ]; then
+      xdg-mime default "$desktop" "$mime" || warn "默认应用失败: $mime → $desktop"
+    else
+      warn "桌面文件不存在: $desktop（跳过 $mime）"
+    fi
+  done <<'EOF'
+text/plain|nvim.desktop
+text/x-python|nvim.desktop
+application/json|nvim.desktop
+application/x-shellscript|nvim.desktop
+text/x-c|nvim.desktop
+text/x-c++src|nvim.desktop
+text/x-c++hdr|nvim.desktop
+text/x-chdr|nvim.desktop
+text/x-java|nvim.desktop
+text/x-makefile|nvim.desktop
+text/x-tex|nvim.desktop
+application/xml|nvim.desktop
+text/xml|nvim.desktop
+application/pdf|wps-office-pdf.desktop
+image/png|org.nomacs.ImageLounge.desktop
+image/jpeg|org.nomacs.ImageLounge.desktop
+image/webp|org.nomacs.ImageLounge.desktop
+image/gif|org.nomacs.ImageLounge.desktop
+image/avif|org.nomacs.ImageLounge.desktop
+image/bmp|org.nomacs.ImageLounge.desktop
+image/heic|org.nomacs.ImageLounge.desktop
+image/heif|org.nomacs.ImageLounge.desktop
+image/tiff|org.nomacs.ImageLounge.desktop
+image/jxl|org.nomacs.ImageLounge.desktop
+image/x-icon|org.nomacs.ImageLounge.desktop
+inode/directory|org.kde.dolphin.desktop
+EOF
+
+  if have kwriteconfig6; then
+    kwriteconfig6 --file kdeglobals --group General --key TerminalApplication kitty --notify
+    kwriteconfig6 --file kdeglobals --group General --key TerminalService kitty.desktop --notify
+  fi
+  log "默认应用已写入"
+}
+
 install_desktop_config() {
   log "写入桌面环境配置（环境变量 / GTK / 字体）..."
   install_file "$CONFIG_DIR/environment/90-kos.conf" "$HOME/.config/environment.d/90-kos.conf"
@@ -277,4 +337,5 @@ install_desktop_config() {
   enable_kos_subtle_dock_reveal
   enable_frosted_kde_windows
   enable_kos_frosted_settings
+  install_default_apps
 }

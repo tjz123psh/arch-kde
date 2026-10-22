@@ -577,6 +577,7 @@ install_aur_packages() {
   # 外观三件套要和 assets/config/gtk/settings.ini、environment/90-kos.conf 里的
   # 名字对得上：图标 WhiteSur、光标 WhiteSur-cursors、GTK 主题 WhiteSur-Light。
   list="whitesur-icon-theme whitesur-cursor-theme-git whitesur-gtk-theme"
+  list="$list wps-office-cn wps-office-mime-cn wps-office-mui-zh-cn ttf-wps-fonts"
   list="$list maplemono-nf-cn"
   list="$list fcitx5-pinyin-moegirl fcitx5-pinyin-custom-pinyin-dictionary"
 
