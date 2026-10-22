@@ -92,7 +92,7 @@ archlinuxcn 12 个）；加 `--no-mirrors` 可保留你原来的列表。
 - 快照：**Snapper** root/home 配置 + **Btrfs Assistant** 图形界面；timeline 每周日 03:00，保留 4 个 weekly
 - 输入法：fcitx5 + 中文输入方案，按 KWin Wayland 的方式接管
 - 终端：**kitty**、**fish**、**starship**，外加 fzf / eza / bat / fd / ripgrep / zoxide / fastfetch
-- 外观：WhiteSur 的图标 / 光标 / GTK 主题（GTK 应用跟着走，Chrome、VS Code 不会掉回默认主题）
+- 外观：KDE **BreezeDark + WhiteSur-dark 图标 + WhiteSur 光标**，GTK 使用 WhiteSur-Dark（Chrome、VS Code 不会掉回默认主题）
 - 常用应用：Chrome、VS Code、yazi、Obsidian、flclash、nomacs 等（Chrome / VS Code 可用参数关掉；
   flclash / nomacs 来自 archlinuxcn，没配这个源时自动跳过）
 - 开发工具：**Neovim**、**JDK 25**（LTS）、**Kate**、**npm**、**GitHub CLI**（`gh`）、**Docker + Compose**、命令行 AI 工具 **pi**（`pi-coding-agent-bin`）与 **opencode**（`opencode-bin`）
@@ -114,6 +114,7 @@ archlinuxcn 12 个）；加 `--no-mirrors` 可保留你原来的列表。
 - 克隆上游仓库，用它的 `kosctl` 构建并安装 Quickshell 外壳、KOS 设置与控制中心
 - 独立应用（日历 / 计算器 / 待办 / 天气）、锁屏、全局快捷键（可选）
 - KWin 玻璃效果；桌面小组件默认 **Glass / 液体玻璃** 卡片（安装器只在新装、尚无外观配置时预置，已有配置不覆盖）
+- 桌面小组件默认布局：时钟大卡、天气横向、日历/系统两列、活动/音乐底部两列（Todo 默认隐藏）
 - 动态主题默认 **有窗口打开时也继续动画**（`themeAnimated=true`；锁屏 / 减少动态效果仍会暂停）
 - Dock 默认 **智能隐藏**（安装器只在新装、尚无 Dock 配置时预置，已有配置不覆盖）
 - kitty 默认 **无标题栏**（KWin 窗口规则，只保留终端内容）

@@ -193,6 +193,7 @@ main() {
   # 必须在 KOS shell 首次启动前预置，否则默认的彩色组件会被写成用户配置。
   seed_kos_widget_style
   seed_kos_dock_visibility
+  seed_kos_widget_layout
   configure_launcher_shortcuts
   build_install_kos
   setup_sddm_theme

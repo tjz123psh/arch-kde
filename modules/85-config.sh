@@ -40,7 +40,8 @@ seed_kos_widget_style() {
 {
   "version": 30,
   "widgetStyle": "glass",
-  "glassStyle": "liquid"
+  "glassStyle": "liquid",
+  "hiddenDeskCenterWidgets": ["todo"]
 }
 EOF
 }
@@ -330,6 +331,66 @@ EOF
   log "默认应用已写入"
 }
 
+# 统一 KDE / Qt / GTK 外观：BreezeDark + WhiteSur-dark 图标 + WhiteSur 光标。
+# 这里不强行改 KWin 窗口装饰，避免覆盖 KOS 的窗口风格。
+configure_kde_global_appearance() {
+  log "统一全局外观（BreezeDark + WhiteSur-dark + WhiteSur 光标）..."
+  if [ "$DRY_RUN" -eq 1 ]; then
+    log "[dry-run] 写入 kdeglobals / kcminputrc 并应用 WhiteSur 外观"
+    return 0
+  fi
+  if ! have kwriteconfig6; then
+    warn "缺少 kwriteconfig6，跳过全局外观"
+    return 0
+  fi
+
+  backup_file "$HOME/.config/kdeglobals"
+  backup_file "$HOME/.config/kcminputrc"
+  kwriteconfig6 --file kdeglobals --group General --key ColorScheme BreezeDark --notify
+  kwriteconfig6 --file kdeglobals --group Icons --key Theme WhiteSur-dark --notify
+  kwriteconfig6 --file kdeglobals --group General --key cursorTheme WhiteSur-cursors --notify
+  kwriteconfig6 --file kcminputrc --group Mouse --key cursorTheme WhiteSur-cursors --notify
+
+  if have plasma-apply-colorscheme; then
+    plasma-apply-colorscheme BreezeDark >/dev/null 2>&1 || true
+  fi
+  if have plasma-apply-cursortheme; then
+    plasma-apply-cursortheme WhiteSur-cursors >/dev/null 2>&1 || true
+  fi
+  if have kbuildsycoca6; then
+    kbuildsycoca6 --noincremental >/dev/null 2>&1 || true
+  fi
+  log "全局外观已统一"
+}
+
+# 新装时的桌面小组件布局：时钟大卡、天气横向、日历/系统两列、活动/音乐底部。
+# 已有 deskcenter-widgets.ini 时保留用户布局。
+seed_kos_widget_layout() {
+  local state_dir="${XDG_STATE_HOME:-$HOME/.local/state}/quickshell/kos"
+  local config="$state_dir/deskcenter-widgets.ini"
+
+  log "预置 KOS 桌面小组件布局..."
+  if [ "$DRY_RUN" -eq 1 ]; then
+    log "[dry-run] 写入 $config（仅当文件不存在）"
+    return 0
+  fi
+  if [ -e "$config" ]; then
+    log "已有桌面小组件布局，保留用户设置：$config"
+    return 0
+  fi
+
+  mkdir -p "$state_dir"
+  write_file "$config" <<'EOF'
+[Widgets]
+desktopLyricsEnabled=true
+desktopLyricsX=0.5
+desktopLyricsY=1
+orderJson=["clock","weather","calendar","system","activity","music","todo"]
+schemaVersion=2
+sizesJson={"clock":"large","weather":"small","calendar":"large","system":"large","activity":"medium","music":"medium"}
+EOF
+}
+
 install_desktop_config() {
   log "写入桌面环境配置（环境变量 / GTK / 字体）..."
   install_file "$CONFIG_DIR/environment/90-kos.conf" "$HOME/.config/environment.d/90-kos.conf"
@@ -346,4 +407,5 @@ install_desktop_config() {
   enable_frosted_kde_windows
   enable_kos_frosted_settings
   install_default_apps
+  configure_kde_global_appearance
 }
