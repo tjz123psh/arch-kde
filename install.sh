@@ -189,6 +189,8 @@ main() {
 
   install_kos_deps
   fetch_kos_source
+  # 必须在 KOS shell 首次启动前预置，否则默认的彩色组件会被写成用户配置。
+  seed_kos_widget_style
   build_install_kos
   setup_sddm_theme
   install_desktop_config
