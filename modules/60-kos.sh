@@ -25,6 +25,11 @@ kos_dep_list() {
     kwin kconfig ki18n kguiaddons kcmutils kcoreaddons kdecoration gettext libxcb \
     vulkan-headers
 
+  # 独立应用（日历/待办）构建依赖；缺了 kcalendarcore，kosctl install apps 会直接失败。
+  if [ "${KOS_WITH_APPS:-0}" -eq 1 ]; then
+    printf '%s\n' kcalendarcore
+  fi
+
   # 空间景深要多两样：深度引擎要 OpenCV + ONNX Runtime（Arch 的包名是
   # onnxruntime-cpu）。缺了它们 CMake 会静默跳过，所以 --spatial 时显式列出来。
   if [ "${KOS_SPATIAL:-0}" -eq 1 ]; then
@@ -94,6 +99,9 @@ build_install_kos() {
   if [ "$KOS_WITH_APPS" -eq 1 ]; then
     log "安装独立应用（日历/计算器/待办/天气）"
     run "$repo/tools/kosctl" install apps || warn "独立应用安装失败"
+    # 上游把 kos-pim-service 设计成 D-Bus 激活（install-apps 会先 disable）；
+    # 这里启动一次，让 PimWidgetService 立刻有快照可用，之后仍不常驻。
+    systemctl --user start kos-pim-service.service >/dev/null 2>&1 || true
   fi
   if [ "$KOS_WITH_LOCKSCREEN" -eq 1 ]; then
     log "安装 KOS 锁屏"

@@ -47,6 +47,21 @@ run_doctor() {
       echo "  壁纸库: no"
     fi
     systemctl --user is-enabled kos-shell.service >/dev/null 2>&1 && echo "  kos-shell.service: enabled" || echo "  kos-shell.service: 未启用"
+    for unit in kos-platform.service kos-data.service; do
+      systemctl --user is-enabled "$unit" >/dev/null 2>&1 && echo "  $unit: enabled" || echo "  $unit: 未启用"
+    done
+    test -f "$HOME/.config/systemd/user/kos-pim-service.service" && echo "  kos-pim-service.service: unit present" || echo "  kos-pim-service.service: unit missing"
+    echo
+    echo "== KOS 运行时 =="
+    for p in wl-clipboard cliphist brightnessctl python-gobject; do
+      if pkg_installed "$p"; then echo "  [OK]   $p"; else echo "  [MISS] $p"; fi
+    done
+    if [ "${KOS_WITH_APPS:-1}" -eq 1 ]; then
+      if pkg_installed kcalendarcore; then echo "  [OK]   kcalendarcore"; else echo "  [MISS] kcalendarcore"; fi
+      for app in kos-calendar kos-calculator kos-todo kos-weather; do
+        if test -x "$HOME/.local/bin/$app"; then echo "  [OK]   $app"; else echo "  [MISS] $app"; fi
+      done
+    fi
     echo
     echo "== 字体 =="
     fc-match "Noto Sans CJK SC" 2>/dev/null | head -1 || true

@@ -49,13 +49,14 @@ zram 配置不动，只确认有没有起来。
 ## 旧桌面遗留（可选清理）
 
 本安装器只装自己的清单，**不会把旧桌面 linux-macos 的包带进来**。旧桌面专属的
-`aurorae`、`breeze-gtk`、`kvantum`、`sassc`、`optipng`、`fuzzel`、
+`breeze-gtk`、`kvantum`、`sassc`、`optipng`、`fuzzel`、
 `plasma6-applets-window-title`、`kwin-effect-rounded-corners-git`、
 `kwin-effects-better-blur-dx`、`latte-dock-ng`、`crystal-dock-git` 都不在安装列表里。
 
 但 pacman 不会自动卸载已经装上的包。在被旧桌面污染过的系统上，默认**不删任何东西**；
 加 `--clean-old-desktop` 才会先列出、再确认卸载这些旧桌面专属包。VS Code、pi、
-Chrome、QQ/微信等常用软件不在清理名单里。
+Chrome、QQ/微信等常用软件不在清理名单里。`aurorae` 是 `kwin` 的运行依赖，
+不是旧桌面遗留，不要删。
 
 ## 镜像（中国网络）
 
@@ -92,7 +93,7 @@ archlinuxcn 12 个）；加 `--no-mirrors` 可保留你原来的列表。
 - 外观：WhiteSur 的图标 / 光标 / GTK 主题（GTK 应用跟着走，Chrome、VS Code 不会掉回默认主题）
 - 常用应用：Chrome、VS Code、yazi、Obsidian、flclash、nomacs 等（Chrome / VS Code 可用参数关掉；
   flclash / nomacs 来自 archlinuxcn，没配这个源时自动跳过）
-- 开发工具：**Neovim**、**JDK 21**（LTS）、命令行 AI 工具 **pi** 与 **opencode**（AUR 的 -bin 包）
+- 开发工具：**Neovim**、**JDK 21**（LTS）、命令行 AI 工具 **pi**（`pi-coding-agent-bin`）与 **opencode**（`opencode-bin`）
 - ASUS 笔记本：**asusctl** + **rog-control-center**（风扇曲线/键盘灯/性能模式），有 archlinuxcn 源时再加
   `supergfxctl` 做 GPU 模式切换；`--no-asus` 可关
 - 蓝牙：**bluez** + **bluedevil**（KDE 蓝牙页/托盘）+ **bluez-obex**（文件传输），`bluetooth.service` 常开

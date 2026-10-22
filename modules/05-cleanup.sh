@@ -10,8 +10,9 @@
 #
 # 只列旧桌面专属、且新桌面不依赖的包；VS Code / pi / Chrome 等常用软件不在此列。
 
+# aurorae 是 kwin 的运行依赖，不能当旧桌面包删；放在这里会让整条
+# pacman -Rns 事务失败，所以单独排除。
 OLD_DESKTOP_PKGS="
-aurorae
 breeze-gtk
 kvantum
 sassc
@@ -28,9 +29,17 @@ cleanup_old_desktop() {
   if [ "${CLEAN_OLD:-0}" -ne 1 ]; then
     return 0
   fi
-  local p installed=()
+  local p installed=() required
   for p in $OLD_DESKTOP_PKGS; do
-    if pkg_installed "$p"; then installed+=("$p"); fi
+    pkg_installed "$p" || continue
+    # 仍被其他包依赖的不能删（例如 KWin 装饰引擎）；先跳过，避免
+    # pacman -Rns 整条事务回滚，留下一个都没删掉的假成功。
+    required=$(pacman -Qi "$p" 2>/dev/null | sed -n 's/^Required By *: *//p')
+    if [ -n "$required" ] && [ "$required" != "None" ]; then
+      warn "旧桌面清理：跳过 $p（仍被依赖：$required）"
+      continue
+    fi
+    installed+=("$p")
   done
   if [ ${#installed[@]} -eq 0 ]; then
     log "旧桌面清理：没有发现旧桌面专属包"

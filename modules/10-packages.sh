@@ -360,6 +360,13 @@ networkmanager bluez bluez-utils bluedevil bluez-obex linux-firmware
 base-devel git curl jq unzip xdg-utils xdg-user-dirs man-db cmake extra-cmake-modules python
 "
 
+  # KOS 运行时集成（2026-10-22 用户反馈）：
+  #   wl-clipboard + cliphist  KOS 的 Meta+V 剪贴板历史
+  #   brightnessctl            KOS 亮度控制
+  #   kcalendarcore            KOS 日历/待办应用构建依赖
+  pkgs="$pkgs wl-clipboard cliphist brightnessctl python-gobject"
+  if [ "${KOS_WITH_APPS:-1}" -eq 1 ]; then pkgs="$pkgs kcalendarcore"; fi
+
   # ---- archinstall 阶段已经装好的基础工具（只做 --needed 兜底）----
   # 这些在干净 archinstall 后通常已经存在，装了就是空操作；写进来是为了防
   # "精简预设 / 别人装的系统"缺件：
@@ -553,9 +560,10 @@ install_aur_packages() {
   # 菜单去重（老项目的 fix_china_app_launchers）没有移植过来，属于已知缺口。
   list="$list linuxqq linuxqq-wayland-fix wechat-bin musicfree-desktop-wayland-bin"
 
-  # 命令行 AI 工具（2026-10-21 用户指定）：pi 与 opencode。上游只发二进制，
-  # AUR 里对应 pi-bin / opencode-bin（装完各占 ~109 / ~177 MiB）。
-  list="$list pi-bin opencode-bin"
+  # 命令行 AI 工具（2026-10-21 用户指定）：pi 与 opencode。上游只发二进制；
+  # 当前用 pi-coding-agent-bin，别再装旧的 pi-bin（两者都提供 /usr/bin/pi，会冲突）；
+  # opencode 对应 opencode-bin（装完约 109 / 177 MiB）。
+  list="$list pi-coding-agent-bin opencode-bin"
 
   if [ "$NO_BROWSER" -eq 0 ]; then
     list="$list google-chrome"
