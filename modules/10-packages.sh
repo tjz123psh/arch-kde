@@ -391,8 +391,8 @@ base-devel git curl jq unzip xdg-utils xdg-user-dirs man-db cmake extra-cmake-mo
   # 一个包都不装。它们走下面的 CN_EXTRA_PKGS + install_archlinuxcn_apps()。
   pkgs="$pkgs yazi obsidian"
 
-  # JDK 21：开发用（Arch 的默认 jdk-openjdk 已经是 27，这里显式锁 21 的 LTS）
-  pkgs="$pkgs jdk21-openjdk"
+  # JDK 25：用户指定的 JDK；不再装 JDK 21（2026-10-22 用户要求）
+  pkgs="$pkgs jdk25-openjdk"
 
   # 开发工具（2026-10-22 用户指定）：GitHub CLI、Docker / Compose、Kate、npm
   # github-cli 提供 /usr/bin/gh；docker 组和 docker.service 在 40-system.sh 配置。
@@ -559,6 +559,15 @@ setup_aur_helper() {
 install_aur_packages() {
   if [ "$NO_AUR" -eq 1 ]; then return 0; fi
   local list pkg failed
+  # 每次安装先把已装的 AUR 包升到最新；官方包已经由 system_update 的
+  # pacman -Syu 更新过。--needed 只装缺失，不会升级已有包。
+  if [ "$DRY_RUN" -eq 1 ]; then
+    log "[dry-run] $AUR_CMD -Sua --noconfirm"
+  else
+    log "更新 AUR 包（$AUR_CMD -Sua）..."
+    "$AUR_CMD" -Sua --noconfirm || warn "AUR 更新失败，继续安装当前清单"
+  fi
+
   # 外观三件套要和 assets/config/gtk/settings.ini、environment/90-kos.conf 里的
   # 名字对得上：图标 WhiteSur、光标 WhiteSur-cursors、GTK 主题 WhiteSur-Light。
   list="whitesur-icon-theme whitesur-cursor-theme-git whitesur-gtk-theme"
