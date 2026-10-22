@@ -75,6 +75,11 @@ run_doctor() {
     done
     test -f "$HOME/.config/starship.toml" && echo "  [OK]   starship.toml" || echo "  [MISS] starship.toml"
     echo
+    echo "== 快捷键 =="
+    for f in term-menu kitty-terminal; do
+      test -f "$HOME/.local/share/applications/$f.desktop" && echo "  [OK]   $f.desktop" || echo "  [MISS] $f.desktop"
+    done
+    echo
     echo "== 快照 =="
     snapper list-configs 2>&1 || true
     systemctl is-enabled snapper-timeline.timer 2>&1 || true

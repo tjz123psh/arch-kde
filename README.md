@@ -98,6 +98,7 @@ archlinuxcn 12 个）；加 `--no-mirrors` 可保留你原来的列表。
 - 开发工具：**Neovim**、**JDK 25**（LTS）、**Kate**、**npm**、**GitHub CLI**（`gh`）、**Docker + Compose**、命令行 AI 工具 **pi**（`pi-coding-agent-bin`）与 **opencode**（`opencode-bin`）
 - 常驻脚本：**term-menu**（维护菜单）、**pac / pacr / pacd**（装 / 卸 / 降级）、**gsudo**（图形化 sudo）；脚本放在 `~/scripts`，命令链接到 `~/bin`
 - 应用配置：**yazi / fastfetch / mpv / fuzzel / starship** 的配置随安装器部署到 `~/.config`
+- 快捷键：**Win+Shift+C** 打开 `term-menu`，**Alt+Enter** 打开 kitty，**Alt+Q** 关闭当前窗口（KDE KGlobalAccel）
 - ASUS 笔记本：**asusctl** + **rog-control-center**（风扇曲线/键盘灯/性能模式），有 archlinuxcn 源时再加
   `supergfxctl` 做 GPU 模式切换；`--no-asus` 可关
 - 蓝牙：**bluez** + **bluedevil**（KDE 蓝牙页/托盘）+ **bluez-obex**（文件传输），`bluetooth.service` 常开
@@ -140,6 +141,7 @@ archlinuxcn 12 个）；加 `--no-mirrors` 可保留你原来的列表。
 │   ├── 50-terminal.sh    kitty / fish / starship
 │   ├── 52-configs.sh     yazi / fastfetch / mpv / fuzzel 配置
 │   ├── 55-apps.sh        QQ 启动器去重
+│   ├── 57-shortcuts.sh   KDE 全局快捷键
 │   ├── 58-scripts.sh     安装 maintenance / package / share 常驻脚本
 │   ├── 60-kos.sh         KOS 构建依赖 + 取源码 + kosctl 构建安装 + 快捷键
 │   ├── 80-sddm.sh        SilentSDDM 登录主题（AUR）
