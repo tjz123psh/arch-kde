@@ -523,25 +523,31 @@ setup_aur_helper() {
     log "跳过 AUR（--no-aur）"
     return 0
   fi
+  # 固定用 paru，不安装也不使用 yay。系统已有 paru 就直接用；
+  # 没有就现场从 AUR 构建 paru-bin（预编译版，省去编译 Rust 的时间）。
   if have paru; then
     AUR_CMD=paru
-  elif have yay; then
-    AUR_CMD=yay
-  else
-    log "未找到 paru/yay，构建 yay-bin ..."
-    if [ "$DRY_RUN" -eq 1 ]; then
-      log "[dry-run] 构建 yay-bin"
-      AUR_CMD=yay
-      return 0
-    fi
-    local cache="$HOME/.cache/kos-installer/aur"
-    mkdir -p "$cache"
-    if [ ! -d "$cache/yay-bin" ]; then
-      git clone --depth 1 https://aur.archlinux.org/yay-bin.git "$cache/yay-bin"
-    fi
-    ( cd "$cache/yay-bin" && makepkg -si --noconfirm )
-    AUR_CMD=yay
+    log "AUR helper: $AUR_CMD"
+    return 0
   fi
+
+  log "未找到 paru，构建 paru-bin ..."
+  if [ "$DRY_RUN" -eq 1 ]; then
+    log "[dry-run] 构建 paru-bin"
+    AUR_CMD=paru
+    return 0
+  fi
+
+  local cache="$HOME/.cache/kos-installer/aur"
+  mkdir -p "$cache"
+  if [ ! -d "$cache/paru-bin" ]; then
+    git clone --depth 1 https://aur.archlinux.org/paru-bin.git "$cache/paru-bin" ||
+      die "下载 paru-bin 失败（检查网络或 AUR 是否可达）"
+  fi
+  ( cd "$cache/paru-bin" && makepkg -si --noconfirm ) ||
+    die "paru-bin 安装失败（缺 base-devel / git，或 makepkg 被中断）"
+  have paru || die "paru-bin 安装后仍找不到 paru 命令"
+  AUR_CMD=paru
   log "AUR helper: $AUR_CMD"
 }
 

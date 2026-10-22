@@ -13,6 +13,7 @@ bash install.sh --all       # 全装（含独立应用 + 锁屏）
 
 - Arch Linux，x86_64，能登录 TTY（刚 archinstall 完的状态就行）
 - 一个**普通用户**（不是 root），有 sudo 权限
+- AUR helper 固定用 **paru**；系统没有 paru 时，安装器会构建 `paru-bin`，不会安装 yay
 - 装的时候需要联网；离线装可以先准备好源码，见下面的环境变量
 
 ## 前提（archinstall 之后）
