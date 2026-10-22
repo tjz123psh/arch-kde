@@ -8,6 +8,29 @@
 #   Alt+Q       -> 关闭当前窗口（KWin Window Close）
 # 使用 KGlobalAccel 的 command shortcut desktop 文件，不依赖 KOS 私有快捷键。
 
+configure_keyboard_repeat() {
+  log "配置键盘重复延迟/速率（250ms / 50Hz）..."
+
+  if [ "$DRY_RUN" -eq 1 ]; then
+    log "[dry-run] 写入 kcminputrc：Keyboard.RepeatDelay=250，RepeatRate=50"
+    return 0
+  fi
+  if ! have kwriteconfig6; then
+    warn "缺少 kwriteconfig6，跳过键盘重复设置"
+    return 0
+  fi
+
+  backup_file "$HOME/.config/kcminputrc"
+  kwriteconfig6 --file kcminputrc --group Keyboard --key RepeatDelay "250" --notify
+  kwriteconfig6 --file kcminputrc --group Keyboard --key RepeatRate "50" --notify
+
+  # 当前会话有 KWin 时立即重读；安装器里 KWin 尚未启动，失败可忽略。
+  if have qdbus6; then
+    qdbus6 org.kde.KWin /KWin reconfigure >/dev/null 2>&1 || true
+  fi
+  log "键盘重复：延迟 250ms，速率 50 次/秒"
+}
+
 install_kde_shortcuts() {
   log "配置 KDE 快捷键（term-menu / 终端 / btop / fuzzel / 关闭窗口）..."
 

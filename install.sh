@@ -195,6 +195,7 @@ main() {
   install_wallpapers
   install_user_scripts || warn "维护/包管理脚本安装失败，可稍后重跑"
   install_kde_shortcuts || warn "KDE 快捷键配置失败，可稍后重跑"
+  configure_keyboard_repeat || warn "键盘重复设置失败，可稍后重跑"
 
   run_doctor quick || true
   summary
