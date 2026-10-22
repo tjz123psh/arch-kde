@@ -6,7 +6,41 @@
 #   Win+Shift+C -> kitty -e term-menu
 #   Alt+Enter   -> 打开 kitty
 #   Alt+Q       -> 关闭当前窗口（KWin Window Close）
+#   Alt+W       -> 打开 KOS 设置 → 壁纸
 # 使用 KGlobalAccel 的 command shortcut desktop 文件，不依赖 KOS 私有快捷键。
+
+install_wallpaper_shortcut() {
+  log "配置 Alt+W 打开 KOS 设置 → 壁纸..."
+
+  if [ "$DRY_RUN" -eq 1 ]; then
+    log "[dry-run] 写入 kos-settings-wallpaper.desktop 并设置 Alt+W"
+    return 0
+  fi
+  if ! have kwriteconfig6; then
+    warn "缺少 kwriteconfig6，跳过壁纸快捷键"
+    return 0
+  fi
+
+  backup_file "$HOME/.config/kglobalshortcutsrc"
+  write_file "$HOME/.local/share/applications/kos-settings-wallpaper.desktop" <<EOF
+[Desktop Entry]
+Type=Application
+Name=KOS Settings (Wallpaper)
+Comment=Open KOS Settings on the wallpaper page
+Exec=$HOME/.local/bin/kos-settings --page=8
+Icon=preferences-system
+Terminal=false
+NoDisplay=true
+StartupNotify=true
+X-KDE-GlobalAccel-CommandShortcut=true
+EOF
+
+  kwriteconfig6 --file kglobalshortcutsrc --group services --group kos-settings-wallpaper.desktop --key _launch "Alt+W" --notify
+  if have kbuildsycoca6; then
+    kbuildsycoca6 --noincremental >/dev/null 2>&1 || true
+  fi
+  log "Alt+W → KOS 设置壁纸页"
+}
 
 configure_keyboard_repeat() {
   log "配置键盘重复延迟/速率（250ms / 50Hz）..."
