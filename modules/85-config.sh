@@ -77,6 +77,7 @@ elif new not in source:
 PY
 
   if have kwriteconfig6; then
+    mkdir -p "$(dirname "$ini")"
     kwriteconfig6 --file "$ini" --group Wallpaper --key themeAnimated true --notify
   fi
   log "动态主题：themeAnimated=true，窗口打开时继续渲染"
