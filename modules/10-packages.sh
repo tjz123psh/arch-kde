@@ -394,9 +394,10 @@ base-devel git curl jq unzip xdg-utils xdg-user-dirs man-db cmake extra-cmake-mo
   # JDK 21：开发用（Arch 的默认 jdk-openjdk 已经是 27，这里显式锁 21 的 LTS）
   pkgs="$pkgs jdk21-openjdk"
 
-  # 开发工具（2026-10-22 用户指定）：GitHub CLI + Docker / Compose
+  # 开发工具（2026-10-22 用户指定）：GitHub CLI、Docker / Compose、Kate、npm
   # github-cli 提供 /usr/bin/gh；docker 组和 docker.service 在 40-system.sh 配置。
-  pkgs="$pkgs github-cli docker docker-compose"
+  # kate 是 KOS 默认 Dock 的文本编辑器入口；npm 是 Node.js 包管理器。
+  pkgs="$pkgs github-cli docker docker-compose kate npm"
 
   # ---- 硬件驱动：固定按目标机装（2026-10-21 用户要求，不再看探测结果）----
   # 目标机：ASUS TUF A15 / AMD Ryzen 7 7735H（Radeon 680M）+ RTX 4050 + RTL8852BE。
