@@ -215,6 +215,9 @@ enable_frosted_kde_windows() {
   frosted_window_rule frosted_kcm_bluetooth kcm_bluetooth
   frosted_window_rule frosted_kcm_networkmanagement kcm_networkmanagement
   frosted_window_rule frosted_kcmshell6 kcmshell6 2
+  frosted_window_rule frosted_kcm_all kcm_ 2
+  frosted_window_rule frosted_bluedevil_wizard bluedevil-wizard
+  frosted_window_rule frosted_plasma_nm plasma-nm
   frosted_window_rule frosted_systemsettings_dialog systemsettings 1 2
   # 文件管理器阅读为主，保留更实的底，不跟系统监视器一样透。
   kwriteconfig6 --file kwinrulesrc --group frosted_dolphin --key opacityactive 90 --notify
@@ -222,7 +225,7 @@ enable_frosted_kde_windows() {
 
   local order group
   order=$(kreadconfig6 --file kwinrulesrc --group General --key Order 2>/dev/null || true)
-  for group in frosted_systemsettings frosted_systemmonitor frosted_kos_settings frosted_dolphin frosted_kcm_bluetooth frosted_kcm_networkmanagement frosted_kcmshell6 frosted_systemsettings_dialog; do
+  for group in frosted_systemsettings frosted_systemmonitor frosted_kos_settings frosted_dolphin frosted_kcm_bluetooth frosted_kcm_networkmanagement frosted_kcmshell6 frosted_kcm_all frosted_bluedevil_wizard frosted_plasma_nm frosted_systemsettings_dialog; do
     case ",$order," in
       *,$group,*) ;;
       *) order="${order:+$order,}$group" ;;
