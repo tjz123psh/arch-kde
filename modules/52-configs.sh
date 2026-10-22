@@ -20,6 +20,9 @@ install_user_configs() {
   install_config_tree "$CONFIG_DIR/mpv" "$HOME/.config/mpv"
   install_config_tree "$CONFIG_DIR/fuzzel" "$HOME/.config/fuzzel"
   install_config_tree "$CONFIG_DIR/btop" "$HOME/.config/btop"
+  # btop 是 TUI；系统包的 Terminal=true 依赖 KDE 默认终端，改成显式 kitty。
+  install_file "$CONFIG_DIR/applications/btop.desktop" "$HOME/.local/share/applications/btop.desktop"
+  if have kbuildsycoca6; then kbuildsycoca6 --noincremental >/dev/null 2>&1 || true; fi
 
   # mpv 的 assrt token 不进公开仓库：首次安装只放示例，已有配置不覆盖。
   if [ ! -e "$HOME/.config/mpv/script-opts/assrt.conf" ]; then
