@@ -14,7 +14,7 @@
 - 一键把**干净 Arch（archinstall 之后、能登录 TTY）**装成 KDE Plasma 6 (Wayland) + KOS/NextKDE 桌面。
 - **这里只有安装器**：桌面本体（Quickshell 外壳、kosctl、KWin 插件）在上游 `SuceV587/NextKde`，安装时克隆到 `~/.cache/kos-src`。
 - 公开仓库，remote `https://github.com/tjz123psh/arch-kde.git`，GPL-3.0-or-later。
-- 数据资产是核心：`assets/config/`（fcitx5 / kitty / fish / gtk / fontconfig / environment）、`assets/wallpapers/`（11 张）；genie 插件源码已压缩归档在仓库根目录 `genie-effect-2026-10-21.tar.gz`（已停用，待以后处理）。
+- 数据资产是核心：`assets/config/`（fcitx5 / kitty / fish / gtk / fontconfig / environment）、`assets/wallpapers/`（13 张）；genie 插件源码已压缩归档在仓库根目录 `genie-effect-2026-10-21.tar.gz`（已停用，待以后处理）。
 
 ## 三、结构约定
 
