@@ -83,6 +83,30 @@ PY
   log "动态主题：themeAnimated=true，窗口打开时继续渲染"
 }
 
+# 只在新安装、还没有 Dock 配置时预置；已有配置保留，避免覆盖用户自己的 Dock。
+# visibilityMode=smart 对应设置里的“智能隐藏”。
+seed_kos_dock_visibility() {
+  local state_dir="${XDG_STATE_HOME:-$HOME/.local/state}/quickshell/kos/dock"
+  local config="$state_dir/config.json"
+
+  log "预置 KOS Dock 显示方式（智能隐藏）..."
+  if [ "$DRY_RUN" -eq 1 ]; then
+    log "[dry-run] 写入 $config（仅当文件不存在）"
+    return 0
+  fi
+  if [ -e "$config" ]; then
+    log "已有 Dock 配置，保留用户设置：$config"
+    return 0
+  fi
+
+  mkdir -p "$state_dir"
+  write_file "$config" <<'EOF'
+{
+  "visibilityMode": "smart"
+}
+EOF
+}
+
 # 环境变量 / GTK / 字体：从老项目的 kde.sh 抽出来，只保留与桌面观感相关的部分
 install_desktop_config() {
   log "写入桌面环境配置（环境变量 / GTK / 字体）..."
