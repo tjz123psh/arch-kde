@@ -75,6 +75,12 @@ run_doctor() {
     done
     test -f "$HOME/.config/starship.toml" && echo "  [OK]   starship.toml" || echo "  [MISS] starship.toml"
     echo
+    echo "== 快照 =="
+    snapper list-configs 2>&1 || true
+    systemctl is-enabled snapper-timeline.timer 2>&1 || true
+    systemctl is-enabled snapper-cleanup.timer 2>&1 || true
+    pkg_installed btrfs-assistant && echo "  [OK]   btrfs-assistant" || echo "  [MISS] btrfs-assistant"
+    echo
     echo "== 字体 =="
     fc-match "Noto Sans CJK SC" 2>/dev/null | head -1 || true
     fc-match "Maple Mono NF CN" 2>/dev/null | head -1 || true

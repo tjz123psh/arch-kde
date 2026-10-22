@@ -403,7 +403,7 @@ base-devel git curl jq unzip xdg-utils xdg-user-dirs man-db cmake extra-cmake-mo
   # maintenance 需要 snapper/reflector/rsync/zstd/upower/pacman-contrib/strace 等；
   # package 的 pac/pacr 需要 fzf/strace，pacd 需要 downgrade（在 archlinuxcn，走 CN_EXTRA_PKGS）。
   # pciutils/usbutils/libnotify/efibootmgr 供 hw-doctor、通知、boot-check 使用。
-  pkgs="$pkgs git-delta strace reflector snapper flatpak rsync zstd upower pacman-contrib fakeroot pciutils usbutils libnotify efibootmgr fuzzel papirus-icon-theme"
+  pkgs="$pkgs git-delta strace reflector snapper flatpak rsync zstd upower pacman-contrib fakeroot pciutils usbutils libnotify efibootmgr fuzzel papirus-icon-theme btrfs-assistant"
 
   # ---- 硬件驱动：固定按目标机装（2026-10-21 用户要求，不再看探测结果）----
   # 目标机：ASUS TUF A15 / AMD Ryzen 7 7735H（Radeon 680M）+ RTX 4050 + RTL8852BE。

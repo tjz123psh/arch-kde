@@ -232,11 +232,60 @@ default_browser() {
   fi
 }
 
+# Snapper：Btrfs root/home 的时间线快照。
+# 只做配置和定时器，不碰分区/挂载；非 Btrfs 系统直接跳过。
+setup_snapshots() {
+  if ! have snapper; then
+    warn "未安装 snapper，跳过快照配置"
+    return 0
+  fi
+  if [ "$(findmnt -no FSTYPE / 2>/dev/null || true)" != "btrfs" ]; then
+    warn "根文件系统不是 Btrfs，跳过 Snapper 配置"
+    return 0
+  fi
+  if [ "$DRY_RUN" -eq 1 ]; then
+    log "[dry-run] snapper create-config root/home；timeline 每周保留 4 个；启用 timeline/cleanup timer"
+    return 0
+  fi
+
+  local spec cfg target
+  for spec in "root:/" "home:/home"; do
+    cfg="${spec%%:*}"
+    target="${spec#*:}"
+    [ "$(findmnt -no FSTYPE "$target" 2>/dev/null || true)" = "btrfs" ] || continue
+    if [ ! -e "/etc/snapper/configs/$cfg" ]; then
+      sudo_run snapper -c "$cfg" create-config "$target" ||
+        warn "Snapper 创建 $cfg 配置失败（可能已有 .snapshots 或不是独立子卷）"
+    fi
+    if [ -e "/etc/snapper/configs/$cfg" ]; then
+      sudo_run snapper -c "$cfg" set-config \
+        TIMELINE_CREATE=yes TIMELINE_CLEANUP=yes \
+        TIMELINE_LIMIT_HOURLY=1 TIMELINE_LIMIT_DAILY=0 \
+        TIMELINE_LIMIT_WEEKLY=4 TIMELINE_LIMIT_MONTHLY=0 \
+        TIMELINE_LIMIT_QUARTERLY=0 TIMELINE_LIMIT_YEARLY=0 ||
+        warn "Snapper 设置 $cfg 时间线参数失败"
+    fi
+  done
+
+  # Snapper 默认每小时触发 timeline；用户要求每周一次，改为周日 03:00。
+  # 只覆盖 timer 时间表，不改 Snapper 的保留策略（weekly=4）。
+  sudo_write_file /etc/systemd/system/snapper-timeline.timer.d/90-weekly.conf <<'EOF'
+[Timer]
+OnCalendar=
+OnCalendar=Sun *-*-* 03:00:00
+Persistent=true
+EOF
+  sudo_run systemctl daemon-reload
+  sudo_run systemctl enable --now snapper-timeline.timer snapper-cleanup.timer ||
+    warn "启用 Snapper 定时器失败，请手动检查"
+}
+
 setup_system() {
   log "系统收尾：用户组 / shell / 服务 / 微码 / 驱动..."
   add_groups
   set_shell
   enable_services
+  setup_snapshots
   time_sync_setup
   zram_setup
   network_backend

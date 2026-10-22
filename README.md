@@ -89,6 +89,7 @@ archlinuxcn 12 个）；加 `--no-mirrors` 可保留你原来的列表。
 - KDE Plasma 6 + KWin + SDDM + 一套 KDE 应用（Dolphin / Ark / Gwenview / Spectacle / System Monitor）
 - 图形栈：mesa / vulkan / VA-API；按目标机固定装 AMD 核显 + NVIDIA 独显驱动（换机器改 `modules/10-packages.sh`）
 - 声音：pipewire + wireplumber + ALSA 兼容层
+- 快照：**Snapper** root/home 配置 + **Btrfs Assistant** 图形界面；timeline 每周日 03:00，保留 4 个 weekly
 - 输入法：fcitx5 + 中文输入方案，按 KWin Wayland 的方式接管
 - 终端：**kitty**、**fish**、**starship**，外加 fzf / eza / bat / fd / ripgrep / zoxide / fastfetch
 - 外观：WhiteSur 的图标 / 光标 / GTK 主题（GTK 应用跟着走，Chrome、VS Code 不会掉回默认主题）
