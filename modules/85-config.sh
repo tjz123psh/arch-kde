@@ -8,15 +8,15 @@ install_wallpapers() {
   # KOS 的壁纸选择器只认托管图集目录：$XDG_DATA_HOME/kos/gallery
   # （apps/settings/src/WallpaperLibrary.cpp::galleryDirPath，按 mtime 倒序展示）
   local dst="${XDG_DATA_HOME:-$HOME/.local/share}/kos/gallery"
-  log "安装壁纸库 → $dst"
+  log "Installing the wallpaper gallery -> $dst"
   if [ "$DRY_RUN" -eq 1 ]; then
-    log "[dry-run] 复制 $ASSET_DIR/wallpapers → $dst"
+    log "[dry-run] copy $ASSET_DIR/wallpapers -> $dst"
     return 0
   fi
   mkdir -p "$dst"
   cp -n "$ASSET_DIR"/wallpapers/* "$dst"/ 2>/dev/null || true
   chmod 644 "$dst"/* 2>/dev/null || true
-  log "图集壁纸数：$(find "$dst" -maxdepth 1 -type f | wc -l)"
+  log "Wallpapers in gallery: $(find "$dst" -maxdepth 1 -type f | wc -l)"
 }
 
 # KOS 首次启动前预置的组件外观；已有配置绝不覆盖。
@@ -25,13 +25,13 @@ seed_kos_widget_style() {
   local state_dir="${XDG_STATE_HOME:-$HOME/.local/state}/quickshell/kos/appearance"
   local config="$state_dir/config.json"
 
-  log "预置 KOS 桌面组件样式（Glass / Liquid）..."
+  log "Seeding the KOS desktop widget style (Glass / Liquid)..."
   if [ "$DRY_RUN" -eq 1 ]; then
-    log "[dry-run] 写入 $config（仅当文件不存在）"
+    log "[dry-run] write $config (only if missing)"
     return 0
   fi
   if [ -e "$config" ]; then
-    log "已有 KOS 外观配置，保留用户设置：$config"
+    log "Existing KOS appearance config found; keeping user settings: $config"
     return 0
   fi
 
@@ -57,13 +57,13 @@ enable_kos_theme_animation() {
   local qml="$HOME/.config/quickshell/kos/desktop/modules/wallpaper/ThemeWallpaperService.qml"
   local ini="${XDG_STATE_HOME:-$HOME/.local/state}/quickshell/kos/wallpaper.ini"
 
-  log "开启 KOS 动态主题常驻动画（有窗口时也不停）..."
+  log "Keeping the KOS animated theme running even with windows open..."
   if [ "$DRY_RUN" -eq 1 ]; then
-    log "[dry-run] 修改 ThemeWallpaperService.running 并写入 themeAnimated=true"
+    log "[dry-run] patch ThemeWallpaperService.running and write themeAnimated=true"
     return 0
   fi
   if [ ! -f "$qml" ]; then
-    warn "找不到 ThemeWallpaperService.qml，跳过动态主题常驻动画"
+    warn "ThemeWallpaperService.qml not found; skipping the animated-theme patch"
     return 0
   fi
 
@@ -85,7 +85,7 @@ PY
     mkdir -p "$(dirname "$ini")"
     kwriteconfig6 --file "$ini" --group Wallpaper --key themeAnimated true --notify
   fi
-  log "动态主题：themeAnimated=true，窗口打开时继续渲染"
+  log "Animated theme: themeAnimated=true, keeps rendering with windows open"
 }
 
 # 只在新安装、还没有 Dock 配置时预置；已有配置保留，避免覆盖用户自己的 Dock。
@@ -94,13 +94,13 @@ seed_kos_dock_visibility() {
   local state_dir="${XDG_STATE_HOME:-$HOME/.local/state}/quickshell/kos/dock"
   local config="$state_dir/config.json"
 
-  log "预置 KOS Dock 显示方式（智能隐藏）..."
+  log "Seeding the KOS dock visibility (smart hide)..."
   if [ "$DRY_RUN" -eq 1 ]; then
-    log "[dry-run] 写入 $config（仅当文件不存在）"
+    log "[dry-run] write $config (only if missing)"
     return 0
   fi
   if [ -e "$config" ]; then
-    log "已有 Dock 配置，保留用户设置：$config"
+    log "Existing dock config found; keeping user settings: $config"
     return 0
   fi
 
@@ -120,16 +120,16 @@ EOF
 # kitty_no_decorations 规则（decorationpolicy=none）如果还在，就删掉。
 remove_kitty_no_decorations() {
   local rules="$HOME/.config/kwinrulesrc" tmp
-  log "清理 kitty 无边框规则（保留可拖拽的缩放边框）..."
+  log "Removing the kitty no-decoration rule (keeping resizable borders)..."
   if [ "$DRY_RUN" -eq 1 ]; then
-    log "[dry-run] 若 kwinrulesrc 里存在 kitty_no_decorations，则删除该规则"
+    log "[dry-run] remove kitty_no_decorations from kwinrulesrc if present"
     return 0
   fi
   if [ ! -f "$rules" ] || ! grep -qxF '[kitty_no_decorations]' "$rules"; then
     return 0
   fi
   if ! have kwriteconfig6; then
-    warn "缺少 kwriteconfig6，无法清理 kwinrulesrc"
+    warn "kwriteconfig6 missing; cannot clean kwinrulesrc"
     return 0
   fi
 
@@ -156,20 +156,20 @@ remove_kitty_no_decorations() {
   if have qdbus6; then
     qdbus6 org.kde.KWin /KWin reconfigure >/dev/null 2>&1 || true
   fi
-  log "kitty 无边框规则已移除；新开的终端可以用鼠标拖边缩放"
+  log "kitty no-decoration rule removed; new terminals can be resized with the mouse"
 }
 
 # 让智能隐藏的 Dock 提示条更低调：降低白色主体和黑色 scrim，并略微变细。
 enable_kos_subtle_dock_reveal() {
   local qml="$HOME/.config/quickshell/kos/desktop/modules/dock/DockRevealHandle.qml"
 
-  log "调低 Dock 隐藏提示条的灰暗/存在感..."
+  log "Toning down the dock reveal hint..."
   if [ "$DRY_RUN" -eq 1 ]; then
-    log "[dry-run] 修改 DockRevealHandle：半透明 0.30、scrim 0.25、厚度 5"
+    log "[dry-run] patch DockRevealHandle: opacity 0.30, scrim 0.25, thickness 5"
     return 0
   fi
   if [ ! -f "$qml" ]; then
-    warn "找不到 DockRevealHandle.qml，跳过 Dock 提示条调整"
+    warn "DockRevealHandle.qml not found; skipping the dock hint tweak"
     return 0
   fi
 
@@ -191,7 +191,7 @@ for old, new in replacements:
         source = source.replace(old, new, 1)
 path.write_text(source)
 PY
-  log "Dock 隐藏提示条已调低"
+  log "Dock reveal hint toned down"
 }
 
 # 三个设置/监视器窗口的轻量磨砂玻璃近似：KWin 只负责半透明窗口 +
@@ -210,13 +210,13 @@ frosted_window_rule() {
 }
 
 enable_frosted_kde_windows() {
-  log "配置 KDE 设置/KCM 子窗口/系统监视器/Dolphin 的磨砂玻璃窗口..."
+  log "Frosting the KDE Settings / KCM / System Monitor / Dolphin windows..."
   if [ "$DRY_RUN" -eq 1 ]; then
-    log "[dry-run] 写入 kwinrulesrc：systemsettings / plasma-systemmonitor / kos-settings 半透明规则"
+    log "[dry-run] write kwinrulesrc opacity rules for systemsettings / plasma-systemmonitor / kos-settings"
     return 0
   fi
   if ! have kwriteconfig6; then
-    warn "缺少 kwriteconfig6，跳过磨砂玻璃窗口规则"
+    warn "kwriteconfig6 missing; skipping the frosted-window rules"
     return 0
   fi
 
@@ -252,20 +252,20 @@ enable_frosted_kde_windows() {
   if have qdbus6; then
     qdbus6 org.kde.KWin /KWin reconfigure >/dev/null 2>&1 || true
   fi
-  log "磨砂玻璃窗口规则已写入"
+  log "Frosted-window rules written"
 }
 
 # KOS 设置是自绘 QML 窗口；让 ApplicationWindow 底色透明，交给 KWin Glass 模糊。
 enable_kos_frosted_settings() {
   local qml="$HOME/.local/share/kos/settings/main.qml"
 
-  log "让 KOS 设置背景透明以接入磨砂玻璃..."
+  log "Making the KOS Settings background translucent for the frosted effect..."
   if [ "$DRY_RUN" -eq 1 ]; then
-    log "[dry-run] 修改 KOS Settings main.qml 背景 alpha=0.78"
+    log "[dry-run] patch KOS Settings main.qml background alpha=0.78"
     return 0
   fi
   if [ ! -f "$qml" ]; then
-    warn "找不到 KOS Settings main.qml，跳过磨砂设置背景"
+    warn "KOS Settings main.qml not found; skipping the translucent background"
     return 0
   fi
 
@@ -282,19 +282,19 @@ if old in source:
 elif new not in source:
     print("KOS Settings main.qml: unexpected background color line", file=sys.stderr)
 PY
-  log "KOS 设置背景已改为半透明"
+  log "KOS Settings background made translucent"
 }
 
 # 默认应用：文本/语言文件用 Neovim，PDF 用 WPS，图片用 nomacs，
 # 文件夹用 Dolphin；不覆盖这里没列出的关联。
 install_default_apps() {
-  log "配置默认应用（Neovim / WPS / nomacs / Dolphin）..."
+  log "Setting default apps (Neovim / WPS / nomacs / Dolphin)..."
   if [ "$DRY_RUN" -eq 1 ]; then
-    log "[dry-run] 写入 mimeapps.list 与 kdeglobals 默认应用"
+    log "[dry-run] write mimeapps.list and kdeglobals defaults"
     return 0
   fi
   if ! have xdg-mime; then
-    warn "缺少 xdg-mime，跳过默认应用"
+    warn "xdg-mime missing; skipping default apps"
     return 0
   fi
 
@@ -305,9 +305,9 @@ install_default_apps() {
   while IFS='|' read -r mime desktop; do
     [ -n "$mime" ] || continue
     if [ -f "/usr/share/applications/$desktop" ]; then
-      xdg-mime default "$desktop" "$mime" || warn "默认应用失败: $mime → $desktop"
+      xdg-mime default "$desktop" "$mime" || warn "Default app failed: $mime -> $desktop"
     else
-      warn "桌面文件不存在: $desktop（跳过 $mime）"
+      warn "Desktop file missing: $desktop (skipping $mime)"
     fi
   done <<'EOF'
 text/plain|nvim.desktop
@@ -343,19 +343,19 @@ EOF
     kwriteconfig6 --file kdeglobals --group General --key TerminalApplication kitty --notify
     kwriteconfig6 --file kdeglobals --group General --key TerminalService kitty.desktop --notify
   fi
-  log "默认应用已写入"
+  log "Default apps written"
 }
 
 # 统一 KDE / Qt / GTK 外观：BreezeDark + WhiteSur-dark 图标 + WhiteSur 光标。
 # 这里不强行改 KWin 窗口装饰，避免覆盖 KOS 的窗口风格。
 configure_kde_global_appearance() {
-  log "统一全局外观（BreezeDark + WhiteSur-dark + WhiteSur 光标）..."
+  log "Unifying the global look (BreezeDark + WhiteSur-dark + WhiteSur cursors)..."
   if [ "$DRY_RUN" -eq 1 ]; then
-    log "[dry-run] 写入 kdeglobals / kcminputrc 并应用 WhiteSur 外观"
+    log "[dry-run] write kdeglobals / kcminputrc and apply the WhiteSur look"
     return 0
   fi
   if ! have kwriteconfig6; then
-    warn "缺少 kwriteconfig6，跳过全局外观"
+    warn "kwriteconfig6 missing; skipping the global look"
     return 0
   fi
 
@@ -375,7 +375,7 @@ configure_kde_global_appearance() {
   if have kbuildsycoca6; then
     kbuildsycoca6 --noincremental >/dev/null 2>&1 || true
   fi
-  log "全局外观已统一"
+  log "Global look unified"
 }
 
 # 新装时的桌面小组件布局：时钟大卡、天气横向、日历/系统两列、活动/音乐底部。
@@ -384,13 +384,13 @@ seed_kos_widget_layout() {
   local state_dir="${XDG_STATE_HOME:-$HOME/.local/state}/quickshell/kos"
   local config="$state_dir/deskcenter-widgets.ini"
 
-  log "预置 KOS 桌面小组件布局..."
+  log "Seeding the KOS desktop widget layout..."
   if [ "$DRY_RUN" -eq 1 ]; then
-    log "[dry-run] 写入 $config（仅当文件不存在）"
+    log "[dry-run] write $config (only if missing)"
     return 0
   fi
   if [ -e "$config" ]; then
-    log "已有桌面小组件布局，保留用户设置：$config"
+    log "Existing widget layout found; keeping user settings: $config"
     return 0
   fi
 
@@ -409,13 +409,13 @@ EOF
 # 窗口动效：KOS 的 dock-window-animation 负责打开/关闭/最小化/恢复；
 # 玻璃部分只轻加全局模糊，保持 liquid 的清晰折射。
 configure_kos_motion() {
-  log "配置窗口动效与玻璃参数..."
+  log "Configuring window effects and glass parameters..."
   if [ "$DRY_RUN" -eq 1 ]; then
-    log "[dry-run] 写入 kwinrc 动效（genie 风格 + 时长 + 摆动窗口）并设置 glass blur=0.10"
+    log "[dry-run] write kwinrc effects (genie + durations + wobbly windows) and glass blur=0.10"
     return 0
   fi
   if ! have kwriteconfig6; then
-    warn "缺少 kwriteconfig6，跳过窗口动效"
+    warn "kwriteconfig6 missing; skipping window effects"
     return 0
   fi
 
@@ -458,19 +458,19 @@ if isinstance(data, dict):
     path.write_text(json.dumps(data, ensure_ascii=False, indent=2) + "\n")
 PY
   fi
-  log "窗口动效与玻璃参数已写入"
+  log "Window effects and glass parameters written"
 }
 
 # Dolphin 默认详情视图：16px 图标、紧凑行距、完整路径、小状态栏。
 # Places 侧栏保持 Dolphin 默认显示；不写 places 数据，避免覆盖用户书签。
 configure_dolphin_layout() {
-  log "配置 Dolphin 详情视图与紧凑布局..."
+  log "Configuring the Dolphin details view and compact layout..."
   if [ "$DRY_RUN" -eq 1 ]; then
-    log "[dry-run] 写入 dolphinrc 详情视图与 global view properties"
+    log "[dry-run] write dolphinrc details view and global view properties"
     return 0
   fi
   if ! have kwriteconfig6; then
-    warn "缺少 kwriteconfig6，跳过 Dolphin 布局"
+    warn "kwriteconfig6 missing; skipping the Dolphin layout"
     return 0
   fi
 
@@ -500,7 +500,7 @@ SortRole=text
 ViewMode=1
 EOF
   fi
-  log "Dolphin 详情视图已写入"
+  log "Dolphin details view written"
 }
 
 # KOS 锁屏：ds2 背景、时钟+天气+歌词、密码框圆角不再做成胶囊。
@@ -509,11 +509,11 @@ configure_kos_lockscreen() {
   local dir="$HOME/.local/share/plasma/shells/org.kos.desktop/contents/lockscreen"
 
   if [ ! -f "$dir/LockScreen.qml" ]; then
-    log "未安装 KOS 锁屏，跳过锁屏美化"
+    log "KOS lock screen not installed; skipping its styling"
     return 0
   fi
   if [ "$DRY_RUN" -eq 1 ]; then
-    log "[dry-run] 写入 KOS 锁屏背景 ds2、密码框圆角 14、隐藏日历/表盘"
+    log "[dry-run] write the KOS lock screen: ds2 background, 14px password corners, hidden calendar/dial"
     return 0
   fi
 
@@ -563,7 +563,7 @@ if "Canvas {\n            id: dial\n            visible: false" not in s:
                   "        Canvas {\n            id: dial\n            visible: false\n", 1)
 path.write_text(s)
 PY
-  log "KOS 锁屏已应用 ds2 背景、时钟+天气+歌词、圆角密码框"
+  log "KOS lock screen styled: ds2 background, clock+weather+lyrics, rounded password box"
 }
 
 
@@ -573,13 +573,13 @@ PY
 install_chrome_password_store_override() {
   local src="/usr/share/applications/google-chrome.desktop"
   local dst="$HOME/.local/share/applications/google-chrome.desktop"
-  log "配置 Chrome 不使用 KDE 密码库（避免每次启动弹窗）..."
+  log "Keeping Chrome off the KDE wallet (stops the per-launch prompt)..."
   if [ "$DRY_RUN" -eq 1 ]; then
-    log "[dry-run] 生成 $dst（Exec 追加 --password-store=basic）"
+    log "[dry-run] create $dst (Exec gets --password-store=basic)"
     return 0
   fi
   if [ ! -f "$src" ]; then
-    log "没装 Chrome，跳过密码库覆盖"
+    log "Chrome not installed; skipping the wallet override"
     return 0
   fi
   mkdir -p "$(dirname "$dst")"
@@ -589,10 +589,10 @@ install_chrome_password_store_override() {
   if have kbuildsycoca6; then
     kbuildsycoca6 --noincremental >/dev/null 2>&1 || true
   fi
-  log "Chrome 启动参数已更新（下次启动生效）"
+  log "Chrome launcher updated (takes effect on next start)"
 }
 install_desktop_config() {
-  log "写入桌面环境配置（环境变量 / GTK / 字体）..."
+  log "Writing desktop environment config (env / GTK / fonts)..."
   install_file "$CONFIG_DIR/environment/90-kos.conf" "$HOME/.config/environment.d/90-kos.conf"
   install_file "$CONFIG_DIR/gtk/settings.ini" "$HOME/.config/gtk-3.0/settings.ini"
   install_file "$CONFIG_DIR/gtk/settings.ini" "$HOME/.config/gtk-4.0/settings.ini"
