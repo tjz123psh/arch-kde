@@ -165,6 +165,39 @@ EOF
   fi
   log "Alt+F5 → 录屏菜单"
 }
+
+install_hotspot_shortcut() {
+  log "配置 Alt+F6 热点菜单..."
+
+  if [ "$DRY_RUN" -eq 1 ]; then
+    log "[dry-run] 写入 kos-hotspot.desktop 并设置 Alt+F6"
+    return 0
+  fi
+  if ! have kwriteconfig6; then
+    warn "缺少 kwriteconfig6，跳过热点菜单快捷键"
+    return 0
+  fi
+
+  backup_file "$HOME/.config/kglobalshortcutsrc"
+  write_file "$HOME/.local/share/applications/kos-hotspot.desktop" <<EOF
+[Desktop Entry]
+Type=Application
+Name=KOS 热点
+Comment=fuzzel 菜单：开启 / 关闭 Wi-Fi 热点
+Exec=$HOME/bin/hotspot
+Icon=network-wireless
+Terminal=false
+NoDisplay=true
+StartupNotify=false
+X-KDE-GlobalAccel-CommandShortcut=true
+EOF
+
+  kwriteconfig6 --file kglobalshortcutsrc --group services --group kos-hotspot.desktop --key _launch "Alt+F6" --notify
+  if have kbuildsycoca6; then
+    kbuildsycoca6 --noincremental >/dev/null 2>&1 || true
+  fi
+  log "Alt+F6 → 热点菜单"
+}
 configure_launcher_shortcuts() {
   log "配置启动器快捷键（Win / Win+O）..."
 

@@ -68,7 +68,7 @@ run_doctor() {
     fi
     echo
     echo "== 常驻脚本 =="
-    for cmd in term-menu pac pacr pacd gsudo shortcuts record-menu; do
+    for cmd in term-menu pac pacr pacd gsudo shortcuts record-menu hotspot; do
       if test -x "$HOME/bin/$cmd"; then echo "  [OK]   $cmd"; else echo "  [MISS] $cmd"; fi
     done
     test -d "$HOME/scripts" && echo "  脚本目录: yes" || echo "  脚本目录: no"

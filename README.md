@@ -104,6 +104,7 @@ archlinuxcn 12 个）；加 `--no-mirrors` 可保留你原来的列表。
 - 常驻脚本：**term-menu**（维护菜单）、**pac / pacr / pacd**（装 / 卸 / 降级）、**gsudo**（图形化 sudo）、**shortcuts**（快捷键查看器）；脚本放在 `~/scripts`，命令链接到 `~/bin`
 - 应用配置：**kitty / fish / yazi / fastfetch / mpv / fuzzel / btop / starship** 的配置随安装器部署到 `~/.config`
 - 截图：**Vellum**（官方 Rust/GTK4 发行包；只保留 Print 区域截图、Ctrl+Print 长截图；Vellum 自带的 Meta+... 已关闭，KOS platform 里的重复 vellum action 也关闭）
+- 热点：`Alt+F6` 打开 fuzzel 菜单（开关热点 / 改名称密码 / 二维码），后端是 NetworkManager shared 模式 + dnsmasq
 - 录屏：**gpu-screen-recorder**（GPU 编码；`Alt+F5` 打开 fuzzel 菜单：录制全屏 / 选择屏幕或窗口 / 录制 GIF·WebP 动图 / 回放缓冲 / 暂停 / 设置 / 打开目录。设置持久化在 `~/.config/kos-record/config`，命令行也有 `--start` `--stop` `--toggle` `--status` `--status-json` `--settings` `--do`）
 - 默认应用：**文本/代码 → Neovim，PDF/Office → WPS，图片 → nomacs，文件夹 → Dolphin，终端 → kitty**
 - Dolphin 默认详情视图：16px 图标、完整路径、小状态栏、紧凑行距，Places 侧栏保持显示
