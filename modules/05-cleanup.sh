@@ -17,7 +17,6 @@ breeze-gtk
 kvantum
 sassc
 optipng
-fuzzel
 plasma6-applets-window-title
 kwin-effect-rounded-corners-git
 kwin-effects-better-blur-dx

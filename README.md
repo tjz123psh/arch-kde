@@ -2,6 +2,11 @@
 
 一台能登录 TTY 的干净 Arch → 装完就能用的桌面：**KDE Plasma 6 (Wayland) + KOS/NextKDE 桌面外壳 + kitty + fish**，外加输入法、登录主题、壁纸库和一套常用工具。
 
+## 文档
+
+- [交接状态](docs/HANDOFF.md) — 新会话先读这个：当前进度、未完成项、验证方式
+- [排障手册](docs/TROUBLESHOOTING.md) — OSD、快捷键、锁屏、镜像、回退
+
 ~~~bash
 git clone https://github.com/tjz123psh/arch-kde.git
 cd arch-kde
@@ -22,7 +27,7 @@ bash install.sh --all       # 全装（含独立应用 + 锁屏）
 安装器**不重做**（分区、挂载、引导器一律不碰）：
 
 - 分区、挂载、bootloader（GRUB / systemd-boot）
-- 内核：linux / linux-lts / linux-zen（安装器固定补 `linux-lts-headers` / `linux-zen-headers`，不装、不换内核）
+- 内核：linux / linux-lts / linux-zen（安装器按**实际运行的内核**补对应 headers，不装、不换内核）
 - 时区、时间同步（systemd-timesyncd）、zram（zram-generator）
 - 基础工具：neovim、exfatprogs、os-prober
 
@@ -50,7 +55,7 @@ zram 配置不动，只确认有没有起来。
 ## 旧桌面遗留（可选清理）
 
 本安装器只装自己的清单，**不会把旧桌面 linux-macos 的包带进来**。旧桌面专属的
-`breeze-gtk`、`kvantum`、`sassc`、`optipng`、`fuzzel`、
+`breeze-gtk`、`kvantum`、`sassc`、`optipng`、
 `plasma6-applets-window-title`、`kwin-effect-rounded-corners-git`、
 `kwin-effects-better-blur-dx`、`latte-dock-ng`、`crystal-dock-git` 都不在安装列表里。
 
@@ -96,7 +101,7 @@ archlinuxcn 12 个）；加 `--no-mirrors` 可保留你原来的列表。
 - 常用应用：Chrome、VS Code、yazi、Obsidian、flclash、nomacs 等（Chrome / VS Code 可用参数关掉；
   flclash / nomacs 来自 archlinuxcn，没配这个源时自动跳过）
 - 开发工具：**Neovim**、**JDK 25**（LTS）、**Kate**、**npm**、**GitHub CLI**（`gh`）、**Docker + Compose**、命令行 AI 工具 **pi**（`pi-coding-agent-bin`）与 **opencode**（`opencode-bin`）
-- 常驻脚本：**term-menu**（维护菜单）、**pac / pacr / pacd**（装 / 卸 / 降级）、**gsudo**（图形化 sudo）、**shortcuts**（快捷键查看器）；脚本放在 `~/scripts`，命令链接到 `~/bin`
+- 常驻脚本：**term-menu**（维护菜单）、**pac / pacr / pacd**（装 / 卸 / 降级）、**gsudo**（图形化 sudo）、**shortcuts**（快捷键查看器）、**kos-osd / kos-osd-shortcuts**（系统反馈）；脚本放在 `~/scripts`，命令链接到 `~/bin`
 - 应用配置：**kitty / fish / yazi / fastfetch / mpv / fuzzel / btop / starship** 的配置随安装器部署到 `~/.config`
 - 截图：**Vellum**（官方 Rust/GTK4 发行包；只保留 Print 区域截图、Ctrl+Print 长截图；Vellum 自带的 Meta+... 已关闭，KOS platform 里的重复 vellum action 也关闭）
 - 录屏：**Kooha**（KDE ScreenCast portal，附 GStreamer H.264 插件）
@@ -124,9 +129,9 @@ archlinuxcn 12 个）；加 `--no-mirrors` 可保留你原来的列表。
 - KOS 设置 / KDE 系统设置 / KDE 设置子窗口 / 系统监视器 / Dolphin：**半透明磨砂玻璃近似**（KOS 设置改 QML，后两者用 KWin 窗口规则）
 - genie 最小化动效已停用（插件源码压缩归档在仓库根目录 `genie-effect-2026-10-21.tar.gz`，
   以后要恢复再解压；当前最小化动画交回 KOS 自带的 `kos_dock_window_animation`）
-- SilentSDDM 登录主题，当前壁纸作为登录/锁屏背景，圆角半透明登录框，SDDM 头像与桌面同步
+- SilentSDDM 登录主题使用当前壁纸；KOS 锁屏固定 ds2 背景，圆角半透明登录框，SDDM 头像与桌面同步
 - KOS 锁屏：**ds2 背景**、时钟 + 天气 + 歌词，密码框圆角 14px
-- 系统反馈：音量 / 亮度 / 静音键走 **KOS OSD**（玻璃卡片、百分比、1.5s 消失）；`kos-osd-shortcuts` 用户服务自动注册 KGlobalAccel，安装后不需要注销
+- 系统反馈：音量 / 亮度 / 静音键走 **KOS OSD**（玻璃卡片、百分比、1.5s 消失）；`kos-osd-shortcuts` 用户服务自动注册 KGlobalAccel，安装后不需要注销；KDE 原生 OSD 关闭
 - 13 张壁纸的图集（进 KOS 壁纸选择器）
 
 ## 关键约定
@@ -142,8 +147,10 @@ archlinuxcn 12 个）；加 `--no-mirrors` 可保留你原来的列表。
 ~~~
 .
 ├── install.sh            调度：参数解析、阶段顺序、计划与总结
-├── genie-effect-2026-10-21.tar.gz  genie 插件源码（已停用归档，待以后处理）
+├── genie-effect-2026-10-21.tar.gz  genie 插件源码（已停用归档；不要重新启用）
 ├── .shellcheckrc         shellcheck 配置（跨文件变量的误报说明）
+├── .github/workflows/ci.yml  CI：语法 + ShellCheck + 干净 Arch 的 --check / --dry-run
+├── docs/                 交接状态与排障手册
 ├── lib/common.sh         日志 / 备份 / install_file / sudo 保活
 ├── modules/              每个阶段一个文件，按序号执行
 │   ├── 00-preflight.sh   发行版、磁盘、网络、GPU、archinstall 前置状态预检
@@ -155,16 +162,18 @@ archlinuxcn 12 个）；加 `--no-mirrors` 可保留你原来的列表。
 │   ├── 45-ime.sh         fcitx5 配置
 │   ├── 50-terminal.sh    kitty / fish / starship
 │   ├── 52-configs.sh     yazi / fastfetch / mpv / fuzzel 配置
-│   ├── 55-apps.sh        QQ 启动器去重
-│   ├── 57-shortcuts.sh   KDE 全局快捷键
-│   ├── 58-scripts.sh     安装 maintenance / package / share 常驻脚本
+│   ├── 55-apps.sh        QQ 启动器去重 + Vellum 截图工具安装
+│   ├── 57-shortcuts.sh   KDE 快捷键 / Vellum 截图键 / KOS OSD 服务
+│   ├── 58-scripts.sh     安装 maintenance / package / share 常驻脚本 + kos-osd
 │   ├── 60-kos.sh         KOS 构建依赖 + 取源码 + kosctl 构建安装 + 快捷键
 │   ├── 80-sddm.sh        SilentSDDM 登录主题（AUR）
 │   ├── 85-config.sh      桌面环境变量 / GTK / 字体 / 壁纸库 / 组件外观
 │   └── 95-doctor.sh      安装后复查
 └── assets/
     ├── config/           fcitx5 / kitty / fish / gtk / fontconfig / environment / yazi / fastfetch / mpv / fuzzel / btop
-    └── wallpapers/       壁纸库
+    ├── kos/osd/          KOS 音量 / 亮度 OSD QML 模块
+    ├── scripts/          maintenance / package / desktop 三组常驻脚本
+    └── wallpapers/       13 张壁纸（KOS 壁纸库）
 ~~~
 
 ## 常用参数
@@ -174,11 +183,15 @@ archlinuxcn 12 个）；加 `--no-mirrors` 可保留你原来的列表。
 | `--check` | 只预检并出报告，不改系统 |
 | `--dry-run` | 打印将要执行的命令，不落盘 |
 | `--all` / `--no-apps` / `--no-lockscreen` | 是否装独立应用与锁屏 |
+| `--start` | 安装完成后立即启动 KOS shell |
+| `--verbose` | 打印每条实际执行的命令 |
 | `--ime fcitx5\|rime\|none` | 输入法 |
 | `--locale en\|zh` | 系统语言（KDE 界面始终中文；en = 系统英文，zh = 全中文） |
 | `--no-sddm-theme` / `--no-aur` / `--no-mirrors` | 跳过对应步骤 |
 | `--no-browser` / `--no-vscode` | 不装 Chrome / VS Code |
 | `--no-gpu-amd` / `--no-gpu-nvidia` | 手动去掉某个厂商的显卡驱动 |
+| `--power ppd\|tlp\|none` | 电源后端（默认 ppd） |
+| `--asus` / `--no-asus` | ASUS 工具（asusctl / rog-control-center / supergfxctl） |
 | `--nvidia-legacy` | 旧 NVIDIA 卡改用 archlinuxcn 的 nvidia-580xx（默认 nvidia-open-dkms） |
 | `--spatial` | 同时构建空间景深（自动装 OpenCV + ONNX Runtime） |
 | `--skip-update` | 不更新 KOS 源码（离线安装） |
@@ -199,11 +212,14 @@ archlinuxcn 12 个）；加 `--no-mirrors` 可保留你原来的列表。
 
 ## 状态
 
+- 当前目标机（ASUS TUF A15 实机）已完成一次完整安装并验收：KDE → KOS shell、fcitx5、kitty/fish、壁纸、锁屏、系统反馈 OSD 均可用
+- 最新改动已在本机验证：锁屏 ds2、音量/亮度 OSD、Vellum 截图快捷键只保留 Print / Ctrl+Print
 - 已验证：`--check` 通过、`--dry-run` 全链路通过；genie 插件已停用并归档，当前使用 KOS 自带窗口动画
 - CI：`.github/workflows/ci.yml`，bash -n + shellcheck + 干净 Arch 容器里跑 `--check` 与 `--dry-run`（只读检出）
 - `--spatial`：已在干净 Arch 容器里验证（OpenCV 5.0.0 + onnxruntime-cpu 1.29，`KOS_BUILD_SPATIAL=ON` 下
   产出 `kos-spatial-enabled=ON`、`kos-ai-worker`、`libkos_spatial3d.so`）
-- 待办：首次登录引导属于桌面仓库，本仓库不再承担；干净系统实机全装还没走过一遍
+- 待办：干净 Arch VM 上重跑一次 `install.sh --yes`（当前实机是在迭代中安装的，不能替代干净复现）；
+  首次登录引导属于桌面仓库，本仓库不承担
 
 ## 许可
 

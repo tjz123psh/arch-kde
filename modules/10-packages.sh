@@ -409,7 +409,7 @@ base-devel git curl jq unzip xdg-utils xdg-user-dirs man-db cmake extra-cmake-mo
   # 目标机：ASUS TUF A15 / AMD Ryzen 7 7735H（Radeon 680M）+ RTX 4050 + RTL8852BE。
   # 依据：Projects/arch-noctalia/manifests/packages.tsv 的 drivers/audio 模块。
   # 换机器时改这一段，以及上面 hw_policy_resolve 的开关。
-  pkgs="$pkgs amd-ucode linux-firmware linux-lts-headers linux-zen-headers"
+  pkgs="$pkgs amd-ucode linux-firmware"
   pkgs="$pkgs mesa mesa-utils lib32-mesa vulkan-tools libva-utils"
   if [ "$WANT_AMD" -eq 1 ]; then
     pkgs="$pkgs vulkan-radeon xf86-video-amdgpu"
@@ -433,7 +433,7 @@ base-devel git curl jq unzip xdg-utils xdg-user-dirs man-db cmake extra-cmake-mo
   fi
   # supergfxctl 只在 archlinuxcn，走 CN_EXTRA_PKGS（install_archlinuxcn_apps）
 
-  pkgs="$pkgs mesa vulkan-icd-loader vulkan-tools libva libva-utils"
+  pkgs="$pkgs vulkan-icd-loader libva"
 
   # ---- 声音 ----
   # pipewire/pipewire-pulse/wireplumber：桌面声音服务器（plasma-pa 的后端）
