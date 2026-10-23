@@ -209,13 +209,13 @@ settings_menu() {
       帧率*)
         v=$(printf '%s\n' 30 60 120 144 | pick "选择帧率") || continue
         if [ -n "$v" ]; then FPS="$v"; save_config; fi ;;
-      编码*)
+      编码：*)
         v=$(printf '%s\n' 自动 H.264 HEVC AV1 | pick "选择编码") || continue
         case "$v" in
           自动) CODEC=auto ;; H.264) CODEC=h264 ;; HEVC) CODEC=hevc ;; AV1) CODEC=av1 ;;
         esac
         save_config ;;
-      编码器*)
+      编码器：*)
         v=$(printf '%s\n' gpu cpu | pick "选择编码器") || continue
         if [ -n "$v" ]; then ENCODER="$v"; save_config; fi ;;
       音频*)
