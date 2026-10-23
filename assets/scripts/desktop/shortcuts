@@ -1,81 +1,250 @@
 #!/usr/bin/env bash
-# KOS shortcut viewer: KOS + KDE custom shortcuts, opened with fzf.
+# KOS 快捷键查看器：把 KOS 与 KDE 的全局快捷键按分类列出来，用 fzf 查。
+#
+# 四条约定：
+#   1. 「来源」只有两种写法：KOS（桌面外壳自己注册的）、KDE（KGlobalAccel 里的）。
+#   2. 「功能」用中文说人话：KDE 段取 kglobalshortcutsrc 第三列（KDE 自己的友好名），
+#      应用段取桌面文件的 Name，只有实在没有名字才退回英文 key。
+#   3. 按分类分组显示（每组一行小标题），组内按快捷键排，不把所有条目堆成一坨。
+#   4. 同一个组合键只列一条：KOS 优先，KDE 里重复绑定它的那条不再重复出现。
 set -u
 
 export LC_ALL=C.UTF-8
-export PATH="$HOME/.local/bin:$HOME/bin:/usr/local/bin:/usr/bin:/bin:${PATH:-}"
+export PATH="$HOME/.local/bin:$HOME/bin:/usr/local/bin:/usr/bin:/bin:$PATH"
 
-emit_shortcuts() {
+XDG_CONFIG_HOME="$(printenv XDG_CONFIG_HOME 2>/dev/null || true)"
+RC="$HOME/.config/kglobalshortcutsrc"
+if [ -n "$XDG_CONFIG_HOME" ]; then
+  RC="$XDG_CONFIG_HOME/kglobalshortcutsrc"
+fi
+
+# ---------------------------------------------------------------- KOS 自己注册的
+emit_kos() {
   local qs_bin snapshot
-  qs_bin=$(command -v qs 2>/dev/null || true)
+  qs_bin="$(command -v qs 2>/dev/null || true)"
   [ -n "$qs_bin" ] || qs_bin=/usr/bin/qs
-
-  if [ -x "$qs_bin" ]; then
-    snapshot=$("$qs_bin" -c kos ipc call shortcuts-settings snapshot 2>/dev/null || true)
-    if [ -n "$snapshot" ] && command -v jq >/dev/null 2>&1; then
-      printf '%s\n' "$snapshot" |
-        jq -r '.shortcuts[]? | [.combo, "KOS", .description] | @tsv' 2>/dev/null || true
-    fi
-  fi
-
-  python3 - "$HOME/.config/kglobalshortcutsrc" <<'PY'
-import re
-import sys
-from pathlib import Path
-
-path = Path(sys.argv[1])
-if not path.exists():
-    raise SystemExit
-
-section = ""
-sub = ""
-for raw in path.read_text(errors="replace").splitlines():
-    line = raw.strip()
-    if not line or line.startswith("#"):
-        continue
-    if line.startswith("["):
-        match = re.match(r"^\[([^\]]+)\](?:\[([^\]]+)\])?$", line)
-        if match:
-            section = match.group(1)
-            sub = match.group(2) or ""
-        continue
-    if "=" not in line:
-        continue
-    key, value = line.split("=", 1)
-    current = value.split(",", 1)[0].strip()
-    if not current or current == "none":
-        continue
-    if section == "kos-platform":
-        continue
-    if section == "services" and sub:
-        label = "应用快捷键" if key == "_launch" else key
-        print(f"{current}\tKDE · {sub}\t{label}")
-    elif section == "kwin" and key == "Window Close":
-        print(f"{current}\tKDE · kwin\t{key}")
-PY
+  [ -x "$qs_bin" ] || return 0
+  command -v jq >/dev/null 2>&1 || return 0
+  snapshot="$("$qs_bin" -c kos ipc call shortcuts-settings snapshot 2>/dev/null || true)"
+  [ -n "$snapshot" ] || return 0
+  printf '%s\n' "$snapshot" |
+    jq -r '.shortcuts[]?
+           | select(.combo != null and .combo != "" and .combo != "none")
+           | ["KOS 桌面", .combo, "KOS", (.description // .id)] | @tsv' 2>/dev/null || true
 }
 
+# --------------------------------------------- KDE 自带中文名的段（窗口/音量/会话…）
+emit_kde_sections() {
+  [ -f "$RC" ] || return 0
+  awk '
+    function trim(s) { sub(/^[ \t]+/, "", s); sub(/[ \t]+$/, "", s); return s }
+    BEGIN {
+      cat["kwin"] = "窗口"
+      cat["ksmserver"] = "会话"
+      cat["kmix"] = "音量"
+      cat["org_kde_powerdevil"] = "电源"
+      cat["mediacontrol"] = "媒体"
+      cat["KDE Keyboard Layout Switcher"] = "键盘布局"
+      # 用不上的几段：KOS 那套走 qs 快照；plasmashell 的条目和 KOS 重复；
+      # 另外两段是 KGlobalAccel 留下的脏数据。
+      skip["kos-platform"] = 1
+      skip["ActivityManager"] = 1
+      skip["fuzzel-launcher"] = 1
+      skip["linuxqq-wayland-fix"] = 1
+      skip["plasmashell"] = 1
+    }
+    /^\[/ {
+      section = substr($0, 2, length($0) - 2)
+      gsub(/\]\[/, "/", section)
+      next
+    }
+    section == "" { next }
+    (section in skip) { next }
+    !(section in cat) { next }
+    {
+      eq = index($0, "=")
+      if (eq < 2) next
+      key = trim(substr($0, 1, eq - 1))
+      if (key == "_k_friendly_name") next
+      rest = substr($0, eq + 1)
+      c1 = index(rest, ",")
+      if (c1 < 2) next
+      combo = trim(substr(rest, 1, c1 - 1))
+      rest = substr(rest, c1 + 1)
+      c2 = index(rest, ",")
+      if (c2 < 1) next
+      name = trim(substr(rest, c2 + 1))
+      if (combo == "" || combo == "none") next
+      gsub(/\\t/, " / ", combo)
+      if (name == "") name = key
+
+      # KDE 自带的、平时用不上的默认绑定：窗口平铺 / 缩放 / 桌面切换 / 指针定位那些。
+      if (section == "kwin" && name ~ /(切换到.*桌面|快速铺放窗口到|移一个桌面|遍历当前应用程序窗口|显示\/隐藏窗口平铺|放大|缩小|缩放为实际大小|指针移至|磁贴编辑器|禁用活动输入捕获)/) next
+
+      rowcat = cat[section]
+      if (section == "org_kde_powerdevil" && name ~ /亮度/) rowcat = "亮度"
+      print rowcat "\t" combo "\tKDE\t" name
+    }
+  ' "$RC"
+}
+
+# --------------------------------------------------- 桌面文件挂的快捷键（截图/终端…）
+desktop_name() {
+  local id="$1" f n
+  for f in "$HOME/.local/share/applications/$id" "/usr/share/applications/$id"; do
+    [ -f "$f" ] || continue
+    n="$(sed -n 's/^Name\[zh_CN\]=//p' "$f" | head -1)"
+    [ -n "$n" ] || n="$(sed -n 's/^Name=//p' "$f" | head -1)"
+    if [ -n "$n" ]; then printf '%s' "$n"; return 0; fi
+  done
+  printf '%s' "$id" | sed 's/\.desktop$//'
+}
+
+emit_services() {
+  [ -f "$RC" ] || return 0
+  local id combo cat desc
+  while IFS="$(printf '\t')" read -r id combo; do
+    [ -n "$id" ] || continue
+    case "$combo" in ""|none) continue ;; esac
+    case "$id" in
+      vellum-long.desktop)     cat="截图";   desc="长截图（滚动截屏，Vellum）" ;;
+      vellum-region.desktop)   cat="截图";   desc="区域截图（Vellum）" ;;
+      kitty-terminal.desktop)  cat="终端";   desc="打开终端（kitty）" ;;
+      term-menu.desktop)       cat="终端";   desc="终端工具菜单" ;;
+      btop.desktop)            cat="终端";   desc="系统监视（btop）" ;;
+      fuzzel-launcher.desktop) cat="启动器"; desc="备用启动器（fuzzel）" ;;
+      shortcuts-viewer.desktop) cat="启动器"; desc="快捷键查看器（就是本窗口）" ;;
+      kos-wallpaper-preview.desktop) cat="启动器"; desc="壁纸全屏预览" ;;
+      *) cat="其他"; desc="$(desktop_name "$id")" ;;
+    esac
+    printf '%s\t%s\tKDE\t%s\n' "$cat" "$combo" "$desc"
+  done < <(awk '
+    /^\[services\]\[/ {
+      id = substr($0, index($0, "][") + 2)
+      sub(/\]$/, "", id)
+      next
+    }
+    /^\[/ { id = ""; next }
+    id != "" && /^_launch=/ {
+      eq = index($0, "=")
+      rest = substr($0, eq + 1)
+      c = index(rest, ",")
+      combo = (c > 0) ? substr(rest, 1, c - 1) : rest
+      if (combo != "" && combo != "none") print id "\t" combo
+    }
+  ' "$RC")
+}
+
+# 把 KDE 的符号键名换成键盘上看得懂的叫法（媒体键用中文），Meta = Windows 键
+friendly_keys() {
+  local s="$1"
+  s="${s//Microphone Volume Up/麦克风音量+键}"
+  s="${s//Microphone Volume Down/麦克风音量−键}"
+  s="${s//Microphone Mute/麦克风静音键}"
+  s="${s//Monitor Brightness Up/亮度+键}"
+  s="${s//Monitor Brightness Down/亮度−键}"
+  s="${s//Keyboard Brightness Up/键盘背光+键}"
+  s="${s//Keyboard Brightness Down/键盘背光−键}"
+  s="${s//Keyboard Light On\/Off/键盘背光开关}"
+  s="${s//Volume Up/音量+键}"
+  s="${s//Volume Down/音量−键}"
+  s="${s//Volume Mute/静音键}"
+  s="${s//Media Fast Forward/快进键}"
+  s="${s//Media Rewind/快退键}"
+  s="${s//Media Next/下一首键}"
+  s="${s//Media Previous/上一首键}"
+  s="${s//Media Play/播放\/暂停键}"
+  s="${s//Media Pause/暂停键}"
+  s="${s//Media Stop/停止键}"
+  s="${s//Screensaver/锁屏键}"
+  s="${s//Hibernate/休眠键}"
+  s="${s//Sleep/休眠键}"
+  s="${s//Power Off/电源键}"
+  s="${s//Power Down/断电键}"
+  s="${s//Battery/电池键}"
+  s="${s//Launch (C)/计算器键}"
+  s="${s//Print/PrintScreen}"
+  s="${s//Meta/Win}"
+  printf '%s' "$s"
+}
+
+# ------------------------------------------------------------------------ 汇总排版
+# 输出形态：
+#   ── 窗口 ──────────────────────────
+#   Alt+Q                KDE  关闭窗口
+# 分类标题带 ANSI 颜色，fzf 用 --ansi 渲染；快捷键列按最长值对齐（纯 ASCII，不会错位）。
 format_shortcuts() {
-  emit_shortcuts | sort -u | awk -F '\t' 'NF >= 3' |
-    column -t -s $'\t' -o '  '
-}
+  local raw cat combo src desc w wmax=0 last="" rule="" i=0
+  # 1) 汇总 + 去重 + 排序（分类权重 -> 快捷键字母序）
+  raw=$(
+    {
+      emit_kos
+      emit_kde_sections
+      emit_services
+    } | awk -F'\t' '
+      BEGIN {
+        split("KOS 桌面|窗口|截图|终端|启动器|音量|亮度|媒体|电源|会话|键盘布局|其他", order, "|")
+        for (i = 1; i <= length(order); i++) weight[order[i]] = i
+      }
+      NF >= 4 {
+        line = $1 "\t" $2 "\t" $3 "\t" $4
+        if (line in seen) next
+        seen[line] = 1
+        # 同一个组合键只留一条：KOS 先出现，KDE 里重复绑定它的就不再列
+        if ($2 in bound) next
+        bound[$2] = 1
+        printf "%02d\t%s\n", (($1 in weight) ? weight[$1] : 99), line
+      }
+    ' | sort -t "$(printf '\t')" -k1,1n -k3,3 | cut -f2-
+  )
 
-if [ "${1:-}" = "--list" ]; then
+  # 2) 量出最宽的快捷键列（按终端显示宽度算，中文占两格，用 wc -L）
+  while IFS="$(printf '\t')" read -r cat combo src desc; do
+    [ -n "$cat" ] || continue
+    combo=$(friendly_keys "$combo")
+    w=$(printf '%s' "$combo" | wc -L)
+    [ "$w" -gt "$wmax" ] && wmax="$w"
+  done <<< "$raw"
+  [ "$wmax" -gt 0 ] || return 0
+
+  # 3) 顶部三行：列名 / 提示 / 分隔线
+  printf '\033[1;37m%s%*s  %s %s\033[0m\n' "快捷键" $((wmax - 4)) "" "来源" "功能"
+  printf '\033[2m%s\033[0m\n' "Ctrl-R 刷新 · Esc 关闭 · 媒体键＝键盘上带图标的那些键（笔记本一般是 Fn + F 行）"
+  while [ "$i" -lt 120 ]; do rule="$rule─"; i=$((i + 1)); done
+  printf '\033[2;36m%s\033[0m\n' "$rule"
+
+  # 4) 分组打印：组标题前空一行，快捷键列右补空格对齐
+  while IFS="$(printf '\t')" read -r cat combo src desc; do
+    [ -n "$cat" ] || continue
+    combo=$(friendly_keys "$combo")
+    if [ "$cat" != "$last" ]; then
+      [ -n "$last" ] && printf '\n'
+      last="$cat"
+      printf '\033[1;36m── %s ──────────────────────────────\033[0m\n' "$cat"
+    fi
+    w=$(printf '%s' "$combo" | wc -L)
+    printf '%s%*s  %-3s  %s\n' "$combo" $((wmax - w + 2)) "" "$src" "$desc"
+  done <<< "$raw"
+}
+mode=""
+[ $# -gt 0 ] && mode="$1"
+
+if [ "$mode" = "--list" ]; then
   format_shortcuts
   exit 0
 fi
 
-self=$(readlink -f "$0")
 if ! command -v fzf >/dev/null 2>&1; then
   printf '缺少 fzf，无法打开快捷键查看器\n' >&2
   exit 1
 fi
 
-# Enter closes the picker; Ctrl-R reloads the live KOS/KDE configuration.
+self="$(readlink -f "$0")"
+
+# --ansi 让分类小标题带颜色；bg:-1 用终端自己的背景色（kitty 是半透明的，这里跟着透）
 format_shortcuts |
-  fzf --reverse --height=80% --layout=reverse --border=rounded \
+  fzf --ansi --reverse --layout=reverse --border=rounded --header-lines=3 \
       --border-label=' KOS / KDE 快捷键 ' --border-label-pos=2 \
       --prompt=' 搜索 > ' --pointer='▶' --info=inline-right \
-      --header=$'  快捷键          来源                         功能\n  Ctrl-R 刷新 · 数据来自 KOS / KDE 当前配置' \
-      --color='fg:#d8dee9,bg:#1e2228,hl:#93cdf6,fg+:#ffffff,bg+:#2f343d,hl+:#93cdf6,info:#8b949e,prompt:#93cdf6,pointer:#e88ba4,marker:#93cdf6,spinner:#93cdf6,header:#8b949e,border:#3b4252' \
+      --color='bg:-1,fg:#d8dee9,hl:#93cdf6,fg+:#ffffff,bg+:#2f343d,hl+:#93cdf6,info:#8b949e,prompt:#93cdf6,pointer:#e88ba4,header:#8b949e,border:#3b4252' \
       --bind="ctrl-r:reload($self --list)"
