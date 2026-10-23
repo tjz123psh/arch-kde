@@ -41,8 +41,8 @@ seed_kos_widget_style() {
   "version": 30,
   "widgetStyle": "glass",
   "glassStyle": "liquid",
-  "barMacStyle": true,
-  "barMacTint": 0.35,
+  "barMacStyle": false,
+  "barMacTint": 0.30,
   "barLayoutMode": "transparent",
   "barVisibilityMode": "always",
   "hiddenDeskCenterWidgets": ["todo"]
