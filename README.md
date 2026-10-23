@@ -98,7 +98,7 @@ archlinuxcn 12 个）；加 `--no-mirrors` 可保留你原来的列表。
 - 开发工具：**Neovim**、**JDK 25**（LTS）、**Kate**、**npm**、**GitHub CLI**（`gh`）、**Docker + Compose**、命令行 AI 工具 **pi**（`pi-coding-agent-bin`）与 **opencode**（`opencode-bin`）
 - 常驻脚本：**term-menu**（维护菜单）、**pac / pacr / pacd**（装 / 卸 / 降级）、**gsudo**（图形化 sudo）、**shortcuts**（快捷键查看器）；脚本放在 `~/scripts`，命令链接到 `~/bin`
 - 应用配置：**kitty / fish / yazi / fastfetch / mpv / fuzzel / btop / starship** 的配置随安装器部署到 `~/.config`
-- 截图：**Vellum**（官方 Rust/GTK4 发行包；Print 区域截图，Ctrl+Print 长截图）
+- 截图：**Vellum**（官方 Rust/GTK4 发行包；只保留 Print 区域截图、Ctrl+Print 长截图；Vellum 自带的 Meta+... 已关闭，KOS platform 里的重复 vellum action 也关闭）
 - 录屏：**Kooha**（KDE ScreenCast portal，附 GStreamer H.264 插件）
 - 默认应用：**文本/代码 → Neovim，PDF/Office → WPS，图片 → nomacs，文件夹 → Dolphin，终端 → kitty**
 - Dolphin 默认详情视图：16px 图标、完整路径、小状态栏、紧凑行距，Places 侧栏保持显示

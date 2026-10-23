@@ -219,10 +219,34 @@ EOF
 
   kwriteconfig6 --file kglobalshortcutsrc --group services --group vellum-region.desktop --key _launch "Print" --notify
   kwriteconfig6 --file kglobalshortcutsrc --group services --group vellum-long.desktop --key _launch "Ctrl+Print" --notify
+
+  # 只保留 Print / Ctrl+Print。Vellum 自己通过 portal 注册的 Meta+... 与
+  # KOS platform 里重复的 vellum action 都关掉；旧会话里的 active action
+  # 由本次手工/后续会话自然重载。
+  if [ -f "$HOME/.config/vellum/shortcuts.json" ]; then
+    backup_file "$HOME/.config/vellum/shortcuts.json"
+    python3 - "$HOME/.config/vellum/shortcuts.json" <<'PY'
+from pathlib import Path
+import json
+import sys
+path = Path(sys.argv[1])
+try:
+    data = json.loads(path.read_text())
+except Exception:
+    data = {}
+data["enabled"] = False
+path.write_text(json.dumps(data, ensure_ascii=False) + "\n")
+PY
+  fi
+  kwriteconfig6 --file kglobalshortcutsrc --group ai.vellum --key long none --notify
+  kwriteconfig6 --file kglobalshortcutsrc --group ai.vellum --key pin-last none --notify
+  kwriteconfig6 --file kglobalshortcutsrc --group ai.vellum --key region none --notify
+  kwriteconfig6 --file kglobalshortcutsrc --group kos-platform --key net.local.vellum-long none --notify
+  kwriteconfig6 --file kglobalshortcutsrc --group kos-platform --key net.local.vellum-region none --notify
   if have kbuildsycoca6; then
     kbuildsycoca6 --noincremental >/dev/null 2>&1 || true
   fi
-  log "Vellum：Print → 区域截图，Ctrl+Print → 长截图"
+  log "Vellum：仅保留 Print → 区域截图、Ctrl+Print → 长截图（已关闭多余 Meta 组合）"
 }
 
 configure_keyboard_repeat() {
