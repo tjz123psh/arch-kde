@@ -16,25 +16,25 @@ add_groups() {
 
 set_shell() {
   if ! have fish; then
-    warn "fish 未安装，跳过 chsh"
+    warn "fish is not installed; skipping chsh"
     return 0
   fi
   if [ "$(getent passwd "$USER_NAME" | cut -d: -f7)" = /usr/bin/fish ]; then
-    log "登录 shell 已是 fish"
+    log "Login shell is already fish"
     return 0
   fi
-  log "设置 fish 为默认 shell..."
+  log "Setting fish as the default shell..."
   sudo_run chsh -s /usr/bin/fish "$USER_NAME"
 }
 
 enable_services() {
-  log "启用系统服务（不会立刻启动图形界面）..."
+  log "Enabling system services (no GUI starts yet)..."
   sudo_run systemctl enable sddm
   sudo_run systemctl enable NetworkManager
-  sudo_run systemctl enable docker || warn "启用 docker.service 失败，请手动检查"
+  sudo_run systemctl enable docker || warn "Failed to enable docker.service; check manually"
 
   # 蓝牙常装常开：没有硬件时 bluez 只是空跑，插上适配器即用；不再按 hci 设备门控
-  sudo_run systemctl enable bluetooth || warn "启用 bluetooth.service 失败，请手动检查"
+  sudo_run systemctl enable bluetooth || warn "Failed to enable bluetooth.service; check manually"
 
   if [ "${WANT_PPD:-0}" -eq 1 ]; then
     sudo_run systemctl enable power-profiles-daemon
@@ -42,18 +42,18 @@ enable_services() {
   if [ "${WANT_TLP:-0}" -eq 1 ]; then
     sudo_run systemctl enable tlp
     # tlp 与 power-profiles-daemon 二选一：不 mask 掉的话 ppd 会把 TLP 的改动覆盖回去
-    sudo_run systemctl mask power-profiles-daemon || warn "mask power-profiles-daemon 失败（大概率没装），忽略"
+    sudo_run systemctl mask power-profiles-daemon || warn "Failed to mask power-profiles-daemon (probably not installed); ignoring"
   fi
   # ASUS ROG：asusd 管风扇/灯/性能模式，supergfxd 管 GPU 模式切换（装到才有）
   if pacman -Qq asusctl >/dev/null 2>&1; then
-    sudo_run systemctl enable asusd.service || warn "enable asusd 失败，忽略"
+    sudo_run systemctl enable asusd.service || warn "Failed to enable asusd; ignoring"
   fi
   if pacman -Qq supergfxctl >/dev/null 2>&1; then
-    sudo_run systemctl enable supergfxd.service || warn "enable supergfxd 失败，忽略"
+    sudo_run systemctl enable supergfxd.service || warn "Failed to enable supergfxd; ignoring"
   fi
   # udisks2：U 盘/移动硬盘挂载后端（KDE 设备通知器与 Dolphin 都走它；D-Bus 激活也能工作，显式 enable 更稳）
   if pacman -Qq udisks2 >/dev/null 2>&1; then
-    sudo_run systemctl enable udisks2.service || warn "enable udisks2 失败，忽略"
+    sudo_run systemctl enable udisks2.service || warn "Failed to enable udisks2; ignoring"
   fi
   sudo_run systemctl set-default graphical.target
 }
@@ -64,7 +64,7 @@ network_backend() {
   if ! systemctl is-enabled iwd >/dev/null 2>&1; then
     return 0
   fi
-  log "NetworkManager 使用 iwd 后端..."
+  log "Switching NetworkManager to the iwd backend..."
   sudo_write_file /etc/NetworkManager/conf.d/10-iwd-backend.conf <<'EOF'
 [device]
 wifi.backend=iwd
@@ -72,7 +72,7 @@ EOF
   sudo_run systemctl enable iwd
   # 同一条 wlan0 不能两个后端抢：iwd 模式下把 wpa_supplicant 停掉
   sudo_run systemctl disable wpa_supplicant || true
-  warn "已切到 iwd 后端。若 Wi-Fi 列表为空：删掉 /etc/NetworkManager/conf.d/10-iwd-backend.conf 并 sudo systemctl enable --now wpa_supplicant 即回退"
+  warn "Switched to the iwd backend. If the Wi-Fi list is empty: delete /etc/NetworkManager/conf.d/10-iwd-backend.conf and run sudo systemctl enable --now wpa_supplicant to roll back"
 }
 
 # 时间同步：archinstall 通常会启用 systemd-timesyncd（或用户自己用 chrony）。
@@ -81,16 +81,16 @@ time_sync_setup() {
   local u
   for u in chronyd ntpd openntpd; do
     if systemctl is-enabled --quiet "$u" 2>/dev/null; then
-      log "时间同步已由 $u 负责，跳过 systemd-timesyncd"
+      log "Time sync handled by $u; skipping systemd-timesyncd"
       return 0
     fi
   done
   if systemctl is-enabled --quiet systemd-timesyncd 2>/dev/null; then
-    log "时间同步: systemd-timesyncd 已启用"
+    log "Time sync: systemd-timesyncd enabled"
     return 0
   fi
-  log "启用 systemd-timesyncd（兜底）..."
-  sudo_run systemctl enable --now systemd-timesyncd || warn "启用 systemd-timesyncd 失败，请手动检查时间同步"
+  log "Enabling systemd-timesyncd (fallback)..."
+  sudo_run systemctl enable --now systemd-timesyncd || warn "Failed to enable systemd-timesyncd; check time sync manually"
 }
 
 # zram：archinstall 开了 zram 时会写 /etc/systemd/zram-generator.conf 并装包。
@@ -100,30 +100,30 @@ zram_setup() {
     return 0
   fi
   if [ "$DRY_RUN" -eq 1 ]; then
-    log "[dry-run] systemctl daemon-reload（zram-generator 配置已存在）"
+    log "[dry-run] systemctl daemon-reload (zram-generator config already present)"
     return 0
   fi
   sudo_run systemctl daemon-reload || true
   if [ -e /sys/block/zram0 ]; then
-    log "zram: /dev/zram0 已启用"
+    log "zram: /dev/zram0 active"
   else
-    log "zram: 有配置但当前没有 /dev/zram0（重启后由 zram-generator 创建）"
+    log "zram: config present but /dev/zram0 missing (zram-generator creates it after reboot)"
   fi
 }
 
 nvidia_setup() {
   if [ "${WANT_NVIDIA:-0}" -ne 1 ]; then
-    log "本次不装 NVIDIA 驱动，跳过 modprobe/mkinitcpio"
+    log "NVIDIA driver not installed in this run; skipping modprobe/mkinitcpio"
     return 0
   fi
-  log "配置 NVIDIA：Wayland 需要 nvidia_drm.modeset=1 ..."
+  log "Configuring NVIDIA: Wayland needs nvidia_drm.modeset=1 ..."
   # 这一条无论模块能不能用都无害（模块不加载时内核直接忽略未知 options）
   sudo_write_file /etc/modprobe.d/99-nvidia-macos.conf <<'EOF'
 options nvidia_drm modeset=1 fbdev=1
 EOF
 
   if [ "$DRY_RUN" -eq 1 ]; then
-    log "[dry-run] modinfo nvidia_drm 通过后写 /etc/mkinitcpio.conf.d/99-nvidia-macos.conf 并 mkinitcpio -P"
+    log "[dry-run] after modinfo nvidia_drm succeeds, write /etc/mkinitcpio.conf.d/99-nvidia-macos.conf and run mkinitcpio -P"
     return 0
   fi
 
@@ -132,9 +132,9 @@ EOF
   # "module not found: nvidia_drm" 失败，留下的半成品 initramfs 会让机器重启黑屏 ——
   # 这正是真机上最贵的错误，所以这里必须先验证再动手。
   if ! modinfo nvidia_drm >/dev/null 2>&1; then
-    warn "nvidia_drm 模块不存在（DKMS 没编出来，或这版驱动不支持这张卡），跳过 mkinitcpio"
-    warn "现在仍能显示（nouveau / llvmpipe）；排查：dkms status、journalctl -b -u dkms"
-    warn "要彻底回退 NVIDIA：sudo rm -f /etc/modprobe.d/99-nvidia-macos.conf && sudo pacman -Rns nvidia-open-dkms nvidia-utils"
+    warn "nvidia_drm module missing (DKMS did not build it, or this driver does not support the card); skipping mkinitcpio"
+    warn "Display still works (nouveau / llvmpipe); debug with: dkms status, journalctl -b -u dkms"
+    warn "To fully roll back NVIDIA: sudo rm -f /etc/modprobe.d/99-nvidia-macos.conf && sudo pacman -Rns nvidia-open-dkms nvidia-utils"
     return 0
   fi
 
@@ -142,10 +142,10 @@ EOF
 MODULES=(nvidia nvidia_modeset nvidia_uvm nvidia_drm)
 EOF
   if ! sudo mkinitcpio -P; then
-    warn "mkinitcpio -P 失败：撤掉 NVIDIA 的 MODULES drop-in，避免下次开机黑屏"
+    warn "mkinitcpio -P failed: removing the NVIDIA MODULES drop-in to avoid a black screen on next boot"
     sudo rm -f /etc/mkinitcpio.conf.d/99-nvidia-macos.conf
     if ! sudo mkinitcpio -P; then
-      warn "重新生成 initramfs 也失败！请在重启前于 TTY 手动执行 sudo mkinitcpio -P，否则可能起不来"
+      warn "Regenerating the initramfs failed too! Run sudo mkinitcpio -P manually in a TTY before rebooting, or the machine may not boot"
     fi
   fi
 }
@@ -156,7 +156,7 @@ hw_boot_hint() {
   if declare -F hw_bootloader_hint >/dev/null 2>&1; then
     hw_bootloader_hint
   else
-    warn "微码还没生效：安装器不改 bootloader，请确认 /etc/mkinitcpio.conf 的 HOOKS 带 microcode 后跑 sudo mkinitcpio -P"
+    warn "Microcode is not active yet: the installer does not touch the bootloader; make sure HOOKS in /etc/mkinitcpio.conf contains microcode, then run sudo mkinitcpio -P"
   fi
 }
 
@@ -170,13 +170,13 @@ microcode_setup() {
   local img verified=0 candidates=0 f
   local hook="${MICROCODE_HOOK:-0}"
   if [ "${WANT_UCODE:-0}" -ne 1 ] || [ -z "${UCODE_PKG:-}" ]; then
-    log "本次不装 CPU 微码，跳过"
+    log "CPU microcode not installed in this run; skipping"
     return 0
   fi
   img="/boot/${UCODE_PKG}.img"
 
   if [ "$DRY_RUN" -eq 1 ]; then
-    log "[dry-run] microcode hook=$hook → mkinitcpio -P → sudo lsinitcpio --early 校验 $img"
+    log "[dry-run] microcode hook=$hook -> mkinitcpio -P -> sudo lsinitcpio --early to verify $img"
     return 0
   fi
 
@@ -184,7 +184,7 @@ microcode_setup() {
     # 装 ucode 包时 pacman 的 mkinitcpio hook 通常已经重跑过；再跑一次是幂等的，
     # 也是唯一能保证"刚装完的 initramfs 里确实有微码"的办法。
     if ! sudo mkinitcpio -P; then
-      warn "mkinitcpio -P 失败：微码不会早加载，请手动重跑并看返回码"
+      warn "mkinitcpio -P failed: microcode will not load early; rerun manually and check the exit code"
     fi
   fi
 
@@ -197,21 +197,21 @@ microcode_setup() {
   done
 
   if [ "$verified" -eq 1 ]; then
-    log "CPU 微码已确认进 initramfs（${UCODE_PKG} → $img）：早期加载会生效，bootloader 不用改"
+    log "CPU microcode confirmed in the initramfs (${UCODE_PKG} -> $img): early loading will work, no bootloader change needed"
     return 0
   fi
   if [ "$candidates" -eq 0 ]; then
     # 这台机器的 /boot 目录对普通用户不可读（权限 700 之类），sudo lsinitcpio 也就没文件可查。
     # 别在这里乱指路（hw_bootloader_hint 会说"只差 mkinitcpio -P"，而我们已经跑过了），
     # 只给重启后的自查方法。
-    warn "无法校验：找不到可读的 initramfs/UKI（/boot 目录对普通用户不可读，或布局特殊）"
-    warn "微码包已装、mkinitcpio 也跑过了；重启后自查：journalctl -k -b | grep -i microcode 应出现 'Updated early from'"
-    warn "如果没出现：确认 HOOKS 里有 microcode、重跑 sudo mkinitcpio -P；GRUB 还要 sudo grub-mkconfig -o /boot/grub/grub.cfg"
+    warn "Cannot verify: no readable initramfs/UKI found (/boot is not readable by the user, or the layout is unusual)"
+    warn "Microcode package installed and mkinitcpio ran; after reboot check: journalctl -k -b | grep -i microcode should show 'Updated early from'"
+    warn "If missing: make sure HOOKS has microcode, rerun sudo mkinitcpio -P; with GRUB also run sudo grub-mkconfig -o /boot/grub/grub.cfg"
     return 0
   fi
-  warn "微码包已装，但 initramfs 里没找到微码 —— 现在还不会生效！"
+  warn "Microcode package is installed but not found in the initramfs - it is not active yet!"
   if [ "$hook" -eq 0 ]; then
-    warn "原因：/etc/mkinitcpio.conf 的 HOOKS 里没有 microcode hook（Arch 默认有，这台被改过）"
+    warn "Cause: HOOKS in /etc/mkinitcpio.conf lacks the microcode hook (Arch ships it by default; this machine was modified)"
   fi
   hw_boot_hint
 }
@@ -236,15 +236,15 @@ default_browser() {
 # 只做配置和定时器，不碰分区/挂载；非 Btrfs 系统直接跳过。
 setup_snapshots() {
   if ! have snapper; then
-    warn "未安装 snapper，跳过快照配置"
+    warn "snapper not installed; skipping snapshot setup"
     return 0
   fi
   if [ "$(findmnt -no FSTYPE / 2>/dev/null || true)" != "btrfs" ]; then
-    warn "根文件系统不是 Btrfs，跳过 Snapper 配置"
+    warn "Root filesystem is not Btrfs; skipping Snapper setup"
     return 0
   fi
   if [ "$DRY_RUN" -eq 1 ]; then
-    log "[dry-run] snapper create-config root/home；timeline 每周保留 4 个；启用 timeline/cleanup timer"
+    log "[dry-run] snapper create-config root/home; keep 4 weekly timeline snapshots; enable the timeline/cleanup timers"
     return 0
   fi
 
@@ -255,7 +255,7 @@ setup_snapshots() {
     [ "$(findmnt -no FSTYPE "$target" 2>/dev/null || true)" = "btrfs" ] || continue
     if [ ! -e "/etc/snapper/configs/$cfg" ]; then
       sudo_run snapper -c "$cfg" create-config "$target" ||
-        warn "Snapper 创建 $cfg 配置失败（可能已有 .snapshots 或不是独立子卷）"
+        warn "Snapper failed to create the $cfg config (a .snapshots dir may exist, or it is not a separate subvolume)"
     fi
     if [ -e "/etc/snapper/configs/$cfg" ]; then
       sudo_run snapper -c "$cfg" set-config \
@@ -263,7 +263,7 @@ setup_snapshots() {
         TIMELINE_LIMIT_HOURLY=1 TIMELINE_LIMIT_DAILY=0 \
         TIMELINE_LIMIT_WEEKLY=4 TIMELINE_LIMIT_MONTHLY=0 \
         TIMELINE_LIMIT_QUARTERLY=0 TIMELINE_LIMIT_YEARLY=0 ||
-        warn "Snapper 设置 $cfg 时间线参数失败"
+        warn "Snapper failed to set the timeline options for $cfg"
     fi
   done
 
@@ -277,11 +277,11 @@ Persistent=true
 EOF
   sudo_run systemctl daemon-reload
   sudo_run systemctl enable --now snapper-timeline.timer snapper-cleanup.timer ||
-    warn "启用 Snapper 定时器失败，请手动检查"
+    warn "Failed to enable the Snapper timers; check manually"
 }
 
 setup_system() {
-  log "系统收尾：用户组 / shell / 服务 / 微码 / 驱动..."
+  log "System finish-up: groups / shell / services / microcode / drivers..."
   add_groups
   set_shell
   enable_services

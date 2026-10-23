@@ -53,7 +53,7 @@ hw_note() {
   if declare -F log >/dev/null 2>&1; then log "$*"; else echo "$*"; fi
 }
 hw_alert() {
-  if declare -F warn >/dev/null 2>&1; then warn "$*"; else echo "[警告] $*" >&2; fi
+  if declare -F warn >/dev/null 2>&1; then warn "$*"; else echo "[WARNING] $*" >&2; fi
 }
 
 # 策略求解：固定按目标机（ASUS TUF A15）给出 WANT_*；探测结果只用于报告。
@@ -73,7 +73,7 @@ hw_policy_resolve() {
       legacy)
         NVIDIA_PKG="$NVIDIA_LEGACY_PKGS"
         if [ "${NO_ARCHLINUXCN:-0}" -eq 1 ]; then
-          hw_alert "nvidia-580xx 只在 archlinuxcn 仓库里，而本次带了 --no-archlinuxcn：请先配好 archlinuxcn"
+          hw_alert "nvidia-580xx only exists in archlinuxcn, but --no-archlinuxcn was given: set up archlinuxcn first"
         fi
         ;;
       *)
@@ -85,7 +85,7 @@ hw_policy_resolve() {
     if [ "$NVIDIA_PKG" = nvidia-open-dkms ] && ! pkg_installed nvidia-open-dkms; then
       if pkg_installed nvidia-open || pkg_installed nvidia-open-lts; then
         NVIDIA_PKG=
-        hw_note "已装预编译的 nvidia-open/nvidia-open-lts，保留它，不再装 nvidia-open-dkms"
+        hw_note "Prebuilt nvidia-open/nvidia-open-lts already installed; keeping it, not installing nvidia-open-dkms"
       fi
     fi
   fi
@@ -109,15 +109,15 @@ hw_policy_summary() {
     if [ -n "$NVIDIA_PKG" ]; then
       gpu="$gpu NVIDIA(${NVIDIA_PKG%% *})"
     else
-      gpu="$gpu NVIDIA(已装预编译驱动)"
+      gpu="$gpu NVIDIA(prebuilt driver installed)"
     fi
   fi
-  if [ -z "$gpu" ]; then gpu=" 无（只装 mesa/llvmpipe 基础栈）"; fi
-  hw_note " 显卡驱动:$gpu"
-  hw_note " CPU 微码: $UCODE_PKG"
-  hw_note " 蓝牙: bluez + bluedevil + bluez-obex（固定安装，服务常开）"
-  if [ "$WANT_TLP" -eq 1 ]; then power="tlp"; elif [ "$WANT_PPD" -eq 1 ]; then power="power-profiles-daemon"; else power="无"; fi
-  hw_note " 电源/散热:$power"
+  if [ -z "$gpu" ]; then gpu=" none (mesa/llvmpipe base stack only)"; fi
+  hw_note " GPU drivers:$gpu"
+  hw_note " CPU microcode: $UCODE_PKG"
+  hw_note " Bluetooth: bluez + bluedevil + bluez-obex (always installed, service always on)"
+  if [ "$WANT_TLP" -eq 1 ]; then power="tlp"; elif [ "$WANT_PPD" -eq 1 ]; then power="power-profiles-daemon"; else power="none"; fi
+  hw_note " Power/thermal:$power"
 }
 
 # ---------------------------------------------------------------------------
@@ -179,8 +179,8 @@ _mirror_demote_first() {
   no=$(sudo grep -n -m1 '^Server = ' "$f" 2>/dev/null | cut -d: -f1 || true)
   [ -n "$no" ] || return 1
   line=$(sudo sed -n "${no}p" "$f" 2>/dev/null || true)
-  warn "镜像降级：跳过 $line（$f 第 $no 行）"
-  sudo sed -i "${no}s/^Server = /# 降级跳过: Server = /" "$f" || return 1
+  warn "Mirror fallback: skipping $line (line $no in $f)"
+  sudo sed -i "${no}s/^Server = /# downgraded: Server = /" "$f" || return 1
 }
 
 # pacman_fallback <mirrorlist> <命令...>：失败且是网络原因就降级镜像重试
@@ -205,30 +205,30 @@ pacman_fallback() {
     fi
     rm -f "$out"
     if ! _mirror_demote_first "$ml"; then
-      warn "镜像列表里没有可降级的 Server 了（$ml）"
+      warn "No more servers to downgrade in $ml"
       return "$rc"
     fi
     attempt=$((attempt + 1))
-    log "镜像不可用，降级后重试（第 $((attempt - 1)) 次）..."
+    log "Mirror unusable; retrying after fallback (attempt $((attempt - 1)))..."
   done
 }
 
 setup_official_mirrors() {
   if [ "$NO_MIRRORS" -eq 1 ]; then
-    log "跳过官方镜像列表覆盖（--no-mirrors）"
+    log "Skipping the official mirrorlist rewrite (--no-mirrors)"
     return 0
   fi
-  log "覆盖官方镜像列表（清华第一 + 15 个国内镜像；archinstall 生成的 aliyun/reflector 列表会被整份替换）..."
+  log "Rewriting the official mirrorlist (Tsinghua first + 15 domestic mirrors; the aliyun/reflector list from archinstall is replaced entirely)..."
   if [ "$DRY_RUN" -eq 1 ]; then
-    log "[dry-run] 写 /etc/pacman.d/mirrorlist（清华第一）"
+    log "[dry-run] write /etc/pacman.d/mirrorlist (Tsinghua first)"
     return 0
   fi
   official_mirrorlist | sudo_write_file /etc/pacman.d/mirrorlist
   local n
   n=$(sudo grep -c '^Server = ' /etc/pacman.d/mirrorlist 2>/dev/null || true)
-  log "官方镜像列表已覆盖：${n:-0} 个镜像，清华第一（archinstall 的 aliyun/reflector 列表已替换）"
+  log "Official mirrorlist rewritten: ${n:-0} mirrors, Tsinghua first (archinstall's aliyun/reflector list replaced)"
   if ! sudo grep -q '^Server = https://mirrors.tuna.tsinghua.edu.cn/archlinux/' /etc/pacman.d/mirrorlist; then
-    warn "写入后没看到清华源，请手动检查 /etc/pacman.d/mirrorlist"
+    warn "Tsinghua mirror not found after writing; check /etc/pacman.d/mirrorlist manually"
   fi
 }
 
@@ -264,13 +264,13 @@ EOF
 
 setup_archlinuxcn_repo() {
   if [ "$NO_ARCHLINUXCN" -eq 1 ]; then
-    log "跳过 archlinuxcn 仓库（--no-archlinuxcn）"
+    log "Skipping the archlinuxcn repository (--no-archlinuxcn)"
     return 0
   fi
-  log "配置 archlinuxcn 镜像源（清华第一 + 11 个国内镜像）..."
+  log "Configuring the archlinuxcn mirrors (Tsinghua first + 11 domestic mirrors)..."
   if [ "$DRY_RUN" -eq 1 ]; then
-    log "[dry-run] 写 /etc/pacman.d/archlinuxcn-mirrorlist（清华第一）"
-    log "[dry-run] /etc/pacman.conf 追加 [archlinuxcn] Include（已有则保留）"
+    log "[dry-run] write /etc/pacman.d/archlinuxcn-mirrorlist (Tsinghua first)"
+    log "[dry-run] append the [archlinuxcn] Include to /etc/pacman.conf (kept if present)"
     log "[dry-run] sudo pacman -Sy --noconfirm archlinuxcn-keyring"
     return 0
   fi
@@ -278,23 +278,23 @@ setup_archlinuxcn_repo() {
   archlinuxcn_mirrorlist | sudo_write_file /etc/pacman.d/archlinuxcn-mirrorlist
   local cn_n
   cn_n=$(sudo grep -c '^Server = ' /etc/pacman.d/archlinuxcn-mirrorlist 2>/dev/null || true)
-  log "archlinuxcn 镜像列表：${cn_n:-0} 个镜像，清华第一"
+  log "archlinuxcn mirrorlist: ${cn_n:-0} mirrors, Tsinghua first"
 
   # 幂等：已经有 [archlinuxcn] 段就不动（可能是用户自己配的镜像/顺序）
   if grep -q '^\[archlinuxcn\]' /etc/pacman.conf; then
-    log "pacman.conf 已有 [archlinuxcn]，保留现有配置"
+    log "pacman.conf already has [archlinuxcn]; keeping the existing config"
   else
     backup_file /etc/pacman.conf
     printf '\n[archlinuxcn]\nInclude = /etc/pacman.d/archlinuxcn-mirrorlist\n' | sudo tee -a /etc/pacman.conf >/dev/null
-    log "已把 [archlinuxcn] 写入 /etc/pacman.conf"
+    log "Added [archlinuxcn] to /etc/pacman.conf"
   fi
 
   # 官方导入 GPG key 的做法就是装 archlinuxcn-keyring；
   # --noconfirm 会替用户回答"导入 PGP key"的提示。
   if pacman_fallback /etc/pacman.d/archlinuxcn-mirrorlist sudo pacman -Sy --noconfirm archlinuxcn-keyring; then
-    log "archlinuxcn-keyring 已安装"
+    log "archlinuxcn-keyring installed"
   else
-    warn "archlinuxcn-keyring 安装失败；仓库已写入但包签名未信任，稍后手动: sudo pacman -Sy archlinuxcn-keyring"
+    warn "archlinuxcn-keyring failed to install; the repo is configured but its signatures are untrusted. Run later: sudo pacman -Sy archlinuxcn-keyring"
   fi
 }
 
@@ -306,12 +306,12 @@ setup_archlinuxcn_repo() {
 # ---------------------------------------------------------------------------
 setup_multilib() {
   if grep -qE '^[[:space:]]*\[multilib\]' /etc/pacman.conf 2>/dev/null; then
-    log "[multilib] 已启用"
+    log "[multilib] enabled"
     return 0
   fi
-  log "启用 [multilib]（lib32 显卡驱动需要）..."
+  log "Enabling [multilib] (needed for lib32 graphics drivers)..."
   if [ "$DRY_RUN" -eq 1 ]; then
-    log "[dry-run] 启用 /etc/pacman.conf 的 [multilib] 并 pacman -Sy"
+    log "[dry-run] enable [multilib] in /etc/pacman.conf and run pacman -Sy"
     return 0
   fi
   backup_file /etc/pacman.conf
@@ -325,18 +325,18 @@ setup_multilib() {
   if ! awk '/^\[multilib\]/{f=1; next} f && /^\[/{exit} f && /^Include[[:space:]]*=[[:space:]]*\/etc\/pacman\.d\/mirrorlist/{found=1} END{exit !found}' /etc/pacman.conf; then
     sudo sed -i '/^\[multilib\]/a Include = /etc/pacman.d/mirrorlist' /etc/pacman.conf
   fi
-  sudo pacman -Sy --noconfirm || warn "启用 multilib 后 pacman -Sy 失败，稍后重试"
-  grep -qE '^[[:space:]]*\[multilib\]' /etc/pacman.conf || warn "没能启用 [multilib]，lib32 包会装失败"
+  sudo pacman -Sy --noconfirm || warn "pacman -Sy failed after enabling multilib; retry later"
+  grep -qE '^[[:space:]]*\[multilib\]' /etc/pacman.conf || warn "Could not enable [multilib]; lib32 packages will fail to install"
 }
 
 system_update() {
   if [ "$SKIP_UPDATE" -eq 1 ]; then
-    log "跳过 pacman -Syu（--skip-update）"
+    log "Skipping pacman -Syu (--skip-update)"
     return 0
   fi
-  log "更新系统（pacman -Syu）..."
+  log "Updating the system (pacman -Syu)..."
   pacman_fallback /etc/pacman.d/mirrorlist sudo pacman -Syu --noconfirm ||
-    die "系统更新失败：镜像都不可用或包数据库异常（详见 $LOG_FILE）"
+    die "System update failed: mirrors unusable or package database corrupt (see $LOG_FILE)"
 }
 
 build_official_list() {
@@ -418,7 +418,7 @@ base-devel git curl jq unzip xdg-utils xdg-user-dirs man-db cmake extra-cmake-mo
   # 虚拟机没有对应硬件：NVIDIA / ASUS 驱动跳过，避免 DKMS 白编、asusd 空跑。
   # 物理机（目标机）固定装这一套。
   if [ "${IS_VM:-0}" -eq 1 ]; then
-    log "虚拟机：跳过 NVIDIA / ASUS 专属驱动包（物理机才装）"
+    log "VM: skipping NVIDIA / ASUS driver packages (physical machines only)"
   else
     if [ "$WANT_NVIDIA" -eq 1 ]; then
       if [ "${HW_NVIDIA_DRIVER:-open}" = legacy ]; then
@@ -496,43 +496,43 @@ base-devel git curl jq unzip xdg-utils xdg-user-dirs man-db cmake extra-cmake-mo
 install_archlinuxcn_apps() {
   local p skipped=
   [ -n "${CN_EXTRA_PKGS:-}" ] || return 0
-  log "检查 archlinuxcn 可选应用（${CN_EXTRA_PKGS}）..."
+  log "Checking optional archlinuxcn apps (${CN_EXTRA_PKGS})..."
   for p in $CN_EXTRA_PKGS; do
     if [ "$DRY_RUN" -eq 1 ]; then
-      log "[dry-run] pacman -Si $p 成功则 sudo pacman -S --needed --noconfirm $p"
+      log "[dry-run] if pacman -Si $p succeeds, run sudo pacman -S --needed --noconfirm $p"
       continue
     fi
     if ! pacman -Si "$p" >/dev/null 2>&1; then
-      warn "跳过 $p：当前仓库里没有它（archlinuxcn 没配？见 --no-archlinuxcn）"
+      warn "Skipping $p: not in the configured repos (archlinuxcn missing? see --no-archlinuxcn)"
       skipped="$skipped $p"
       continue
     fi
     pacman_fallback /etc/pacman.d/archlinuxcn-mirrorlist sudo pacman -S --needed --noconfirm "$p" ||
-      warn "安装 $p 失败，跳过"
+      warn "Failed to install $p; skipping"
   done
   if [ -n "$skipped" ]; then
-    warn "未安装的可选应用:$skipped（配好 archlinuxcn 后手动 sudo pacman -S$skipped）"
+    warn "Optional apps not installed:$skipped (run sudo pacman -S$skipped once archlinuxcn is set up)"
   fi
 }
 
 install_official_packages() {
   build_official_list
-  log "安装官方仓库包..."
+  log "Installing official repository packages..."
   if [ "$DRY_RUN" -eq 1 ]; then
     # 这里不要再用 head 截断：写端被 SIGPIPE 打断，pipefail 下整个 dry-run 会失败
     #（包一多就必现，包越多越难查）。全量打印，行数就是真实包数。
-    log "[dry-run] sudo pacman -S --needed --noconfirm <全部官方包，$(echo "$PKGS" | wc -w) 个>"
+    log "[dry-run] sudo pacman -S --needed --noconfirm <all official packages, $(echo "$PKGS" | wc -w) total>"
     for p in $PKGS; do echo "  $p"; done | tee -a "$LOG_FILE"
     return 0
   fi
   # shellcheck disable=SC2086
   pacman_fallback /etc/pacman.d/mirrorlist sudo pacman -S --needed --noconfirm $PKGS ||
-    die "官方包安装失败（详见 $LOG_FILE）"
+    die "Official package installation failed (see $LOG_FILE)"
 }
 
 setup_aur_helper() {
   if [ "$NO_AUR" -eq 1 ]; then
-    log "跳过 AUR（--no-aur）"
+    log "Skipping the AUR (--no-aur)"
     return 0
   fi
   # 固定用 paru，不安装也不使用 yay。系统已有 paru 就直接用；
@@ -543,9 +543,9 @@ setup_aur_helper() {
     return 0
   fi
 
-  log "未找到 paru，构建 paru-bin ..."
+  log "paru not found, building paru-bin ..."
   if [ "$DRY_RUN" -eq 1 ]; then
-    log "[dry-run] 构建 paru-bin"
+    log "[dry-run] build paru-bin"
     AUR_CMD=paru
     return 0
   fi
@@ -554,11 +554,11 @@ setup_aur_helper() {
   mkdir -p "$cache"
   if [ ! -d "$cache/paru-bin" ]; then
     git clone --depth 1 https://aur.archlinux.org/paru-bin.git "$cache/paru-bin" ||
-      die "下载 paru-bin 失败（检查网络或 AUR 是否可达）"
+      die "Failed to download paru-bin (check the network / AUR reachability)"
   fi
   ( cd "$cache/paru-bin" && makepkg -si --noconfirm ) ||
-    die "paru-bin 安装失败（缺 base-devel / git，或 makepkg 被中断）"
-  have paru || die "paru-bin 安装后仍找不到 paru 命令"
+    die "paru-bin install failed (missing base-devel / git, or makepkg interrupted)"
+  have paru || die "paru still not found after installing paru-bin"
   AUR_CMD=paru
   log "AUR helper: $AUR_CMD"
 }
@@ -571,7 +571,7 @@ install_aur_packages() {
   if [ "$DRY_RUN" -eq 1 ]; then
     log "[dry-run] $AUR_CMD -Sua --noconfirm"
   else
-    log "更新 AUR 包（$AUR_CMD -Sua）..."
+    log "Updating AUR packages ($AUR_CMD -Sua)..."
     "$AUR_CMD" -Sua --noconfirm || warn "AUR 更新失败，继续安装当前清单"
   fi
 
@@ -603,18 +603,18 @@ install_aur_packages() {
     list="$list rime-ice-git"
   fi
   failed=
-  log "安装 AUR 包..."
+  log "Installing AUR packages..."
   for pkg in $list; do
     if [ "$DRY_RUN" -eq 1 ]; then
       log "[dry-run] $AUR_CMD -S --needed --noconfirm $pkg"
       continue
     fi
     if ! "$AUR_CMD" -S --needed --noconfirm "$pkg"; then
-      warn "AUR 包失败: $pkg"
+      warn "AUR package failed: $pkg"
       failed="$failed $pkg"
     fi
   done
   if [ -n "$failed" ]; then
-    warn "以下 AUR 包安装失败，可稍后手动重试:$failed"
+    warn "These AUR packages failed; retry manually later:$failed"
   fi
 }
