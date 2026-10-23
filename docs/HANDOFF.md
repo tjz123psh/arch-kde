@@ -89,6 +89,25 @@ bash install.sh --dry-run --yes
 4. **首次登录引导**
    属于桌面仓库（NextKDE）的责任，本仓库不实现。
 
+## 本机系统级改动（安装器不管，重装系统会丢）
+
+下面这些是按用户要求在这台机器上做的，**故意没写进安装器**（引导/登录管理器不在安装器职责内）：
+
+| 项目 | 现状 | 回退方式 |
+|---|---|---|
+| SDDM 用 Wayland greeter | `/etc/sddm.conf.d/10-wayland.conf`：`DisplayServer=wayland` + `CompositorCommand=kwin_wayland --drm --no-lockscreen --no-global-shortcuts` | 删该文件 → `sudo systemctl restart sddm`；配置备份在 `/root/sddm-backup-20261023-202326/` |
+| GRUB 主题 | `Elegant-mojave-window-left-dark`；`GRUB_THEME`、`GRUB_TIMEOUT=5`、`GRUB_GFXMODE=1920x1080,auto`、`GRUB_PRELOAD_MODULES` 含 `usb usb_keyboard` | `/root/grub-backup-20261023-195626/`（`default-grub` + `grub.cfg`），拷回后 `grub-mkconfig` |
+| Plasma 桌面壁纸 | 樱吹雪（`~/.local/share/kos/gallery/`），作为 KOS shell 加载完成前的兜底背景，避免登录后黑屏 | 删 `plasma-org.kde.plasma.desktop-appletsrc` 里 `[Containments][1][Wallpaper]` 段 |
+| 开机提速 | `NetworkManager-wait-online.service` 已 disable；`rjsupplicant.service` 加了 `10-no-wait-online.conf` drop-in | `systemctl enable --now NetworkManager-wait-online`；删 drop-in 后 `daemon-reload` |
+
+⚠️ `/boot` 是 **vfat（EFI 分区）**，GRUB 主题只能用 `cp -rL`（解引用符号链接）安装；上游 `install.sh` 的直接 `cp -a` 会因为符号链接报 `文件已存在`。
+
+## KOS 启动慢的已知瓶颈（上游问题，未解决）
+
+登录后 KOS 顶栏/Dock 要等约 8 秒才出现。实测：`kos-shell` 单独重启只需 ~2.7 秒（CPU 满载、清空页缓存都一样），
+登录时慢是因为 **KWin 启动阶段在编译 KOS 的效果着色器**，主循环不响应桥接轮询，shell 只能等。
+日志特征：`KOS continuous corners: shader failed; using native arcs`（该 shader 编译失败，属上游 bug）。
+已做缓解：给 Plasma 桌面配了壁纸，过渡期间显示壁纸而不是黑屏。
 ## 常用验证
 
 ```bash
