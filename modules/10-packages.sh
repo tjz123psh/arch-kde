@@ -396,8 +396,8 @@ base-devel git curl jq unzip xdg-utils xdg-user-dirs man-db cmake extra-cmake-mo
 
   # 开发工具（2026-10-22 用户指定）：GitHub CLI、Docker / Compose、Kate、npm
   # github-cli 提供 /usr/bin/gh；docker 组和 docker.service 在 40-system.sh 配置。
-  # kate 是 KOS 默认 Dock 的文本编辑器入口；npm 是 Node.js 包管理器。
-  pkgs="$pkgs github-cli docker docker-compose kate npm"
+  # npm 是 Node.js 包管理器。
+  pkgs="$pkgs github-cli docker docker-compose npm"
 
   # 维护 / 包管理脚本依赖（assets/scripts）：
   # maintenance 需要 snapper/reflector/rsync/zstd/upower/pacman-contrib/strace 等；
