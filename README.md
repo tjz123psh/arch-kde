@@ -126,6 +126,7 @@ archlinuxcn 12 个）；加 `--no-mirrors` 可保留你原来的列表。
   以后要恢复再解压；当前最小化动画交回 KOS 自带的 `kos_dock_window_animation`）
 - SilentSDDM 登录主题，当前壁纸作为登录/锁屏背景，圆角半透明登录框，SDDM 头像与桌面同步
 - KOS 锁屏：**ds2 背景**、时钟 + 天气 + 歌词，密码框圆角 14px
+- 系统反馈：音量 / 亮度 / 静音键走 **KOS OSD**（玻璃卡片、百分比、1.5s 消失）；`kos-osd-shortcuts` 用户服务自动注册 KGlobalAccel，安装后不需要注销
 - 13 张壁纸的图集（进 KOS 壁纸选择器）
 
 ## 关键约定

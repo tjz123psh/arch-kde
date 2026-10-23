@@ -1,0 +1,90 @@
+#!/usr/bin/env bash
+# SPDX-License-Identifier: GPL-3.0-or-later
+# KGlobalAccel bridge for the KOS OSD. KWin owns the global shortcut daemon on
+# Plasma 6, so command shortcuts normally need a fresh login to be scanned.
+# Registering the five actions explicitly here also makes them work in the
+# running session, and the autostart entry runs this bridge on every login.
+
+set -u
+
+export PATH="/usr/local/bin:/usr/bin:/bin"
+: "${XDG_RUNTIME_DIR:=/run/user/$(id -u)}"
+: "${DBUS_SESSION_BUS_ADDRESS:=unix:path=$XDG_RUNTIME_DIR/bus}"
+export XDG_RUNTIME_DIR DBUS_SESSION_BUS_ADDRESS
+
+if [ -z "${WAYLAND_DISPLAY:-}" ]; then
+  for sock in "$XDG_RUNTIME_DIR"/wayland-*; do
+    [ -S "$sock" ] || continue
+    export WAYLAND_DISPLAY="${sock##*/}"
+    break
+  done
+fi
+
+bin="$HOME/bin/kos-osd"
+
+component_for() {
+  case "$1" in
+    volume-up) echo kos_osd_volume_up ;;
+    volume-down) echo kos_osd_volume_down ;;
+    volume-mute) echo kos_osd_volume_mute ;;
+    brightness-up) echo kos_osd_brightness_up ;;
+    brightness-down) echo kos_osd_brightness_down ;;
+  esac
+}
+
+friendly_for() {
+  case "$1" in
+    volume-up) echo "KOS Volume Up" ;;
+    volume-down) echo "KOS Volume Down" ;;
+    volume-mute) echo "KOS Volume Mute" ;;
+    brightness-up) echo "KOS Brightness Up" ;;
+    brightness-down) echo "KOS Brightness Down" ;;
+  esac
+}
+
+key_for() {
+  case "$1" in
+    volume-up) echo 16777330 ;;
+    volume-down) echo 16777328 ;;
+    volume-mute) echo 16777329 ;;
+    brightness-up) echo 16777394 ;;
+    brightness-down) echo 16777395 ;;
+  esac
+}
+
+register_all() {
+  local action component friendly key
+  for action in volume-up volume-down volume-mute brightness-up brightness-down; do
+    component="$(component_for "$action")"
+    friendly="$(friendly_for "$action")"
+    key="$(key_for "$action")"
+    gdbus call --session --dest org.kde.kglobalaccel --object-path /kglobalaccel \
+      --method org.kde.KGlobalAccel.doRegister "['$component','_launch','$friendly','$friendly']" >/dev/null 2>&1 || return 1
+    gdbus call --session --dest org.kde.kglobalaccel --object-path /kglobalaccel \
+      --method org.kde.KGlobalAccel.setShortcut "['$component','_launch','$friendly','$friendly']" "[$key]" 0 >/dev/null 2>&1 || true
+  done
+}
+
+while :; do
+  for _ in $(seq 1 60); do
+    gdbus introspect --session --dest org.kde.kglobalaccel --object-path /kglobalaccel >/dev/null 2>&1 && break
+    sleep 0.2
+  done
+  register_all || true
+  stdbuf -oL dbus-monitor --session \
+    "type='signal',interface='org.kde.kglobalaccel.Component',member='globalShortcutPressed'" 2>/dev/null |
+  while IFS= read -r line; do
+    case "$line" in
+      *member=globalShortcutPressed*)
+        case "$line" in
+          *kos_osd_volume_up*) "$bin" volume-up & ;;
+          *kos_osd_volume_down*) "$bin" volume-down & ;;
+          *kos_osd_volume_mute*) "$bin" volume-mute & ;;
+          *kos_osd_brightness_up*) "$bin" brightness-up & ;;
+          *kos_osd_brightness_down*) "$bin" brightness-down & ;;
+        esac
+        ;;
+    esac
+  done
+  sleep 1
+done

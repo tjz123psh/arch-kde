@@ -201,6 +201,7 @@ main() {
   install_wallpapers
   install_user_scripts || warn "维护/包管理脚本安装失败，可稍后重跑"
   install_kde_shortcuts || warn "KDE 快捷键配置失败，可稍后重跑"
+  install_feedback_shortcuts || warn "系统反馈快捷键配置失败，可稍后重跑"
   install_wallpaper_shortcut || warn "壁纸快捷键配置失败，可稍后重跑"
   install_vellum_shortcuts || warn "Vellum 快捷键配置失败，可稍后重跑"
   install_shortcut_viewer_shortcut || warn "快捷键查看器配置失败，可稍后重跑"

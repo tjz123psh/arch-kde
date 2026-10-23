@@ -545,6 +545,46 @@ PY
   log "KOS 锁屏已应用 ds2 背景、时钟+天气+歌词、圆角密码框"
 }
 
+# KOS 音量/亮度 OSD：模块复制到用户的 Quickshell 配置，并在
+# DesktopEnvironment 里加载；快捷键由 57-shortcuts 负责改绑。
+configure_kos_osd() {
+  local desktop="$HOME/.config/quickshell/kos/desktop"
+  local src="$ASSET_DIR/kos/osd"
+  local dest="$desktop/modules/osd"
+
+  if [ ! -d "$desktop" ]; then
+    log "未安装 KOS shell，跳过 OSD"
+    return 0
+  fi
+  if [ "$DRY_RUN" -eq 1 ]; then
+    log "[dry-run] 安装 KOS 音量/亮度 OSD 模块"
+    return 0
+  fi
+
+  mkdir -p "$dest"
+  install_file "$src/qmldir" "$dest/qmldir"
+  install_file "$src/Osd.qml" "$dest/Osd.qml"
+  install_file "$src/OsdWindow.qml" "$dest/OsdWindow.qml"
+  install_file "$src/OsdService.qml" "$dest/OsdService.qml"
+  install_file "$src/OsdGlyph.qml" "$dest/OsdGlyph.qml"
+
+  backup_file "$desktop/DesktopEnvironment.qml"
+  python3 - "$desktop/DesktopEnvironment.qml" <<'PY'
+from pathlib import Path
+import sys
+
+path = Path(sys.argv[1])
+s = path.read_text()
+if "import qs.desktop.modules.osd" not in s:
+    s = s.replace("import qs.desktop.modules.notifications",
+                  "import qs.desktop.modules.notifications\nimport qs.desktop.modules.osd", 1)
+if "    Osd {}" not in s:
+    s = s.replace("    DeskCenter {}", "    Osd {}\n    DeskCenter {}", 1)
+path.write_text(s)
+PY
+  log "KOS OSD 已安装"
+}
+
 install_desktop_config() {
   log "写入桌面环境配置（环境变量 / GTK / 字体）..."
   install_file "$CONFIG_DIR/environment/90-kos.conf" "$HOME/.config/environment.d/90-kos.conf"
@@ -564,5 +604,6 @@ install_desktop_config() {
   configure_kde_global_appearance
   configure_kos_motion
   configure_dolphin_layout
+  configure_kos_osd
   configure_kos_lockscreen
 }
