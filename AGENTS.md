@@ -14,7 +14,7 @@
 - 一键把**干净 Arch（archinstall 之后、能登录 TTY）**装成 KDE Plasma 6 (Wayland) + KOS/NextKDE 桌面。
 - **这里只有安装器**：桌面本体（Quickshell 外壳、kosctl、KWin 插件）在上游 `SuceV587/NextKde`，安装时克隆到 `~/.cache/kos-src`。
 - 公开仓库，remote `https://github.com/tjz123psh/arch-kde.git`，GPL-3.0-or-later。
-- 数据资产是核心：`assets/config/`（fcitx5 / kitty / fish / gtk / fontconfig / environment）、`assets/wallpapers/`（13 张）；genie 插件源码已压缩归档在仓库根目录 `genie-effect-2026-10-21.tar.gz`（已停用，待以后处理）。
+- 数据资产是核心：`assets/config/`（fcitx5 / kitty / fish / gtk / fontconfig / environment）、`assets/wallpapers/`（13 张）。
 
 ## 三、结构约定
 
@@ -36,7 +36,7 @@ assets/             配置、壁纸
 3. **硬件固定按目标机**：ASUS TUF A15（AMD 7735H + RTX 4050 + RTL8852BE）。驱动名单写死在 `modules/10-packages.sh` 的"硬件驱动：固定按目标机装"一段，**不再按探测结果决定装包**；换机器时改那一段和 `hw_policy_resolve()`。蓝牙固定装 `bluez` + `bluedevil` + `bluez-obex`，`bluetooth.service` 常开；打印、指纹、WWAN 不装。
 4. **archinstall 前提只做 `--needed` 兜底**：内核 headers、`neovim`、`exfatprogs`、`os-prober`、`zram-generator`。装过就跳过。
 5. **镜像文件策略**：默认整份覆盖 `/etc/pacman.d/mirrorlist`（archinstall 常留 aliyun 单源）与 `/etc/pacman.d/archlinuxcn-mirrorlist`；清华必须第一，官方 16 个 / archlinuxcn 12 个国内镜像；网络失败自动降级（注释当前第一条 `Server =`，最多 3 次）。改镜像清单要重新用 curl 验证 `core.db` / `archlinuxcn.db`。
-6. **旧桌面遗留**：旧 linux-macos 专属包（aurorae/breeze-gtk/kvantum/sassc/optipng/fuzzel/plasma6-applets-window-title/kwin-effect-rounded-corners-git/kwin-effects-better-blur-dx/latte-dock-ng/crystal-dock-git）不得进入安装列表；只有显式 `--clean-old-desktop` 才允许 `pacman -Rns` 它们，且要先列清单并确认。
+6. **旧桌面遗留**：旧 linux-macos 专属包（aurorae/breeze-gtk/kvantum/sassc/optipng/plasma6-applets-window-title/kwin-effect-rounded-corners-git/kwin-effects-better-blur-dx/latte-dock-ng/crystal-dock-git；`fuzzel` 不在其中，安装器把它当备用启动器正常安装）不得进入安装列表；只有显式 `--clean-old-desktop` 才允许 `pacman -Rns` 它们，且要先列清单并确认。
 7. **失败分级**：KOS 本体安装失败即 `die`；独立应用 / 锁屏 / 主题 / 壁纸失败只 `warn`。
 8. **不要"顺手"扩展**：微信启动器不需要去重（用户 2026-10-21 确认）；QQ 需要（`modules/55-apps.sh`）。
 
