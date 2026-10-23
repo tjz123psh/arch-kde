@@ -25,10 +25,10 @@ resolve_kos_ref() {
     sort -V | tail -n 1 || true)
   if [ -n "$ref" ]; then
     KOS_SRC_REF="$ref"
-    log "KOS 最新稳定发布: $KOS_SRC_REF"
+    log "KOS latest stable release: $KOS_SRC_REF"
   else
     KOS_SRC_REF="$KOS_SRC_REF_FALLBACK"
-    warn "无法查询 KOS 最新发布，回退到 $KOS_SRC_REF"
+    warn "Cannot query the latest KOS release; falling back to $KOS_SRC_REF"
   fi
 }
 
@@ -58,17 +58,17 @@ kos_dep_list() {
 }
 
 install_kos_deps() {
-  log "检查 KOS 构建依赖..."
+  log "Checking KOS build dependencies..."
   local p missing=()
   while read -r p; do
     [ -n "$p" ] || continue
     pkg_installed "$p" || missing+=("$p")
   done < <(kos_dep_list)
   if [ ${#missing[@]} -eq 0 ]; then
-    log "构建依赖已齐"
+    log "Build dependencies satisfied"
     return 0
   fi
-  log "安装缺失依赖：${missing[*]}"
+  log "Installing missing dependencies: ${missing[*]}"
   sudo_run pacman -S --needed --noconfirm "${missing[@]}"
 }
 
@@ -76,23 +76,23 @@ fetch_kos_source() {
   local dir; dir=$(kos_repo_dir)
 
   if [ -d "$dir/.git" ] && [ "$SKIP_UPDATE" -eq 1 ]; then
-    log "跳过源码更新（--skip-update）"
+    log "Skipping the source update (--skip-update)"
     return 0
   fi
   resolve_kos_ref
 
   if [ -d "$dir/.git" ]; then
-    log "KOS 源码已存在：$dir"
-    log "更新 KOS 源码（$KOS_SRC_REF）..."
-    run git -C "$dir" fetch --depth 1 origin "$KOS_SRC_REF" || warn "拉取失败，继续用现有源码"
-    run git -C "$dir" checkout -q FETCH_HEAD || warn "切到最新源码失败，继续用现有源码"
+    log "KOS source already present: $dir"
+    log "Updating the KOS source ($KOS_SRC_REF)..."
+    run git -C "$dir" fetch --depth 1 origin "$KOS_SRC_REF" || warn "fetch failed; using the existing source"
+    run git -C "$dir" checkout -q FETCH_HEAD || warn "checkout of the newest source failed; using the existing one"
     return 0
   fi
 
-  log "克隆 KOS 源码：$KOS_SRC_URL（$KOS_SRC_REF）→ $dir"
+  log "Cloning the KOS source: $KOS_SRC_URL ($KOS_SRC_REF) -> $dir"
   run mkdir -p "$(dirname "$dir")"
   run git clone --depth 1 --branch "$KOS_SRC_REF" "$KOS_SRC_URL" "$dir" ||
-    die "克隆 KOS 源码失败：$KOS_SRC_URL（可离线预置到 $dir，或用 KOS_REPO_DIR 指定已有检出）"
+    die "Failed to clone the KOS source: $KOS_SRC_URL (pre-seed it at $dir, or point KOS_REPO_DIR at an existing checkout)"
 }
 
 # KWin 6.8 移除了 /org/kde/KWin 上的 org.kde.kwin.Effects，KOS 设置页的
@@ -103,11 +103,11 @@ patch_kos_settings_integration_probe() {
   local src="$repo/apps/settings/src/SettingsBridgeDesktop.cpp"
 
   if [ ! -f "$src" ]; then
-    warn "找不到 SettingsBridgeDesktop.cpp，跳过 KWin 6.8 集成状态兼容补丁"
+    warn "SettingsBridgeDesktop.cpp not found; skipping the KWin 6.8 integration-status patch"
     return 0
   fi
   if [ "$DRY_RUN" -eq 1 ]; then
-    log "[dry-run] 为 KOS Settings 增加 KWin supportInformation 回退"
+    log "[dry-run] add a KWin supportInformation fallback to KOS Settings"
     return 0
   fi
 
@@ -173,25 +173,25 @@ build_install_kos() {
 
   [ -x "$repo/tools/kosctl" ] || die "找不到 kosctl：$repo/tools/kosctl（源码没下载成功？）"
 
-  log "KOS 源码：$repo"
-  run "$repo/tools/kosctl" doctor || warn "doctor 报告缺项，继续（详见上方输出）"
+  log "KOS source: $repo"
+  run "$repo/tools/kosctl" doctor || warn "doctor reported missing items; continuing (see output above)"
 
-  log "构建 + 安装 KOS 核心（KOS_BUILD_SPATIAL=$spatial）"
-  run env KOS_BUILD_SPATIAL="$spatial" "$repo/tools/kosctl" install || die "kosctl install 失败"
+  log "Building + installing the KOS core (KOS_BUILD_SPATIAL=$spatial)"
+  run env KOS_BUILD_SPATIAL="$spatial" "$repo/tools/kosctl" install || die "kosctl install failed"
 
   if [ "$KOS_WITH_APPS" -eq 1 ]; then
-    log "安装独立应用（日历/计算器/待办/天气）"
-    run "$repo/tools/kosctl" install apps || warn "独立应用安装失败"
+    log "Installing standalone apps (calendar / calculator / todo / weather)"
+    run "$repo/tools/kosctl" install apps || warn "Standalone app installation failed"
     # 上游把 kos-pim-service 设计成 D-Bus 激活（install-apps 会先 disable）；
     # 这里启动一次，让 PimWidgetService 立刻有快照可用，之后仍不常驻。
     systemctl --user start kos-pim-service.service >/dev/null 2>&1 || true
   fi
   if [ "$KOS_WITH_LOCKSCREEN" -eq 1 ]; then
-    log "安装 KOS 锁屏"
-    run "$repo/tools/kosctl" install lockscreen || warn "锁屏安装失败"
+    log "Installing the KOS lock screen"
+    run "$repo/tools/kosctl" install lockscreen || warn "Lock screen installation failed"
   fi
 
-  log "注册全局快捷键"
+  log "Registering global shortcuts"
   run "$repo/tools/kosctl" shortcuts install || warn "快捷键注册失败（登录后可手动重跑）"
 
   if [ "$KOS_START" -eq 1 ]; then

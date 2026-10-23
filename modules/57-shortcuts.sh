@@ -10,14 +10,14 @@
 # 使用 KGlobalAccel 的 command shortcut desktop 文件，不依赖 KOS 私有快捷键。
 
 install_wallpaper_shortcut() {
-  log "配置 Alt+W 打开全屏壁纸预览..."
+  log "Setting up Alt+W for the fullscreen wallpaper preview..."
 
   if [ "$DRY_RUN" -eq 1 ]; then
-    log "[dry-run] 写入 kos-wallpaper-preview.desktop 并设置 Alt+W"
+    log "[dry-run] write kos-wallpaper-preview.desktop and bind Alt+W"
     return 0
   fi
   if ! have kwriteconfig6; then
-    warn "缺少 kwriteconfig6，跳过壁纸快捷键"
+    warn "kwriteconfig6 missing; skipping the wallpaper shortcut"
     return 0
   fi
 
@@ -96,18 +96,18 @@ EOF
   if have kbuildsycoca6; then
     kbuildsycoca6 --noincremental >/dev/null 2>&1 || true
   fi
-  log "Alt+W → 全屏壁纸预览"
+  log "Alt+W -> fullscreen wallpaper preview"
 }
 
 install_shortcut_viewer_shortcut() {
-  log "配置 Win+/ 快捷键查看器..."
+  log "Setting up the Win+/ shortcut viewer..."
 
   if [ "$DRY_RUN" -eq 1 ]; then
-    log "[dry-run] 写入 shortcuts-viewer.desktop 并设置 Meta+/"
+    log "[dry-run] write shortcuts-viewer.desktop and bind Meta+/"
     return 0
   fi
   if ! have kwriteconfig6; then
-    warn "缺少 kwriteconfig6，跳过快捷键查看器"
+    warn "kwriteconfig6 missing; skipping the shortcut viewer"
     return 0
   fi
 
@@ -129,19 +129,19 @@ EOF
   if have kbuildsycoca6; then
     kbuildsycoca6 --noincremental >/dev/null 2>&1 || true
   fi
-  log "Win+/ → 快捷键查看器"
+  log "Win+/ -> shortcut viewer"
 }
 
 
 install_record_menu_shortcut() {
-  log "配置 Alt+F5 录屏菜单..."
+  log "Setting up the Alt+F5 recording menu..."
 
   if [ "$DRY_RUN" -eq 1 ]; then
-    log "[dry-run] 写入 kos-record.desktop 并设置 Alt+F5"
+    log "[dry-run] write kos-record.desktop and bind Alt+F5"
     return 0
   fi
   if ! have kwriteconfig6; then
-    warn "缺少 kwriteconfig6，跳过录屏菜单快捷键"
+    warn "kwriteconfig6 missing; skipping the recording menu shortcut"
     return 0
   fi
 
@@ -163,18 +163,18 @@ EOF
   if have kbuildsycoca6; then
     kbuildsycoca6 --noincremental >/dev/null 2>&1 || true
   fi
-  log "Alt+F5 → 录屏菜单"
+  log "Alt+F5 -> recording menu"
 }
 
 install_hotspot_shortcut() {
-  log "配置 Alt+F6 热点菜单..."
+  log "Setting up the Alt+F6 hotspot menu..."
 
   if [ "$DRY_RUN" -eq 1 ]; then
-    log "[dry-run] 写入 kos-hotspot.desktop 并设置 Alt+F6"
+    log "[dry-run] write kos-hotspot.desktop and bind Alt+F6"
     return 0
   fi
   if ! have kwriteconfig6; then
-    warn "缺少 kwriteconfig6，跳过热点菜单快捷键"
+    warn "kwriteconfig6 missing; skipping the hotspot menu shortcut"
     return 0
   fi
 
@@ -196,13 +196,13 @@ EOF
   if have kbuildsycoca6; then
     kbuildsycoca6 --noincremental >/dev/null 2>&1 || true
   fi
-  log "Alt+F6 → 热点菜单"
+  log "Alt+F6 -> hotspot menu"
 }
 configure_launcher_shortcuts() {
-  log "配置启动器快捷键（Win / Win+O）..."
+  log "Setting up the launcher shortcuts (Win / Win+O)..."
 
   if [ "$DRY_RUN" -eq 1 ]; then
-    log "[dry-run] 写入 KOS 快捷方式覆盖与 plasmashell 的 Meta 禁用"
+    log "[dry-run] write the KOS shortcut overrides and disable plasmashell's Meta key"
     return 0
   fi
 
@@ -241,18 +241,18 @@ data["version"] = 1
 data["overrides"] = overrides
 path.write_text(json.dumps(data, ensure_ascii=False, indent=2) + "\n")
 PY
-  log "Win → Dock 应用启动器，Win+O → KOS 快速搜索/启动器"
+  log "Win -> dock app launcher, Win+O -> KOS quick search/launcher"
 }
 
 install_vellum_shortcuts() {
-  log "配置 Vellum 截图快捷键（Print / Ctrl+Print）..."
+  log "Setting up the Vellum screenshot shortcuts (Print / Ctrl+Print)..."
 
   if [ "$DRY_RUN" -eq 1 ]; then
-    log "[dry-run] 写入 vellum-region/long.desktop 并设置 Print / Ctrl+Print"
+    log "[dry-run] write vellum-region/long.desktop and bind Print / Ctrl+Print"
     return 0
   fi
   if ! have kwriteconfig6; then
-    warn "缺少 kwriteconfig6，跳过 Vellum 快捷键"
+    warn "kwriteconfig6 missing; skipping the Vellum shortcuts"
     return 0
   fi
 
@@ -312,18 +312,18 @@ PY
   if have kbuildsycoca6; then
     kbuildsycoca6 --noincremental >/dev/null 2>&1 || true
   fi
-  log "Vellum：仅保留 Print → 区域截图、Ctrl+Print → 长截图（已关闭多余 Meta 组合）"
+  log "Vellum: only Print -> region capture and Ctrl+Print -> long capture (extra Meta combos disabled)"
 }
 
 configure_keyboard_repeat() {
-  log "配置键盘重复延迟/速率（250ms / 50Hz）..."
+  log "Setting the keyboard repeat delay/rate (250ms / 50Hz)..."
 
   if [ "$DRY_RUN" -eq 1 ]; then
-    log "[dry-run] 写入 kcminputrc：Keyboard.RepeatDelay=250，RepeatRate=50"
+    log "[dry-run] write kcminputrc: Keyboard.RepeatDelay=250, RepeatRate=50"
     return 0
   fi
   if ! have kwriteconfig6; then
-    warn "缺少 kwriteconfig6，跳过键盘重复设置"
+    warn "kwriteconfig6 missing; skipping the keyboard repeat settings"
     return 0
   fi
 
@@ -335,18 +335,18 @@ configure_keyboard_repeat() {
   if have qdbus6; then
     qdbus6 org.kde.KWin /KWin reconfigure >/dev/null 2>&1 || true
   fi
-  log "键盘重复：延迟 250ms，速率 50 次/秒"
+  log "Keyboard repeat: delay 250ms, rate 50/s"
 }
 
 install_kde_shortcuts() {
-  log "配置 KDE 快捷键（term-menu / 终端 / btop / fuzzel / 关闭窗口）..."
+  log "Setting up KDE shortcuts (term-menu / terminal / btop / fuzzel / close window)..."
 
   if [ "$DRY_RUN" -eq 1 ]; then
-    log "[dry-run] 写入 term-menu / kitty-terminal / btop / fuzzel-launcher 的 desktop 并设置 KGlobalAccel"
+    log "[dry-run] write term-menu / kitty-terminal / btop / fuzzel-launcher desktops and set KGlobalAccel"
     return 0
   fi
   if ! have kwriteconfig6; then
-    warn "缺少 kwriteconfig6，跳过 KDE 快捷键"
+    warn "kwriteconfig6 missing; skipping the KDE shortcuts"
     return 0
   fi
 
@@ -382,10 +382,10 @@ EOF
   kwriteconfig6 --file kglobalshortcutsrc --group services --group kitty-terminal.desktop --key _launch "Alt+Return" --notify
   kwriteconfig6 --file kglobalshortcutsrc --group services --group btop.desktop --key _launch "Meta+M" --notify
   kwriteconfig6 --file kglobalshortcutsrc --group services --group fuzzel-launcher.desktop --key _launch "Ctrl+M" --notify
-  kwriteconfig6 --file kglobalshortcutsrc --group kwin --key "Window Close" "Alt+Q,Alt+F4,关闭窗口" --notify
+  kwriteconfig6 --file kglobalshortcutsrc --group kwin --key "Window Close" "Alt+Q,Alt+F4,Close Window" --notify
 
   if have kbuildsycoca6; then
     kbuildsycoca6 --noincremental >/dev/null 2>&1 || true
   fi
-  log "KDE 快捷键已写入（注销/重新登录后由 KGlobalAccel 生效）"
+  log "KDE shortcuts written (KGlobalAccel picks them up after a re-login)"
 }
