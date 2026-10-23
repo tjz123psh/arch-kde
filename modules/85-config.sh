@@ -227,6 +227,7 @@ enable_frosted_kde_windows() {
   kwriteconfig6 --file kwinrulesrc --group frosted_systemmonitor --key opacityactive 75 --notify
   kwriteconfig6 --file kwinrulesrc --group frosted_systemmonitor --key opacityinactive 80 --notify
   frosted_window_rule frosted_kos_settings kos-settings
+  frosted_window_rule frosted_kinfocenter org.kde.kinfocenter
   frosted_window_rule frosted_dolphin org.kde.dolphin
   frosted_window_rule frosted_kcm_bluetooth kcm_bluetooth
   frosted_window_rule frosted_kcm_networkmanagement kcm_networkmanagement
@@ -241,7 +242,7 @@ enable_frosted_kde_windows() {
 
   local order group
   order=$(kreadconfig6 --file kwinrulesrc --group General --key Order 2>/dev/null || true)
-  for group in frosted_systemsettings frosted_systemmonitor frosted_kos_settings frosted_dolphin frosted_kcm_bluetooth frosted_kcm_networkmanagement frosted_kcmshell6 frosted_kcm_all frosted_bluedevil_wizard frosted_plasma_nm frosted_systemsettings_dialog; do
+  for group in frosted_systemsettings frosted_systemmonitor frosted_kos_settings frosted_kinfocenter frosted_dolphin frosted_kcm_bluetooth frosted_kcm_networkmanagement frosted_kcmshell6 frosted_kcm_all frosted_bluedevil_wizard frosted_plasma_nm frosted_systemsettings_dialog; do
     case ",$order," in
       *,$group,*) ;;
       *) order="${order:+$order,}$group" ;;
