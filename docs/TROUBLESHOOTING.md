@@ -97,6 +97,29 @@ cat ~/.config/vellum/shortcuts.json    # 应为 {"enabled": false}
 
 安装器 `57-shortcuts.sh` 的 `install_vellum_shortcuts` 会做同样的清理。
 
+## 终端窗口不能用鼠标拖边缩放（边缘光标不变成双向箭头）
+
+KDE 里只有「带窗口装饰」的窗口才有可抓的缩放边框。KOS 的窗口装饰（kos_decoration）
+是「细标题栏 + 看不见的缩放边框」：有它，鼠标贴边就能把窗口拉大拉小；把装饰整个关掉
+（旧版安装器用 KWin 规则 kitty_no_decorations + decorationpolicy=none 这么干过），
+窗口就没有任何边缘可抓，鼠标永远显示文本光标。
+
+先看规则还在不在：
+
+```bash
+grep -n 'kitty_no_decorations' ~/.config/kwinrulesrc
+```
+
+在的话删掉（重跑安装器会自动清理：remove_kitty_no_decorations），然后**关掉旧终端重开**——
+窗口规则只在新建窗口时生效，已经开着的窗口不会自己变。
+
+```bash
+bash install.sh --yes
+```
+
+如果新窗口带一个细标题栏、你能接受，就到此为止。连标题栏都不想要，那就只能放弃鼠标拖边：
+KWin 对 decorationpolicy=none 的窗口不提供任何缩放把手，最多用 Meta + 右键拖动缩放。
+
 ## 锁屏不是 ds2 / 没有天气歌词
 
 KOS 锁屏文件：

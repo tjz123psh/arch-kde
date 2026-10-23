@@ -113,39 +113,50 @@ EOF
 }
 
 # 环境变量 / GTK / 字体：从老项目的 kde.sh 抽出来，只保留与桌面观感相关的部分
-# 终端只保留内容：用 KWin 规则把 kitty 的标题栏/窗口边框隐藏。
-# KWin 6.8 用 decorationpolicy=none 表达无边框（旧的 noborder 键不再适用）。
-install_kitty_no_decorations() {
-  log "配置 kitty 无标题栏（KWin 窗口规则）..."
+# 终端能不能用鼠标拖边缩放，取决于窗口有没有"能抓的边缘"：
+# KWin 对没有窗口装饰的窗口不提供缩放把手（鼠标贴边也只会是文本光标），
+# 而 KOS 自带的窗口装饰（kos_decoration）正好是"细标题栏 + 看不见的缩放边框"。
+# 所以这里不再关掉 kitty 的装饰，而是反向清理：旧版本写过的
+# kitty_no_decorations 规则（decorationpolicy=none）如果还在，就删掉。
+remove_kitty_no_decorations() {
+  local rules="$HOME/.config/kwinrulesrc" tmp
+  log "清理 kitty 无边框规则（保留可拖拽的缩放边框）..."
   if [ "$DRY_RUN" -eq 1 ]; then
-    log "[dry-run] 写入 kwinrulesrc：kitty_no_decorations（decorationpolicy=none）"
+    log "[dry-run] 若 kwinrulesrc 里存在 kitty_no_decorations，则删除该规则"
+    return 0
+  fi
+  if [ ! -f "$rules" ] || ! grep -qxF '[kitty_no_decorations]' "$rules"; then
     return 0
   fi
   if ! have kwriteconfig6; then
-    warn "缺少 kwriteconfig6，跳过 kitty 窗口规则"
+    warn "缺少 kwriteconfig6，无法清理 kwinrulesrc"
     return 0
   fi
 
-  backup_file "$HOME/.config/kwinrulesrc"
-  kwriteconfig6 --file kwinrulesrc --group kitty_no_decorations --key Description "Kitty: no window decorations" --notify
-  kwriteconfig6 --file kwinrulesrc --group kitty_no_decorations --key decorationpolicy none --notify
-  kwriteconfig6 --file kwinrulesrc --group kitty_no_decorations --key decorationpolicyrule 2 --notify
-  kwriteconfig6 --file kwinrulesrc --group kitty_no_decorations --key types 1 --notify
-  kwriteconfig6 --file kwinrulesrc --group kitty_no_decorations --key wmclass kitty --notify
-  kwriteconfig6 --file kwinrulesrc --group kitty_no_decorations --key wmclasscomplete false --notify
-  kwriteconfig6 --file kwinrulesrc --group kitty_no_decorations --key wmclassmatch 1 --notify
-
-  local order
-  order=$(kreadconfig6 --file kwinrulesrc --group General --key Order 2>/dev/null || true)
-  case ",$order," in
-    *,kitty_no_decorations,*) ;;
-    *) kwriteconfig6 --file kwinrulesrc --group General --key Order "${order:+$order,}kitty_no_decorations" --notify ;;
-  esac
+  backup_file "$rules"
+  tmp=$(mktemp)
+  # 整段删掉规则，并从 General/Order 里摘掉它的名字；留空段会被 KWin 当成空条件规则。
+  awk '
+    $0 == "[kitty_no_decorations]" { skip = 1; next }
+    skip && /^\[/ { skip = 0 }
+    skip { next }
+    /^Order=/ {
+      n = split(substr($0, 7), parts, ",")
+      keep = ""
+      for (i = 1; i <= n; i++) {
+        if (parts[i] == "" || parts[i] == "kitty_no_decorations") continue
+        keep = (keep == "" ? parts[i] : keep "," parts[i])
+      }
+      print "Order=" keep
+      next
+    }
+    { print }
+  ' "$rules" > "$tmp" && mv "$tmp" "$rules"
 
   if have qdbus6; then
     qdbus6 org.kde.KWin /KWin reconfigure >/dev/null 2>&1 || true
   fi
-  log "kitty 窗口规则已写入；新开终端只显示内容"
+  log "kitty 无边框规则已移除；新开的终端可以用鼠标拖边缩放"
 }
 
 # 让智能隐藏的 Dock 提示条更低调：降低白色主体和黑色 scrim，并略微变细。
@@ -556,7 +567,7 @@ install_desktop_config() {
   install_file "$CONFIG_DIR/display/kos-display-1920x1080.sh" "$HOME/.local/bin/kos-display-1920x1080" 755
   install_file "$CONFIG_DIR/display/kos-display-1920x1080.desktop" "$HOME/.config/autostart/kos-display-1920x1080.desktop"
   enable_kos_theme_animation
-  install_kitty_no_decorations
+  remove_kitty_no_decorations
   enable_kos_subtle_dock_reveal
   enable_frosted_kde_windows
   enable_kos_frosted_settings
