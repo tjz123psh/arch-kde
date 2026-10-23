@@ -164,6 +164,28 @@ ls ~/.local/share/sddm/themes
 登录主题在 `modules/80-sddm.sh`；不想用主题就重跑安装器加 `--no-sddm-theme`。
 SDDM 的登录背景和 KOS 锁屏是两套东西：前者在登录主题里，后者是 kscreenlocker。
 
+## 热点能连上但上不了网（Docker 环境）
+
+Docker 安装后会把 iptables 的 `FORWARD` 策略改成 `DROP`，只放行它自己的网桥。
+NetworkManager 的 shared 模式（热点）自己加的 MASQUERADE 和 forward 规则会被这条 DROP 抢先拦掉，
+表现就是：手机能连上热点、能拿到 `10.42.0.x` 的地址，但网页打不开。
+
+安装器会写入 `/etc/NetworkManager/dispatcher.d/90-kos-hotspot`，在 `KOS-Hotspot` 上线/下线时
+自动加/删两条放行规则。手动补也能立刻生效：
+
+```bash
+sudo iptables -I FORWARD 1 -i wlp3s0 -j ACCEPT
+sudo iptables -I FORWARD 1 -o wlp3s0 -m conntrack --ctstate RELATED,ESTABLISHED -j ACCEPT
+```
+
+检查（这两条要出现在 `DROP` 策略前面）：
+
+```bash
+sudo iptables -S FORWARD | head -4
+```
+
+另外热点还依赖 `dnsmasq`（shared 模式的 DHCP/DNS）；缺了它会在开启时报
+`IP 配置无法保留（无可用地址、超时等）`。
 ## 完全回退
 
 - 单个配置：按 `~/.local/state/kos-installer/backup/<时间>/manifest.txt` 复制回去。

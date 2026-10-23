@@ -182,6 +182,7 @@ main() {
   setup_aur_helper
   install_aur_packages
   setup_system
+  setup_hotspot_dispatcher
   setup_ime
   setup_terminal
   install_user_configs
