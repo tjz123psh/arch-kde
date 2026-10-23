@@ -1,8 +1,9 @@
 #!/usr/bin/env bash
-# KOS 热点菜单（fuzzel）：用 NetworkManager 的 shared 模式 + dnsmasq 共享有线网络。
+# KOS 热点菜单（fuzzel）：NetworkManager shared 模式 + dnsmasq。
 #
-# 依赖：NetworkManager（在跑）、dnsmasq（shared 模式的 DHCP/DNS，缺了会报 "IP 配置无法保留"）、
-#       qrencode（可选，用来看二维码）、fuzzel（菜单）。
+# 依赖：NetworkManager、dnsmasq（shared 模式的 DHCP/DNS）、qrencode（二维码）、fuzzel（菜单）。
+# Docker 会把 FORWARD 策略设成 DROP，热点客户端能连上但不能上网，
+# 放行规则由 /etc/NetworkManager/dispatcher.d/90-kos-hotspot 负责（安装器写入）。
 set -u
 
 export PATH="$HOME/.local/bin:$HOME/bin:/usr/local/bin:/usr/bin:/bin:$PATH"
@@ -23,12 +24,29 @@ wifi_dev() {
 
 profile_exists() { nmcli -t -f NAME connection show 2>/dev/null | grep -qx "$CON"; }
 hotspot_active() { nmcli -t -f NAME connection show --active 2>/dev/null | grep -qx "$CON"; }
-
 prof_get() { nmcli -s -g "$1" connection show "$CON" 2>/dev/null; }
 
-random_pw() {
-  head -c 9 /dev/urandom | base64 | tr -dc 'a-z0-9' | head -c 10
+hotspot_ip() {
+  local dev
+  dev=$(wifi_dev)
+  ip -4 -o addr show "$dev" 2>/dev/null | awk '{print $4}' | head -1
 }
+
+client_count() {
+  local dev
+  dev=$(wifi_dev)
+  iw dev "$dev" station dump 2>/dev/null | grep -c '^Station' || true
+}
+
+status_short() {
+  if hotspot_active; then
+    echo "运行中 · $(hotspot_ip) · $(client_count) 台"
+  else
+    echo "未开启"
+  fi
+}
+
+random_pw() { head -c 9 /dev/urandom | base64 | tr -dc 'a-z0-9' | head -c 10; }
 
 ensure_profile() {
   local dev pw
@@ -45,12 +63,12 @@ ensure_profile() {
       notify "热点配置创建失败" "检查 NetworkManager 状态"
       return 1
     }
-  notify "已创建热点配置" "SSID $DEFAULT_SSID · 密码 $pw"
+  notify "已创建热点配置" "名称 $DEFAULT_SSID · 密码 $pw"
 }
 
 start_hotspot() {
-  local ssid ip
-  if hotspot_active; then notify "热点已经在运行"; return 0; fi
+  local ssid pw
+  if hotspot_active; then notify "热点已经在运行" "$(hotspot_ip)"; return 0; fi
   if ! command -v dnsmasq >/dev/null 2>&1; then
     notify "缺少 dnsmasq" "sudo pacman -S dnsmasq（shared 模式必须）"
     return 1
@@ -59,10 +77,9 @@ start_hotspot() {
   ensure_profile || return 1
   if nmcli connection up "$CON" >/dev/null 2>&1; then
     ssid=$(prof_get 802-11-wireless.ssid)
-    ip=$(ip -4 -o addr show "$(wifi_dev)" 2>/dev/null | awk '{print $4}' | head -1)
-    notify "热点已开启" "$ssid · $ip"
+    notify "热点已开启" "$ssid · 密码 $(prof_get 802-11-wireless-security.psk) · $(hotspot_ip)"
   else
-    notify "热点开启失败" "$(journalctl -u NetworkManager --since '30 sec ago' --no-pager 2>/dev/null | grep -i dnsmasq | tail -1)"
+    notify "热点开启失败" "$(journalctl -u NetworkManager --since '30 sec ago' --no-pager 2>/dev/null | grep -iE 'dnsmasq|shared' | tail -1)"
   fi
 }
 
@@ -72,17 +89,12 @@ stop_hotspot() {
   notify "热点已关闭"
 }
 
-status_text() {
-  local dev ssid ip clients
-  if ! hotspot_active; then
-    echo "未开启"
-    return
+restart_hotspot() {
+  if hotspot_active; then
+    nmcli connection down "$CON" >/dev/null 2>&1
+    sleep 1
   fi
-  dev=$(wifi_dev)
-  ssid=$(prof_get 802-11-wireless.ssid)
-  ip=$(ip -4 -o addr show "$dev" 2>/dev/null | awk '{print $4}' | head -1)
-  clients=$(iw dev "$dev" station dump 2>/dev/null | grep -c '^Station' || true)
-  echo "运行中：$ssid · $ip · 客户端 $clients 台"
+  start_hotspot
 }
 
 show_info() {
@@ -90,7 +102,7 @@ show_info() {
   if ! profile_exists; then notify "还没有热点配置" "先选「开启热点」"; return 0; fi
   ssid=$(prof_get 802-11-wireless.ssid)
   pw=$(prof_get 802-11-wireless-security.psk)
-  notify "热点信息" "$ssid · 密码 $pw"
+  notify "热点信息" "$ssid · 密码 $pw · $(status_short)"
   if command -v qrencode >/dev/null 2>&1; then
     qrencode -o "$QR_PNG" "WIFI:T:WPA;S:$ssid;P:$pw;;" 2>/dev/null && xdg-open "$QR_PNG" >/dev/null 2>&1 &
   fi
@@ -98,61 +110,68 @@ show_info() {
 
 set_ssid() {
   local v
-  v=$(printf '' | fuzzel --dmenu --prompt=' 新热点名称 > ' --lines=0 --width=40) || return 0
+  v=$(printf '' | fuzzel --dmenu --prompt=' 新热点名称 > ' --placeholder='' --lines=0 --width=42) || return 0
   [ -n "$v" ] || return 0
   profile_exists || ensure_profile || return 1
   nmcli connection modify "$CON" 802-11-wireless.ssid "$v"
-  notify "热点名称已改" "$v（重新开启热点后生效）"
+  notify "名称已改为 $v" "选「重启热点」立即生效"
 }
 
 set_password() {
   local v len
-  v=$(printf '' | fuzzel --dmenu --prompt=' 新密码（至少 8 位）> ' --lines=0 --width=40) || return 0
+  v=$(printf '' | fuzzel --dmenu --password --prompt=' 新密码（至少 8 位）> ' --placeholder='' --lines=0 --width=42) || return 0
   [ -n "$v" ] || return 0
   len=$(printf '%s' "$v" | wc -c)
   if [ "$len" -lt 8 ]; then notify "密码太短" "WPA2 至少要 8 位"; return 0; fi
   profile_exists || ensure_profile || return 1
   nmcli connection modify "$CON" wifi-sec.psk "$v"
-  notify "热点密码已改" "重新开启热点后生效"
+  notify "密码已更新" "选「重启热点」立即生效"
 }
 
-pick() { fuzzel --dmenu --prompt=' 热点 > ' --lines=8 --width=46 --placeholder="$1"; }
+pick() { fuzzel --dmenu --prompt=' 热点 > ' --lines=9 --width=48 --placeholder="$1"; }
 
 menu() {
-  local st choice
-  if hotspot_active; then
-    st="状态：$(status_text)"
-    choice=$(printf '%s\n' "关闭热点" "显示连接信息 / 二维码" "修改热点名称" "修改热点密码" "打开网络设置" | pick "$st") || return 0
-  else
-    choice=$(printf '%s\n' "开启热点" "显示热点信息 / 二维码" "修改热点名称" "修改热点密码" "打开网络设置" | pick "热点未开启") || return 0
-  fi
-  [ -n "$choice" ] || return 0
-  case "$choice" in
-    开启热点*)           start_hotspot ;;
-    关闭热点*)           stop_hotspot ;;
-    显示*)               show_info ;;
-    修改热点名称*)        set_ssid ;;
-    修改热点密码*)        set_password ;;
-    打开网络设置*)        systemsettings kcm_networkmanagement >/dev/null 2>&1 & ;;
-  esac
+  local cur_name cur_pw choice st
+  while :; do
+    st=$(status_short)
+    cur_name=$(prof_get 802-11-wireless.ssid)
+    [ -n "$cur_name" ] || cur_name="$DEFAULT_SSID"
+    cur_pw=$(prof_get 802-11-wireless-security.psk)
+    if [ -n "$cur_pw" ]; then cur_pw="已设置"; else cur_pw="未设置"; fi
+    if hotspot_active; then
+      choice=$(printf '%s\n' "关闭热点" "显示连接信息 / 二维码" "修改热点名称（当前：$cur_name）" "修改热点密码（$cur_pw）" "重启热点（应用修改）" "打开网络设置" "退出" | pick "$st") || return 0
+    else
+      choice=$(printf '%s\n' "开启热点" "显示热点信息 / 二维码" "修改热点名称（当前：$cur_name）" "修改热点密码（$cur_pw）" "重启热点（应用修改）" "打开网络设置" "退出" | pick "$st") || return 0
+    fi
+    case "$choice" in
+      ""|退出) return 0 ;;
+      开启热点*)        start_hotspot ;;
+      关闭热点*)        stop_hotspot ;;
+      显示*)            show_info ;;
+      修改热点名称*)     set_ssid ;;
+      修改热点密码*)     set_password ;;
+      重启热点*)        restart_hotspot ;;
+      打开网络设置*)     systemsettings kcm_networkmanagement >/dev/null 2>&1 & ;;
+      *)                notify "没认出来这个选项" "$choice" ;;
+    esac
+  done
 }
 
 run_choice() {
   case "$1" in
-    开启热点*)      start_hotspot ;;
-    关闭热点*)      stop_hotspot ;;
-    显示*)          show_info ;;
-    修改热点名称*)   set_ssid ;;
-    修改热点密码*)   set_password ;;
-    状态*)          status_text ;;
-    *)             notify "没认出来这个选项" "$1" ;;
+    开启热点*)  start_hotspot ;;
+    关闭热点*)  stop_hotspot ;;
+    显示*)      show_info ;;
+    重启热点*)  restart_hotspot ;;
+    状态*)      status_short ;;
+    *)         notify "没认出来这个选项" "$1" ;;
   esac
 }
 
 arg=""
 [ $# -gt 0 ] && arg="$1"
 case "$arg" in
-  --status) status_text; exit 0 ;;
+  --status) status_short; exit 0 ;;
   --start) start_hotspot; exit 0 ;;
   --stop) stop_hotspot; exit 0 ;;
   --toggle)
