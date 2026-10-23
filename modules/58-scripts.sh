@@ -55,10 +55,14 @@ install_user_scripts() {
     link_user_script "$name" "$dest/package/$name"
   done
 
-  # desktop：gsudo 使用同目录的 fuzzel-askpass（内部脚本不单独暴露命令）。
-  link_user_script gsudo "$dest/desktop/gsudo"
-  link_user_script shortcuts "$dest/desktop/shortcuts"
-  link_user_script record-menu "$dest/desktop/record-menu"
+  # desktop：除 fuzzel-askpass（gsudo 的内部助手）外，全部链到 ~/bin。
+  # 以后往 assets/scripts/desktop 里加脚本，这里不用再改。
+  for f in "$dest"/desktop/*; do
+    if [ ! -f "$f" ] || [ ! -x "$f" ]; then continue; fi
+    name=$(basename "$f")
+    [ "$name" = "fuzzel-askpass" ] && continue
+    link_user_script "$name" "$f"
+  done
 
-  log "常驻脚本已安装：term-menu、pac、pacr、pacd、gsudo、shortcuts、record-menu"
+  log "常驻脚本已安装：maintenance 工具、pac/pacr/pacd、gsudo/shortcuts/record-menu（desktop 下的可执行脚本都会链到 ~/bin）"
 }

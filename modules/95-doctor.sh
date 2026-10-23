@@ -68,7 +68,7 @@ run_doctor() {
     fi
     echo
     echo "== 常驻脚本 =="
-    for cmd in term-menu pac pacr pacd gsudo; do
+    for cmd in term-menu pac pacr pacd gsudo shortcuts record-menu; do
       if test -x "$HOME/bin/$cmd"; then echo "  [OK]   $cmd"; else echo "  [MISS] $cmd"; fi
     done
     test -d "$HOME/scripts" && echo "  脚本目录: yes" || echo "  脚本目录: no"
@@ -80,10 +80,11 @@ run_doctor() {
     test -f "$HOME/.config/starship.toml" && echo "  [OK]   starship.toml" || echo "  [MISS] starship.toml"
     echo
     echo "== 快捷键 =="
-    for f in term-menu kitty-terminal btop fuzzel-launcher kos-wallpaper-preview; do
+    for f in term-menu kitty-terminal btop fuzzel-launcher kos-wallpaper-preview kos-record; do
       test -f "$HOME/.local/share/applications/$f.desktop" && echo "  [OK]   $f.desktop" || echo "  [MISS] $f.desktop"
     done
     test -x "$HOME/.local/bin/kos-wallpaper-preview" && echo "  [OK]   kos-wallpaper-preview" || echo "  [MISS] kos-wallpaper-preview"
+    pkg_installed gpu-screen-recorder && echo "  [OK]   gpu-screen-recorder" || echo "  [MISS] gpu-screen-recorder"
     echo
     echo "== 快照 =="
     snapper list-configs 2>&1 || true
