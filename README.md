@@ -127,8 +127,7 @@ archlinuxcn 12 个）；加 `--no-mirrors` 可保留你原来的列表。
 - Dock 默认 **智能隐藏**（安装器只在新装、尚无 Dock 配置时预置，已有配置不覆盖）
 - kitty 默认 **无标题栏**（KWin 窗口规则，只保留终端内容）
 - KOS 设置 / KDE 系统设置 / KDE 设置子窗口 / 系统监视器 / Dolphin：**半透明磨砂玻璃近似**（KOS 设置改 QML，后两者用 KWin 窗口规则）
-- genie 最小化动效已停用（插件源码压缩归档在仓库根目录 `genie-effect-2026-10-21.tar.gz`，
-  以后要恢复再解压；当前最小化动画交回 KOS 自带的 `kos_dock_window_animation`）
+- 最小化动效使用 KOS 自带的 `kos_dock_window_animation`（genie 风格）；旧的独立 genie 插件源码已从仓库移除
 - SilentSDDM 登录主题使用当前壁纸；KOS 锁屏固定 ds2 背景，圆角半透明登录框，SDDM 头像与桌面同步
 - KOS 锁屏：**ds2 背景**、时钟 + 天气 + 歌词，密码框圆角 14px
 - 音量 / 亮度 / 静音使用 **KDE 原生快捷键**；KOS OSD 实验已回退，不接管这些按键
@@ -147,7 +146,6 @@ archlinuxcn 12 个）；加 `--no-mirrors` 可保留你原来的列表。
 ~~~
 .
 ├── install.sh            调度：参数解析、阶段顺序、计划与总结
-├── genie-effect-2026-10-21.tar.gz  genie 插件源码（已停用归档；不要重新启用）
 ├── .shellcheckrc         shellcheck 配置（跨文件变量的误报说明）
 ├── .github/workflows/ci.yml  CI：语法 + ShellCheck + 干净 Arch 的 --check / --dry-run
 ├── docs/                 交接状态与排障手册
@@ -213,7 +211,7 @@ archlinuxcn 12 个）；加 `--no-mirrors` 可保留你原来的列表。
 
 - 当前目标机（ASUS TUF A15 实机）已完成一次完整安装并验收：KDE → KOS shell、fcitx5、kitty/fish、壁纸、锁屏、KDE 原生音量/亮度快捷键均可用
 - 最新改动已在本机验证：锁屏 ds2、Vellum 截图快捷键只保留 Print / Ctrl+Print；音量/亮度已恢复 KDE 原生处理
-- 已验证：`--check` 通过、`--dry-run` 全链路通过；genie 插件已停用并归档，当前使用 KOS 自带窗口动画
+- 已验证：`--check` 通过、`--dry-run` 全链路通过；最小化动画使用 KOS 自带窗口动画
 - CI：`.github/workflows/ci.yml`，bash -n + shellcheck + 干净 Arch 容器里跑 `--check` 与 `--dry-run`（只读检出）
 - `--spatial`：已在干净 Arch 容器里验证（OpenCV 5.0.0 + onnxruntime-cpu 1.29，`KOS_BUILD_SPATIAL=ON` 下
   产出 `kos-spatial-enabled=ON`、`kos-ai-worker`、`libkos_spatial3d.so`）

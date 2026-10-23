@@ -86,11 +86,7 @@ bash install.sh --dry-run --yes
    `plasma-kded6`（音量）和 `plasma-powerdevil`（亮度），再按排障手册检查
    `kglobalshortcutsrc` 中的 kmix / PowerDevil 动作。
 
-4. **genie 插件归档**
-   `genie-effect-2026-10-21.tar.gz` 还在仓库根目录；已停用，不影响安装。
-   是否移入 `docs/archive/` 需要先确认，不要直接删。
-
-5. **首次登录引导**
+4. **首次登录引导**
    属于桌面仓库（NextKDE）的责任，本仓库不实现。
 
 ## 常用验证
