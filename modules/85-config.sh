@@ -411,7 +411,7 @@ EOF
 configure_kos_motion() {
   log "配置窗口动效与玻璃参数..."
   if [ "$DRY_RUN" -eq 1 ]; then
-    log "[dry-run] 写入 kwinrc 动效时长并设置 glass blur=0.10"
+    log "[dry-run] 写入 kwinrc 动效（genie 风格 + 时长）并设置 glass blur=0.10"
     return 0
   fi
   if ! have kwriteconfig6; then
@@ -420,12 +420,15 @@ configure_kos_motion() {
   fi
 
   backup_file "$HOME/.config/kwinrc"
-  kwriteconfig6 --file kwinrc --group Effect-kos_dock_window_animation --key OpenDuration 240 --notify
-  kwriteconfig6 --file kwinrc --group Effect-kos_dock_window_animation --key GenieDuration 260 --notify
-  kwriteconfig6 --file kwinrc --group Effect-kos_dock_window_animation --key RestoreDuration 180 --notify
-  kwriteconfig6 --file kwinrc --group Effect-kos_dock_window_animation --key CloseDuration 160 --notify
-  kwriteconfig6 --file kwinrc --group Effect-kos_dock_window_animation --key HideAnimation scale --notify
+  # 动画风格：最小化/恢复走 macOS 那种 genie（吸进 Dock），打开永远是缩放（效果里写死）。
+  kwriteconfig6 --file kwinrc --group Effect-kos_dock_window_animation --key AnimationStyle genie --notify
+  kwriteconfig6 --file kwinrc --group Effect-kos_dock_window_animation --key HideAnimation genie --notify
   kwriteconfig6 --file kwinrc --group Effect-kos_dock_window_animation --key CloseAnimation scale --notify
+  # 时长按 macOS 手感：genie ~0.34s，入场比退场快，关窗最短。
+  kwriteconfig6 --file kwinrc --group Effect-kos_dock_window_animation --key OpenDuration 250 --notify
+  kwriteconfig6 --file kwinrc --group Effect-kos_dock_window_animation --key GenieDuration 340 --notify
+  kwriteconfig6 --file kwinrc --group Effect-kos_dock_window_animation --key RestoreDuration 220 --notify
+  kwriteconfig6 --file kwinrc --group Effect-kos_dock_window_animation --key CloseDuration 180 --notify
 
   if have qdbus6; then
     qdbus6 org.kde.KWin /Effects org.kde.kwin.Effects.reconfigureEffect kos_dock_window_animation >/dev/null 2>&1 || true

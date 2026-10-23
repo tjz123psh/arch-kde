@@ -136,7 +136,7 @@ print_plan() {
   log " SDDM 主题: $([ "$NO_SDDM_THEME" -eq 1 ] && echo 保留现有 || echo SilentSDDM)"
   log " 空间景深: $([ "$KOS_SPATIAL" -eq 1 ] && echo 构建 || echo 跳过)"
   log " 旧桌面清理: $([ "$CLEAN_OLD" -eq 1 ] && echo 卸载旧桌面专属包 || echo 不做)"
-  log " 动效: KOS 玻璃（genie 已停用，源码归档在 genie-effect-2026-10-21.tar.gz）"
+  log " 动效: KOS 窗口动画（genie 风格）+ 玻璃；旧的独立 genie 插件已停用，源码归档在 genie-effect-2026-10-21.tar.gz"
   if declare -F hw_report >/dev/null 2>&1; then hw_report; fi
   if declare -F hw_policy_summary >/dev/null 2>&1; then hw_policy_summary; fi
   log " 不改动: 分区 / 内核 / 时区 / bootloader"
