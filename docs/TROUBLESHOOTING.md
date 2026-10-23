@@ -186,6 +186,21 @@ sudo iptables -S FORWARD | head -4
 
 另外热点还依赖 `dnsmasq`（shared 模式的 DHCP/DNS）；缺了它会在开启时报
 `IP 配置无法保留（无可用地址、超时等）`。
+## 打开 Chrome 弹「KDE 密码库服务 - 请求新建 kwallet」
+
+Chrome 启动时要通过 KDE 密钥服务（`ksecretd`，属于 `kwallet` 包）取 cookie 加密密钥；
+系统里没建过钱包时，它会请求新建一个叫 `kwallet` 的钱包，**点取消才能继续使用浏览器**。
+
+安装器会给 Chrome 写一个用户级启动项覆盖，把 `--password-store=basic` 加进 Exec，
+Chrome 改用自带的存储，不再碰密钥服务：
+
+```bash
+grep '^Exec' ~/.local/share/applications/google-chrome.desktop   # 应该带 --password-store=basic
+```
+
+想恢复默认：删掉 `~/.local/share/applications/google-chrome.desktop` 再 `kbuildsycoca6 --noincremental`。
+
+换成 basic 存储后，Chrome 会重新生成 cookie 加密密钥，个别站点可能要重新登录一次。
 ## 完全回退
 
 - 单个配置：按 `~/.local/state/kos-installer/backup/<时间>/manifest.txt` 复制回去。

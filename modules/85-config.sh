@@ -566,6 +566,31 @@ PY
   log "KOS 锁屏已应用 ds2 背景、时钟+天气+歌词、圆角密码框"
 }
 
+
+# Chrome 启动时会通过 KDE 的密钥服务（ksecretd）取 cookie 加密密钥；系统里还没有钱包时，
+# 会弹「KDE 密码库服务 - 请求新建 kwallet」，点取消才能继续用。把 Chrome 换成自己的基础
+# 存储（--password-store=basic），它就不再碰密钥服务，弹窗也就没了。
+install_chrome_password_store_override() {
+  local src="/usr/share/applications/google-chrome.desktop"
+  local dst="$HOME/.local/share/applications/google-chrome.desktop"
+  log "配置 Chrome 不使用 KDE 密码库（避免每次启动弹窗）..."
+  if [ "$DRY_RUN" -eq 1 ]; then
+    log "[dry-run] 生成 $dst（Exec 追加 --password-store=basic）"
+    return 0
+  fi
+  if [ ! -f "$src" ]; then
+    log "没装 Chrome，跳过密码库覆盖"
+    return 0
+  fi
+  mkdir -p "$(dirname "$dst")"
+  backup_file "$dst"
+  sed 's|^Exec=/usr/bin/google-chrome-stable|Exec=/usr/bin/google-chrome-stable --password-store=basic|' \
+    "$src" > "$dst"
+  if have kbuildsycoca6; then
+    kbuildsycoca6 --noincremental >/dev/null 2>&1 || true
+  fi
+  log "Chrome 启动参数已更新（下次启动生效）"
+}
 install_desktop_config() {
   log "写入桌面环境配置（环境变量 / GTK / 字体）..."
   install_file "$CONFIG_DIR/environment/90-kos.conf" "$HOME/.config/environment.d/90-kos.conf"
@@ -581,6 +606,7 @@ install_desktop_config() {
   enable_kos_subtle_dock_reveal
   enable_frosted_kde_windows
   enable_kos_frosted_settings
+  install_chrome_password_store_override
   install_default_apps
   configure_kde_global_appearance
   configure_kos_motion
