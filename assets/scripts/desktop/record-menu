@@ -1,0 +1,158 @@
+#!/usr/bin/env bash
+# KOS 录屏菜单：fuzzel 选动作，后端 gpu-screen-recorder（GPU 编码）。
+#
+# 为什么不是 Kooha / wf-recorder：KWin 不实现 wlr-screencopy，wf-recorder / wl-screenrec
+# 这类工具在 KDE Wayland 上抓不到屏。gpu-screen-recorder 走 KMS + GPU 编码，最省资源。
+set -u
+
+export PATH="$HOME/.local/bin:$HOME/bin:/usr/local/bin:/usr/bin:/bin:$PATH"
+
+OUTDIR="$HOME/Videos/Recordings"
+RUNTIME_DIR="$(printenv XDG_RUNTIME_DIR 2>/dev/null)"
+[ -n "$RUNTIME_DIR" ] || RUNTIME_DIR="/tmp"
+RUN="$RUNTIME_DIR/kos-record"
+SOCK="$RUN/gsr.sock"
+PIDFILE="$RUN/pid"
+MODEFILE="$RUN/mode"
+LOGFILE="$RUN/log"
+mkdir -p "$OUTDIR" "$RUN"
+
+notify() {
+  command -v notify-send >/dev/null 2>&1 || return 0
+  notify-send -a 录屏 "$@" >/dev/null 2>&1 || true
+}
+
+running() {
+  [ -f "$PIDFILE" ] || return 1
+  local pid
+  pid=$(cat "$PIDFILE" 2>/dev/null || true)
+  [ -n "$pid" ] || return 1
+  kill -0 "$pid" 2>/dev/null
+}
+
+mode() { cat "$MODEFILE" 2>/dev/null || true; }
+
+have_gsr() { command -v gpu-screen-recorder >/dev/null 2>&1; }
+
+start_record() {
+  local fps="$1" audio="$2" out
+  if running; then notify "已经在录制了" "先停止再开新的"; return 0; fi
+  if ! have_gsr; then notify "缺少 gpu-screen-recorder" "sudo pacman -S gpu-screen-recorder"; return 1; fi
+  out="$OUTDIR/$(date +%Y%m%d-%H%M%S).mp4"
+  rm -f "$SOCK"
+  if [ "$audio" = none ]; then
+    gpu-screen-recorder -w screen -f "$fps" -o "$out" -ipc "$SOCK" >"$LOGFILE" 2>&1 &
+  else
+    gpu-screen-recorder -w screen -f "$fps" -a "$audio" -o "$out" -ipc "$SOCK" >"$LOGFILE" 2>&1 &
+  fi
+  echo $! > "$PIDFILE"
+  echo record > "$MODEFILE"
+  sleep 1.2
+  if running; then
+    notify "开始录制 · $fps fps" "$(basename "$out")"
+  else
+    notify "录制启动失败" "$(tail -2 "$LOGFILE" 2>/dev/null | tr '\n' ' ')"
+    rm -f "$PIDFILE"
+  fi
+}
+
+start_replay() {
+  local secs="$1"
+  if running; then notify "已经在录制了" "先停止再开新的"; return 0; fi
+  if ! have_gsr; then notify "缺少 gpu-screen-recorder" "sudo pacman -S gpu-screen-recorder"; return 1; fi
+  rm -f "$SOCK"
+  gpu-screen-recorder -w screen -f 60 -a default_output -r "$secs" -o "$OUTDIR" -ipc "$SOCK" >"$LOGFILE" 2>&1 &
+  echo $! > "$PIDFILE"
+  echo replay > "$MODEFILE"
+  sleep 1.2
+  if running; then
+    notify "回放缓冲已开启" "保留最近 $secs 秒，随时可以保存"
+  else
+    notify "回放启动失败" "$(tail -2 "$LOGFILE" 2>/dev/null | tr '\n' ' ')"
+    rm -f "$PIDFILE"
+  fi
+}
+
+stop_current() {
+  if ! running; then notify "当前没有在录制"; return 0; fi
+  local m pid reply
+  m=$(mode)
+  pid=$(cat "$PIDFILE" 2>/dev/null || true)
+  if [ "$m" = replay ]; then
+    gsr-cli -ipc "$SOCK" stop >/dev/null 2>&1 || kill -INT "$pid" 2>/dev/null
+    notify "回放缓冲已关闭"
+  else
+    reply=$(gsr-cli -ipc "$SOCK" stop 2>/dev/null || kill -INT "$pid" 2>/dev/null)
+    notify "录制已保存" "$reply"
+  fi
+  sleep 0.5
+  rm -f "$PIDFILE" "$MODEFILE"
+}
+
+save_replay() {
+  if ! running || [ "$(mode)" != replay ]; then
+    notify "回放缓冲没在运行" "先在菜单里选「开启回放缓冲」"
+    return 0
+  fi
+  local path
+  path=$(gsr-cli -ipc "$SOCK" save-replay 30 2>/dev/null || true)
+  notify "已保存最近 30 秒" "$path"
+}
+
+status_line() {
+  if running; then
+    echo "正在运行：$(mode)（pid $(cat "$PIDFILE" 2>/dev/null)）"
+  else
+    echo "空闲"
+  fi
+}
+
+run_choice() {
+  case "$1" in
+    录制全屏*60fps*系统声音*) start_record 60 default_output ;;
+    录制全屏*30fps*系统声音*) start_record 30 default_output ;;
+    录制全屏*静音*)           start_record 60 none ;;
+    开启回放缓冲*)            start_replay 30 ;;
+    保存最近*)               save_replay ;;
+    停止回放缓冲*)             stop_current ;;
+    停止录制*)               stop_current ;;
+    打开录制目录*)             xdg-open "$OUTDIR" >/dev/null 2>&1 & ;;
+    查看最近日志*)             notify "最近日志" "$(tail -3 "$LOGFILE" 2>/dev/null | tr '\n' ' ')" ;;
+    *)                        notify "没认出来这个选项" "$1" ;;
+  esac
+}
+
+case "${1:-}" in
+  --status) status_line; exit 0 ;;
+  --do) shift; run_choice "${1:-}"; exit 0 ;;
+esac
+
+if ! command -v fuzzel >/dev/null 2>&1; then
+  notify "缺少 fuzzel" "无法显示录屏菜单"
+  exit 1
+fi
+
+if running; then
+  if [ "$(mode)" = replay ]; then
+    options="保存最近 30 秒
+停止回放缓冲
+打开录制目录
+查看最近日志"
+  else
+    options="停止录制
+打开录制目录
+查看最近日志"
+  fi
+else
+  options="录制全屏 · 60fps（系统声音）
+录制全屏 · 30fps（系统声音）
+录制全屏 · 60fps（静音）
+开启回放缓冲（最近 30 秒）
+打开录制目录
+查看最近日志"
+fi
+
+choice=$(printf '%s\n' "$options" | fuzzel --dmenu --prompt=' 录屏 > ' --lines=10 --width=48 --placeholder='选择录屏动作') || exit 0
+[ -n "$choice" ] || exit 0
+
+run_choice "$choice"

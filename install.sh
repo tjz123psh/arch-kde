@@ -204,6 +204,7 @@ main() {
   install_wallpaper_shortcut || warn "壁纸快捷键配置失败，可稍后重跑"
   install_vellum_shortcuts || warn "Vellum 快捷键配置失败，可稍后重跑"
   install_shortcut_viewer_shortcut || warn "快捷键查看器配置失败，可稍后重跑"
+  install_record_menu_shortcut || warn "录屏菜单快捷键配置失败，可稍后重跑"
   configure_keyboard_repeat || warn "键盘重复设置失败，可稍后重跑"
 
   run_doctor quick || true

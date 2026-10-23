@@ -132,6 +132,39 @@ EOF
   log "Win+/ → 快捷键查看器"
 }
 
+
+install_record_menu_shortcut() {
+  log "配置 Alt+F5 录屏菜单..."
+
+  if [ "$DRY_RUN" -eq 1 ]; then
+    log "[dry-run] 写入 kos-record.desktop 并设置 Alt+F5"
+    return 0
+  fi
+  if ! have kwriteconfig6; then
+    warn "缺少 kwriteconfig6，跳过录屏菜单快捷键"
+    return 0
+  fi
+
+  backup_file "$HOME/.config/kglobalshortcutsrc"
+  write_file "$HOME/.local/share/applications/kos-record.desktop" <<EOF
+[Desktop Entry]
+Type=Application
+Name=KOS 录屏
+Comment=fuzzel 菜单：gpu-screen-recorder 录屏 / 回放
+Exec=$HOME/bin/record-menu
+Icon=media-record
+Terminal=false
+NoDisplay=true
+StartupNotify=false
+X-KDE-GlobalAccel-CommandShortcut=true
+EOF
+
+  kwriteconfig6 --file kglobalshortcutsrc --group services --group kos-record.desktop --key _launch "Alt+F5" --notify
+  if have kbuildsycoca6; then
+    kbuildsycoca6 --noincremental >/dev/null 2>&1 || true
+  fi
+  log "Alt+F5 → 录屏菜单"
+}
 configure_launcher_shortcuts() {
   log "配置启动器快捷键（Win / Win+O）..."
 
