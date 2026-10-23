@@ -482,6 +482,69 @@ EOF
   log "Dolphin 详情视图已写入"
 }
 
+# KOS 锁屏：ds2 背景、时钟+天气+歌词、密码框圆角不再做成胶囊。
+# 只改 kscreenlocker greeter 的 QML；PAM/认证逻辑不动。
+configure_kos_lockscreen() {
+  local dir="$HOME/.local/share/plasma/shells/org.kos.desktop/contents/lockscreen"
+
+  if [ ! -f "$dir/LockScreen.qml" ]; then
+    log "未安装 KOS 锁屏，跳过锁屏美化"
+    return 0
+  fi
+  if [ "$DRY_RUN" -eq 1 ]; then
+    log "[dry-run] 写入 KOS 锁屏背景 ds2、密码框圆角 14、隐藏日历/表盘"
+    return 0
+  fi
+
+  install_file "$ASSET_DIR/wallpapers/ds2.png" "$dir/ds2.png"
+  backup_file "$dir/LockScreen.qml"
+  backup_file "$dir/LockWidgets.qml"
+
+  python3 - "$dir/LockScreen.qml" <<'PY'
+from pathlib import Path
+import sys
+
+path = Path(sys.argv[1])
+s = path.read_text()
+if "property bool customWallpaper" not in s:
+    s = s.replace("    property bool hasWallpaper: false",
+                  "    property bool hasWallpaper: false\n"
+                  "    // Use the KOS lock-screen wallpaper instead of the desktop wallpaper.\n"
+                  "    property bool customWallpaper: true")
+s = s.replace("    function syncWallpaperSource() {\n        if (!wallpaper)\n            return",
+              "    function syncWallpaperSource() {\n"
+              "        if (root.customWallpaper) {\n"
+              "            root.wallpaperSource = \"\"\n"
+              "            return\n"
+              "        }\n"
+              "        if (!wallpaper)\n            return")
+s = s.replace("            visible: root.wallpaperSource != \"\"\n            source: root.wallpaperSource",
+              "            visible: root.customWallpaper || root.wallpaperSource != \"\"\n"
+              "            source: root.customWallpaper ? \"ds2.png\" : root.wallpaperSource")
+s = s.replace("            wallpaper.z = -1\n        }",
+              "            wallpaper.z = -1\n            wallpaper.visible = false\n        }")
+s = s.replace("                readonly property int cornerRadius: Math.round(pane.height * 0.5)",
+              "                readonly property int cornerRadius: Math.min(14, Math.round(pane.height * 0.5))")
+path.write_text(s)
+PY
+
+  python3 - "$dir/LockWidgets.qml" <<'PY'
+from pathlib import Path
+import sys
+
+path = Path(sys.argv[1])
+s = path.read_text()
+if "Column {\n            spacing: 4\n            visible: false" not in s:
+    s = s.replace("        Column {\n            spacing: 4\n",
+                  "        Column {\n            spacing: 4\n            visible: false\n", 1)
+if "Canvas {\n            id: dial\n            visible: false" not in s:
+    s = s.replace("        Canvas {\n            id: dial\n",
+                  "        Canvas {\n            id: dial\n            visible: false\n", 1)
+path.write_text(s)
+PY
+  log "KOS 锁屏已应用 ds2 背景、时钟+天气+歌词、圆角密码框"
+}
+
 install_desktop_config() {
   log "写入桌面环境配置（环境变量 / GTK / 字体）..."
   install_file "$CONFIG_DIR/environment/90-kos.conf" "$HOME/.config/environment.d/90-kos.conf"
@@ -501,4 +564,5 @@ install_desktop_config() {
   configure_kde_global_appearance
   configure_kos_motion
   configure_dolphin_layout
+  configure_kos_lockscreen
 }

@@ -125,6 +125,7 @@ archlinuxcn 12 个）；加 `--no-mirrors` 可保留你原来的列表。
 - genie 最小化动效已停用（插件源码压缩归档在仓库根目录 `genie-effect-2026-10-21.tar.gz`，
   以后要恢复再解压；当前最小化动画交回 KOS 自带的 `kos_dock_window_animation`）
 - SilentSDDM 登录主题，当前壁纸作为登录/锁屏背景，圆角半透明登录框，SDDM 头像与桌面同步
+- KOS 锁屏：**ds2 背景**、时钟 + 天气 + 歌词，密码框圆角 14px
 - 13 张壁纸的图集（进 KOS 壁纸选择器）
 
 ## 关键约定
