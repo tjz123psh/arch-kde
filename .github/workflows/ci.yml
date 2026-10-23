@@ -24,7 +24,7 @@ jobs:
       - name: Parse every script
         run: |
           set -eu
-          for f in install.sh lib/*.sh modules/*.sh assets/scripts/desktop/kos-osd assets/scripts/desktop/kos-osd-shortcuts; do
+          for f in install.sh lib/*.sh modules/*.sh; do
             bash -n "$f"
             printf 'ok %s\n' "$f"
           done
@@ -34,7 +34,7 @@ jobs:
       - name: shellcheck
         run: |
           shellcheck --version
-          shellcheck install.sh lib/*.sh modules/*.sh assets/scripts/desktop/kos-osd assets/scripts/desktop/kos-osd-shortcuts
+          shellcheck install.sh lib/*.sh modules/*.sh
 
       - name: Usage text renders
         run: |

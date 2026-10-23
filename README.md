@@ -101,7 +101,7 @@ archlinuxcn 12 个）；加 `--no-mirrors` 可保留你原来的列表。
 - 常用应用：Chrome、VS Code、yazi、Obsidian、flclash、nomacs 等（Chrome / VS Code 可用参数关掉；
   flclash / nomacs 来自 archlinuxcn，没配这个源时自动跳过）
 - 开发工具：**Neovim**、**JDK 25**（LTS）、**Kate**、**npm**、**GitHub CLI**（`gh`）、**Docker + Compose**、命令行 AI 工具 **pi**（`pi-coding-agent-bin`）与 **opencode**（`opencode-bin`）
-- 常驻脚本：**term-menu**（维护菜单）、**pac / pacr / pacd**（装 / 卸 / 降级）、**gsudo**（图形化 sudo）、**shortcuts**（快捷键查看器）、**kos-osd / kos-osd-shortcuts**（系统反馈）；脚本放在 `~/scripts`，命令链接到 `~/bin`
+- 常驻脚本：**term-menu**（维护菜单）、**pac / pacr / pacd**（装 / 卸 / 降级）、**gsudo**（图形化 sudo）、**shortcuts**（快捷键查看器）；脚本放在 `~/scripts`，命令链接到 `~/bin`
 - 应用配置：**kitty / fish / yazi / fastfetch / mpv / fuzzel / btop / starship** 的配置随安装器部署到 `~/.config`
 - 截图：**Vellum**（官方 Rust/GTK4 发行包；只保留 Print 区域截图、Ctrl+Print 长截图；Vellum 自带的 Meta+... 已关闭，KOS platform 里的重复 vellum action 也关闭）
 - 录屏：**Kooha**（KDE ScreenCast portal，附 GStreamer H.264 插件）
@@ -131,7 +131,7 @@ archlinuxcn 12 个）；加 `--no-mirrors` 可保留你原来的列表。
   以后要恢复再解压；当前最小化动画交回 KOS 自带的 `kos_dock_window_animation`）
 - SilentSDDM 登录主题使用当前壁纸；KOS 锁屏固定 ds2 背景，圆角半透明登录框，SDDM 头像与桌面同步
 - KOS 锁屏：**ds2 背景**、时钟 + 天气 + 歌词，密码框圆角 14px
-- 系统反馈：音量 / 亮度 / 静音键走 **KOS OSD**（玻璃卡片、百分比、1.5s 消失）；`kos-osd-shortcuts` 用户服务自动注册 KGlobalAccel，安装后不需要注销；KDE 原生 OSD 关闭
+- 音量 / 亮度 / 静音使用 **KDE 原生快捷键**；KOS OSD 实验已回退，不接管这些按键
 - 13 张壁纸的图集（进 KOS 壁纸选择器）
 
 ## 关键约定
@@ -163,15 +163,14 @@ archlinuxcn 12 个）；加 `--no-mirrors` 可保留你原来的列表。
 │   ├── 50-terminal.sh    kitty / fish / starship
 │   ├── 52-configs.sh     yazi / fastfetch / mpv / fuzzel 配置
 │   ├── 55-apps.sh        QQ 启动器去重 + Vellum 截图工具安装
-│   ├── 57-shortcuts.sh   KDE 快捷键 / Vellum 截图键 / KOS OSD 服务
-│   ├── 58-scripts.sh     安装 maintenance / package / share 常驻脚本 + kos-osd
+│   ├── 57-shortcuts.sh   KDE 快捷键 / Vellum 截图键
+│   ├── 58-scripts.sh     安装 maintenance / package / share 常驻脚本
 │   ├── 60-kos.sh         KOS 构建依赖 + 取源码 + kosctl 构建安装 + 快捷键
 │   ├── 80-sddm.sh        SilentSDDM 登录主题（AUR）
 │   ├── 85-config.sh      桌面环境变量 / GTK / 字体 / 壁纸库 / 组件外观
 │   └── 95-doctor.sh      安装后复查
 └── assets/
     ├── config/           fcitx5 / kitty / fish / gtk / fontconfig / environment / yazi / fastfetch / mpv / fuzzel / btop
-    ├── kos/osd/          KOS 音量 / 亮度 OSD QML 模块
     ├── scripts/          maintenance / package / desktop 三组常驻脚本
     └── wallpapers/       13 张壁纸（KOS 壁纸库）
 ~~~
@@ -212,8 +211,8 @@ archlinuxcn 12 个）；加 `--no-mirrors` 可保留你原来的列表。
 
 ## 状态
 
-- 当前目标机（ASUS TUF A15 实机）已完成一次完整安装并验收：KDE → KOS shell、fcitx5、kitty/fish、壁纸、锁屏、系统反馈 OSD 均可用
-- 最新改动已在本机验证：锁屏 ds2、音量/亮度 OSD、Vellum 截图快捷键只保留 Print / Ctrl+Print
+- 当前目标机（ASUS TUF A15 实机）已完成一次完整安装并验收：KDE → KOS shell、fcitx5、kitty/fish、壁纸、锁屏、KDE 原生音量/亮度快捷键均可用
+- 最新改动已在本机验证：锁屏 ds2、Vellum 截图快捷键只保留 Print / Ctrl+Print；音量/亮度已恢复 KDE 原生处理
 - 已验证：`--check` 通过、`--dry-run` 全链路通过；genie 插件已停用并归档，当前使用 KOS 自带窗口动画
 - CI：`.github/workflows/ci.yml`，bash -n + shellcheck + 干净 Arch 容器里跑 `--check` 与 `--dry-run`（只读检出）
 - `--spatial`：已在干净 Arch 容器里验证（OpenCV 5.0.0 + onnxruntime-cpu 1.29，`KOS_BUILD_SPATIAL=ON` 下

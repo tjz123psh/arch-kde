@@ -32,57 +32,44 @@ sudo cp ~/.local/state/kos-installer/backup/<时间>/etc/pacman.d/mirrorlist /et
 sudo systemctl disable --now reflector.timer
 ```
 
-## 音量 / 亮度 OSD 不出现
+## 音量 / 亮度快捷键不工作
 
-先确认服务：
+当前使用 **KDE 原生** 音量/亮度处理，不再由 KOS OSD 接管。
 
-```bash
-systemctl --user status kos-osd-shortcuts
-journalctl --user -u kos-osd-shortcuts -n 50 --no-pager
-```
-
-手动测脚本 + IPC：
+先检查动作是否存在：
 
 ```bash
-~/bin/kos-osd volume-up
-~/bin/kos-osd brightness-up
-qs ipc -c kos call osd volume 50 false
-qs ipc -c kos call osd brightness 40
+qdbus6 org.kde.kglobalaccel 2>&1 | grep -E '/component/(kmix|org_kde_powerdevil)'
+qdbus6 --literal org.kde.kglobalaccel /component/kmix org.kde.kglobalaccel.Component.allShortcutInfos 2>&1 | grep -E 'increase_volume|decrease_volume|mute'
+qdbus6 --literal org.kde.kglobalaccel /component/org_kde_powerdevil org.kde.kglobalaccel.Component.allShortcutInfos 2>&1 | grep -E '(Increase|Decrease) Screen Brightness'
 ```
 
-如果脚本能改音量/亮度但 OSD 不显示，重启 KOS shell：
+如果缺音量动作，重启 kded（audioshortcutsservice 在 kded 里）：
 
 ```bash
-systemctl --user restart kos-shell
+systemctl --user restart plasma-kded6
 ```
 
-如果 KOS shell 里没有 `osd` IPC target，说明 OSD 模块没装进：
+如果缺亮度动作，重启 PowerDevil：
 
 ```bash
-ls ~/.config/quickshell/kos/desktop/modules/osd
-grep -nE 'modules.osd|Osd \{\}' ~/.config/quickshell/kos/desktop/DesktopEnvironment.qml
+systemctl --user restart plasma-powerdevil
 ```
 
-重新跑安装器对应阶段（或重跑一次 `bash install.sh --yes`，已有配置会备份）。
-不要整脚本 sudo。
+配置文件中的期望值（`~/.config/kglobalshortcutsrc`）：
 
-## 音量/亮度键还弹 KDE 原生 OSD，或两个 OSD 都弹
+```ini
+[kmix]
+increase_volume=Volume Up
+decrease_volume=Volume Down
+mute=Volume Mute
 
-KDE 的 kmix / PowerDevil 会在某些会话重启后重新注册默认动作。检查：
-
-```bash
-grep -nA4 '^\[kmix\]\|^\[org_kde_powerdevil\]' ~/.config/kglobalshortcutsrc
+[org_kde_powerdevil]
+Increase Screen Brightness=Monitor Brightness Up
+Decrease Screen Brightness=Monitor Brightness Down
 ```
 
-`kos-osd-shortcuts` 启动时会移除重复动作。重启它：
-
-```bash
-systemctl --user restart kos-osd-shortcuts
-journalctl --user -u kos-osd-shortcuts -n 50 --no-pager
-```
-
-仍然反复出现时，退出并重新登录一次，让 KWin 重新加载 KGlobalAccel；这是 Plasma 6
-快捷键配置的已知行为，不是安装器在运行时改坏的。
+如果 KGlobalAccel 状态很乱，最可靠的是注销并重新登录一次；不要为了这个去重装整台系统。
 
 ## 截图快捷键多余 / 只剩 Print 和 Ctrl+Print 的目标
 
@@ -106,11 +93,9 @@ Vellum portal 的 `bindings` 为空、`enabled=false`。
 ```bash
 vellum shortcuts disable
 cat ~/.config/vellum/shortcuts.json    # 应为 {"enabled": false}
-systemctl --user restart kos-osd-shortcuts
 ```
 
-安装器 `57-shortcuts.sh` 的 `install_vellum_shortcuts` 会做同样的清理；
-`kos-osd-shortcuts` 启动时还会 unRegister 掉 portal 旧动作。
+安装器 `57-shortcuts.sh` 的 `install_vellum_shortcuts` 会做同样的清理。
 
 ## 锁屏不是 ds2 / 没有天气歌词
 

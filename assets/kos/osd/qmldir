@@ -1,5 +1,0 @@
-module qs.desktop.modules.osd
-singleton OsdService 1.0 OsdService.qml
-Osd 1.0 Osd.qml
-OsdWindow 1.0 OsdWindow.qml
-OsdGlyph 1.0 OsdGlyph.qml
