@@ -411,7 +411,7 @@ EOF
 configure_kos_motion() {
   log "配置窗口动效与玻璃参数..."
   if [ "$DRY_RUN" -eq 1 ]; then
-    log "[dry-run] 写入 kwinrc 动效（genie 风格 + 时长）并设置 glass blur=0.10"
+    log "[dry-run] 写入 kwinrc 动效（genie 风格 + 时长 + 摆动窗口）并设置 glass blur=0.10"
     return 0
   fi
   if ! have kwriteconfig6; then
@@ -429,6 +429,13 @@ configure_kos_motion() {
   kwriteconfig6 --file kwinrc --group Effect-kos_dock_window_animation --key GenieDuration 340 --notify
   kwriteconfig6 --file kwinrc --group Effect-kos_dock_window_animation --key RestoreDuration 220 --notify
   kwriteconfig6 --file kwinrc --group Effect-kos_dock_window_animation --key CloseDuration 180 --notify
+
+  # 摆动窗口（Wobbly Windows，Compiz 同源）：拖动/缩放时窗口做弹簧形变。
+  # KDE 自带效果，只暴露三档幅度 + 两个开关，没有 friction/mass 那种数值。
+  kwriteconfig6 --file kwinrc --group Plugins --key wobblywindowsEnabled true --notify
+  kwriteconfig6 --file kwinrc --group Effect-wobblywindows --key WobblynessLevel 2 --notify
+  kwriteconfig6 --file kwinrc --group Effect-wobblywindows --key MoveWobble true --notify
+  kwriteconfig6 --file kwinrc --group Effect-wobblywindows --key ResizeWobble true --notify
 
   if have qdbus6; then
     qdbus6 org.kde.KWin /Effects org.kde.kwin.Effects.reconfigureEffect kos_dock_window_animation >/dev/null 2>&1 || true
