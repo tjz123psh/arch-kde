@@ -2,7 +2,7 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 # shellcheck shell=bash
 
-if [ -z "$BASH_VERSION" ]; then echo "请用 bash 运行"; exit 1; fi
+if [ -z "$BASH_VERSION" ]; then echo "Please run this script with bash"; exit 1; fi
 
 STATE_DIR="$HOME/.local/state/kos-installer"
 LOG_DIR="$STATE_DIR/log"
@@ -16,8 +16,8 @@ SUDO_KEEPALIVE_PID=
 init_state() {
   mkdir -p "$LOG_DIR" "$BACKUP_DIR"
   : > "$MANIFEST"
-  log "日志: $LOG_FILE"
-  log "备份: $BACKUP_DIR"
+  log "Log: $LOG_FILE"
+  log "Backup: $BACKUP_DIR"
 }
 
 log() {
@@ -25,11 +25,11 @@ log() {
 }
 
 warn() {
-  echo "[$(date +%H:%M:%S)] 警告: $*" | tee -a "$LOG_FILE" >&2
+  echo "[$(date +%H:%M:%S)] WARNING: $*" | tee -a "$LOG_FILE" >&2
 }
 
 die() {
-  echo "[$(date +%H:%M:%S)] 错误: $*" | tee -a "$LOG_FILE" >&2
+  echo "[$(date +%H:%M:%S)] ERROR: $*" | tee -a "$LOG_FILE" >&2
   exit 1
 }
 
@@ -63,7 +63,7 @@ confirm() {
 start_sudo_keepalive() {
   # 正常 TTY 会弹密码；非交互（SSH/CI）且已配置 NOPASSWD 时用 sudo -n 兜底。
   if ! sudo -v 2>/dev/null; then
-    sudo -n true 2>/dev/null || die "sudo 认证失败"
+    sudo -n true 2>/dev/null || die "sudo authentication failed"
   fi
   ( while true; do sudo -n true 2>/dev/null; sleep 50; done ) &
   SUDO_KEEPALIVE_PID=$!
@@ -91,7 +91,7 @@ backup_file() {
 install_file() {
   local src="$1" dest="$2" mode=644
   if [ "$#" -ge 3 ]; then mode="$3"; fi
-  if [ ! -f "$src" ]; then die "缺少文件: $src"; fi
+  if [ ! -f "$src" ]; then die "Missing file: $src"; fi
   if [ "$DRY_RUN" -eq 1 ]; then log "[dry-run] install $src -> $dest"; return 0; fi
   backup_file "$dest"
   mkdir -p "$(dirname "$dest")"

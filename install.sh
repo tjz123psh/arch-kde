@@ -48,46 +48,46 @@ unset _m
 
 usage() {
   cat <<'USAGE'
-用法: bash install.sh [选项]
+Usage: bash install.sh [options]
 
-预检与协助:
-  --check            只做预检并报告，不改动系统
-  -y, --yes          全程不询问
-  --dry-run          打印将要执行的命令，不落盘
-  --verbose          打印每条命令
+Preflight and help:
+  --check            Preflight only; report and exit without changing anything
+  -y, --yes          Never prompt
+  --dry-run          Print the commands instead of running them
+  --verbose          Echo every command
 
-装什么:
-  --all              默认已是全装；保留该参数用于显式表达
-  --no-apps          不装独立应用（日历/计算器/待办/天气）
-  --no-lockscreen    不装 KOS 锁屏
-  --start            安装完成后立即启动 KOS shell
-  --spatial          同时构建空间/景深（会装 OpenCV + ONNX Runtime，默认关闭）
+What gets installed:
+  --all              Full install (the default); kept for explicitness
+  --no-apps          Skip standalone apps (calendar / calculator / todo / weather)
+  --no-lockscreen    Skip the KOS lock screen
+  --start            Start the KOS shell right after installing
+  --spatial          Also build spatial depth (installs OpenCV + ONNX Runtime; off by default)
   --ime fcitx5|rime|none
   --locale en|zh
 
-跳过:
-  --no-sddm-theme    不改 SDDM 登录主题
-  --no-aur           不用 AUR（会失去图标主题、SDDM 主题等）
-  --no-mirrors       不改 pacman 镜像
-  --no-archlinuxcn   不加 archlinuxcn 源
-  --no-browser       不装 Chrome
-  --no-vscode        不装 VS Code
-  --skip-update      不更新 KOS 源码（离线安装）
-  --clean-old-desktop  卸载旧桌面（linux-macos）遗留的专属包（默认不删）
+Skip:
+  --no-sddm-theme    Leave the SDDM login theme alone
+  --no-aur           Do not use the AUR (loses the icon theme, SDDM theme, ...)
+  --no-mirrors       Do not rewrite the pacman mirrorlist
+  --no-archlinuxcn   Do not add the archlinuxcn repository
+  --no-browser       Do not install Chrome
+  --no-vscode        Do not install VS Code
+  --skip-update      Do not update the KOS source (offline install)
+  --clean-old-desktop  Remove packages left over from the old linux-macos desktop (off by default)
 
-硬件与驱动（固定按目标机 ASUS TUF A15；名单在 modules/10-packages.sh）:
-  --no-gpu-amd --no-gpu-nvidia   手动去掉某个厂商的驱动
-  --nvidia-legacy    旧 NVIDIA 卡用 archlinuxcn 的 nvidia-580xx（默认 nvidia-open-dkms）
+Hardware and drivers (fixed for the target machine, ASUS TUF A15; list lives in modules/10-packages.sh):
+  --no-gpu-amd --no-gpu-nvidia   Drop one vendor's driver
+  --nvidia-legacy    Use nvidia-580xx from archlinuxcn for older NVIDIA cards (default: nvidia-open-dkms)
   --power ppd|tlp|none
-  --asus / --no-asus  ASUS 工具（asusctl / rog-control-center / supergfxctl，默认装）
+  --asus / --no-asus  ASUS tools (asusctl / rog-control-center / supergfxctl; installed by default)
 
-环境变量:
-  KOS_SRC_DIR        KOS 源码检出位置（默认 ~/.cache/kos-src）
-  KOS_REPO_DIR       已有的 KOS 源码检出，设置后不再克隆
-  KOS_SRC_URL        源码仓库地址（默认上游仓库）
-  KOS_SRC_REF        源码分支或标签（默认自动解析最新稳定发布；开发版用 main）
+Environment:
+  KOS_SRC_DIR        Where the KOS source is checked out (default ~/.cache/kos-src)
+  KOS_REPO_DIR       Use an existing KOS checkout instead of cloning
+  KOS_SRC_URL        Source repository URL (default: upstream)
+  KOS_SRC_REF        Source branch or tag (default: newest stable release; use main for development)
 
-  -h, --help         显示本帮助
+  -h, --help         Show this help
 USAGE
 }
 
@@ -103,8 +103,8 @@ parse_args() {
       --no-lockscreen) KOS_WITH_LOCKSCREEN=0 ;;
       --start) KOS_START=1 ;;
       --spatial) KOS_SPATIAL=1 ;;
-      --ime) shift; IME="${1:?--ime 需要参数}" ;;
-      --locale) shift; LOCALE_MODE="${1:?--locale 需要参数}" ;;
+      --ime) shift; IME="${1:?--ime needs a value}" ;;
+      --locale) shift; LOCALE_MODE="${1:?--locale needs a value}" ;;
       --no-sddm-theme) NO_SDDM_THEME=1 ;;
       --no-aur) NO_AUR=1 ;;
       --no-mirrors) NO_MIRRORS=1 ;;
@@ -116,11 +116,11 @@ parse_args() {
       --no-gpu-amd) HW_GPU_AMD=0 ;;
       --no-gpu-nvidia) HW_GPU_NVIDIA=0 ;;
       --nvidia-legacy|--nvidia-closed) HW_NVIDIA_DRIVER=legacy ;;
-      --power) shift; HW_POWER="${1:?--power 需要 ppd|tlp|none}" ;;
+      --power) shift; HW_POWER="${1:?--power needs ppd|tlp|none}" ;;
       --asus) HW_ASUS=1 ;;
       --no-asus) HW_ASUS=0 ;;
       -h|--help) usage; exit 0 ;;
-      *) usage; die "未知参数: $1" ;;
+      *) usage; die "Unknown option: $1" ;;
     esac
     shift
   done
@@ -128,29 +128,29 @@ parse_args() {
 
 print_plan() {
   log "============================================================"
-  log " KOS 桌面安装计划"
-  log " 安装器: $INSTALLER_DIR"
-  log " KOS 源码: $(kos_repo_dir)（来自 $KOS_SRC_URL）"
-  log " 输入法: $IME   语言: $LOCALE_MODE"
-  log " 独立应用: $([ "$KOS_WITH_APPS" -eq 1 ] && echo 是 || echo 否)   锁屏: $([ "$KOS_WITH_LOCKSCREEN" -eq 1 ] && echo 是 || echo 否)"
-  log " SDDM 主题: $([ "$NO_SDDM_THEME" -eq 1 ] && echo 保留现有 || echo SilentSDDM)"
-  log " 空间景深: $([ "$KOS_SPATIAL" -eq 1 ] && echo 构建 || echo 跳过)"
-  log " 旧桌面清理: $([ "$CLEAN_OLD" -eq 1 ] && echo 卸载旧桌面专属包 || echo 不做)"
-  log " 动效: KOS 窗口动画（genie 风格）+ 玻璃 + KDE 摆动窗口"
+  log " KOS desktop installation plan"
+  log " Installer: $INSTALLER_DIR"
+  log " KOS source: $(kos_repo_dir) (from $KOS_SRC_URL)"
+  log " Input method: $IME   Locale: $LOCALE_MODE"
+  log " Standalone apps: $([ "$KOS_WITH_APPS" -eq 1 ] && echo yes || echo no)   Lock screen: $([ "$KOS_WITH_LOCKSCREEN" -eq 1 ] && echo yes || echo no)"
+  log " SDDM theme: $([ "$NO_SDDM_THEME" -eq 1 ] && echo keep-current || echo SilentSDDM)"
+  log " Spatial depth: $([ "$KOS_SPATIAL" -eq 1 ] && echo build || echo skip)"
+  log " Old-desktop cleanup: $([ "$CLEAN_OLD" -eq 1 ] && echo remove-old-packages || echo none)"
+  log " Effects: KOS window animation (genie) + glass + KDE wobbly windows"
   if declare -F hw_report >/dev/null 2>&1; then hw_report; fi
   if declare -F hw_policy_summary >/dev/null 2>&1; then hw_policy_summary; fi
-  log " 不改动: 分区 / 内核 / 时区 / bootloader"
+  log " Not touched: partitions / kernel / timezone / bootloader"
   log "============================================================"
 }
 
 summary() {
   log "============================================================"
-  log " 安装完成"
-  log " 下一步："
-  log "   1. 注销并重新登录（KWin 插件与 KOS 外壳需要新会话）"
-  log "   2. 检查：$(kos_repo_dir)/tools/kosctl version && $(kos_repo_dir)/tools/kosctl doctor"
-  log "   3. 外观：设置 → 窗口与动效 / 控制中心"
-  log " 日志: $LOG_FILE"
+  log " Installation complete"
+  log " Next steps:"
+  log "   1. Log out and back in (KWin plugins and the KOS shell need a fresh session)"
+  log "   2. Verify: $(kos_repo_dir)/tools/kosctl version && $(kos_repo_dir)/tools/kosctl doctor"
+  log "   3. Look and feel: System Settings -> Window Effects / Control Center"
+  log " Log: $LOG_FILE"
   log "============================================================"
 }
 
@@ -162,12 +162,12 @@ main() {
   print_plan
 
   if [ "$CHECK_ONLY" -eq 1 ]; then
-    log "预检完成（--check，未改动系统）"
+    log "Preflight finished (--check, nothing changed)"
     run_doctor quick || true
     exit 0
   fi
   if [ "$DRY_RUN" -eq 0 ]; then
-    confirm "确认开始安装？" || die "已取消"
+    confirm "Start the installation?" || die "Cancelled"
     start_sudo_keepalive
   fi
 
@@ -200,14 +200,14 @@ main() {
   setup_sddm_theme
   install_desktop_config
   install_wallpapers
-  install_user_scripts || warn "维护/包管理脚本安装失败，可稍后重跑"
-  install_kde_shortcuts || warn "KDE 快捷键配置失败，可稍后重跑"
-  install_wallpaper_shortcut || warn "壁纸快捷键配置失败，可稍后重跑"
-  install_vellum_shortcuts || warn "Vellum 快捷键配置失败，可稍后重跑"
-  install_shortcut_viewer_shortcut || warn "快捷键查看器配置失败，可稍后重跑"
-  install_record_menu_shortcut || warn "录屏菜单快捷键配置失败，可稍后重跑"
-  install_hotspot_shortcut || warn "热点菜单快捷键配置失败，可稍后重跑"
-  configure_keyboard_repeat || warn "键盘重复设置失败，可稍后重跑"
+  install_user_scripts || warn "Maintenance/package scripts failed to install; rerun later"
+  install_kde_shortcuts || warn "KDE shortcuts setup failed; rerun later"
+  install_wallpaper_shortcut || warn "Wallpaper shortcut setup failed; rerun later"
+  install_vellum_shortcuts || warn "Vellum shortcuts setup failed; rerun later"
+  install_shortcut_viewer_shortcut || warn "Shortcut viewer setup failed; rerun later"
+  install_record_menu_shortcut || warn "Record menu shortcut setup failed; rerun later"
+  install_hotspot_shortcut || warn "Hotspot menu shortcut setup failed; rerun later"
+  configure_keyboard_repeat || warn "Keyboard repeat setup failed; rerun later"
 
   run_doctor quick || true
   summary

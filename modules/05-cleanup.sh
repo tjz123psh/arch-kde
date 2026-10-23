@@ -35,24 +35,24 @@ cleanup_old_desktop() {
     # pacman -Rns 整条事务回滚，留下一个都没删掉的假成功。
     required=$(pacman -Qi "$p" 2>/dev/null | sed -n 's/^Required By *: *//p')
     if [ -n "$required" ] && [ "$required" != "None" ]; then
-      warn "旧桌面清理：跳过 $p（仍被依赖：$required）"
+      warn "Old-desktop cleanup: skipping $p (still required by: $required)"
       continue
     fi
     installed+=("$p")
   done
   if [ ${#installed[@]} -eq 0 ]; then
-    log "旧桌面清理：没有发现旧桌面专属包"
+    log "Old-desktop cleanup: no leftover packages found"
     return 0
   fi
-  log "旧桌面清理：发现 ${#installed[@]} 个旧桌面专属包：${installed[*]}"
+  log "Old-desktop cleanup: found ${#installed[@]} leftover package(s): ${installed[*]}"
   if [ "$DRY_RUN" -eq 1 ]; then
     log "[dry-run] sudo pacman -Rns --noconfirm ${installed[*]}"
     return 0
   fi
-  confirm "卸载这些旧桌面专属包？" || { warn "已跳过旧桌面清理"; return 0; }
+  confirm "Remove these leftover packages?" || { warn "Old-desktop cleanup skipped"; return 0; }
   if sudo pacman -Rns --noconfirm "${installed[@]}"; then
-    log "旧桌面包已卸载"
+    log "Old-desktop packages removed"
   else
-    warn "卸载旧桌面包失败，可稍后手动处理：${installed[*]}"
+    warn "Failed to remove old-desktop packages; handle them manually later: ${installed[*]}"
   fi
 }

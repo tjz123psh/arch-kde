@@ -18,7 +18,7 @@ detect_kernels() {
       KERNELS="${KERNELS:+$KERNELS }$k"
     fi
   done
-  [ -n "$KERNELS" ] || die "没有检测到内核，请先完成 archinstall"
+  [ -n "$KERNELS" ] || die "No kernel detected; finish archinstall first"
 }
 
 detect_headers() {
@@ -50,10 +50,10 @@ detect_gpu() {
 
 check_network() {
   if ! getent ahostsv4 archlinux.org >/dev/null 2>&1; then
-    die "无法解析 archlinux.org，请先连接网络（nmtui / iwctl）"
+    die "Cannot resolve archlinux.org; connect to the network first (nmtui / iwctl)"
   fi
   if ! timeout 8 bash -c 'exec 3<>/dev/tcp/archlinux.org/443' 2>/dev/null; then
-    warn "无法直连 archlinux.org:443，安装可能失败（检查代理/镜像）"
+    warn "Cannot reach archlinux.org:443 directly; the install may fail (check proxy/mirrors)"
   fi
 }
 
@@ -62,7 +62,7 @@ check_disk() {
   avail=$(df -Pk /var/cache/pacman/pkg 2>/dev/null | awk 'NR==2 {print $4}')
   if [ -z "$avail" ]; then return 0; fi
   if [ "$avail" -lt 8388608 ]; then
-    die "磁盘可用空间不足 8G（当前 $avail K），请先清理"
+    die "Less than 8G free on disk ($avail K); free some space first"
   fi
 }
 
@@ -86,63 +86,63 @@ check_prereqs() {
     fi
     case "$tz" in
       ""|UTC)
-        warn "时区是 ${tz:-未知}（archinstall 默认 UTC）；安装器不改时区，装完用 sudo timedatectl set-timezone Asia/Shanghai"
+        warn "Timezone is ${tz:-unknown} (archinstall defaults to UTC); the installer leaves it alone; after install run: sudo timedatectl set-timezone Asia/Shanghai"
         ;;
       *)
-        log "时区: $tz（archinstall 已设置，安装器不改）"
+        log "Timezone: $tz (set by archinstall; installer leaves it alone)"
         ;;
     esac
   else
-    warn "没有 /etc/localtime：时区没设置，桌面时间会不对（安装器不改时区）"
+    warn "No /etc/localtime: timezone is unset, the desktop clock will be wrong (installer does not change it)"
   fi
 
   for u in chronyd ntpd openntpd systemd-timesyncd; do
     if systemctl is-enabled --quiet "$u" 2>/dev/null; then ntp=$u; break; fi
   done
   if [ -n "$ntp" ]; then
-    log "时间同步: $ntp 已启用"
+    log "Time sync: $ntp enabled"
   else
-    warn "没有启用的时间同步服务；40-system 会兜底启用 systemd-timesyncd"
+    warn "No time sync service enabled; 40-system will fall back to systemd-timesyncd"
   fi
 
   if [ -e /sys/block/zram0 ]; then
-    log "zram: /dev/zram0 已启用"
+    log "zram: /dev/zram0 active"
   elif [ -e /etc/systemd/zram-generator.conf ]; then
-    warn "有 /etc/systemd/zram-generator.conf 但 /dev/zram0 没起来（archinstall 的 zram 没生效？装完看 zramctl）"
+    warn "Found /etc/systemd/zram-generator.conf but /dev/zram0 is not up (archinstall zram not active? check zramctl after install)"
   fi
 
   if [ "${BOOTLOADER:-unknown}" = unknown ]; then
-    warn "没识别出 bootloader（GRUB/systemd-boot）；安装器不改引导，但请确认机器能正常重启"
+    warn "Could not detect the bootloader (GRUB/systemd-boot); the installer does not touch it, but make sure the machine reboots fine"
   else
-    log "bootloader: $BOOTLOADER（安装器不改）"
+    log "bootloader: $BOOTLOADER (not touched)"
   fi
   if [ -n "$HEADERS" ]; then
-    log "内核 headers:$HEADERS"
+    log "Kernel headers: $HEADERS"
   else
-    warn "没算出内核 headers 包名（内核列表为空？）"
+    warn "Could not derive kernel header packages (empty kernel list?)"
   fi
   if [ ! -d /boot ]; then
-    warn "没有 /boot 目录：内核、initramfs、微码都装不进去（archinstall 应该已经建好）"
+    warn "No /boot directory: kernel, initramfs and microcode cannot be installed (archinstall should have created it)"
   fi
   if systemctl is-enabled --quiet reflector.timer 2>/dev/null; then
-    warn "reflector.timer 已启用：它会定期重写 /etc/pacman.d/mirrorlist，覆盖本安装器的国内镜像列表；要固定就 sudo systemctl disable --now reflector.timer"
+    warn "reflector.timer is enabled: it periodically rewrites /etc/pacman.d/mirrorlist and will override the domestic mirror list; run sudo systemctl disable --now reflector.timer to keep it"
   fi
 }
 
 preflight() {
-  if [ "$(id -u)" -eq 0 ]; then die "请不要用 root 运行（脚本内部会用 sudo）"; fi
-  [ -f /etc/arch-release ] || die "只支持 Arch Linux"
-  [ "$(uname -m)" = x86_64 ] || die "只支持 x86_64"
-  have pacman || die "找不到 pacman"
-  have sudo || die "找不到 sudo"
-  have git || warn "git 未安装，脚本会先装 git"
+  if [ "$(id -u)" -eq 0 ]; then die "Do not run as root (the script uses sudo internally)"; fi
+  [ -f /etc/arch-release ] || die "Only Arch Linux is supported"
+  [ "$(uname -m)" = x86_64 ] || die "Only x86_64 is supported"
+  have pacman || die "pacman not found"
+  have sudo || die "sudo not found"
+  have git || warn "git is not installed; the script will install it first"
 
-  if [ ! -t 0 ]; then warn "当前不是交互终端，确认提示可能失效（可加 --yes）"; fi
+  if [ ! -t 0 ]; then warn "Not an interactive terminal; confirmation prompts may not work (add --yes)"; fi
   if [ -n "$(printenv XDG_CURRENT_DESKTOP 2>/dev/null || true)" ]; then
-    warn "检测到图形会话，本脚本预期在 TTY 运行"
+    warn "Graphical session detected; this script expects to run on a TTY"
   fi
   if pacman -Qq plasma-desktop >/dev/null 2>&1; then
-    warn "检测到 plasma-desktop 已安装，脚本会覆盖部分配置（已备份）"
+    warn "plasma-desktop is already installed; the script will overwrite part of its config (backed up)"
   fi
 
   check_network
@@ -159,10 +159,10 @@ preflight() {
     if [ "${HAS_NVIDIA_GPU:-0}" -eq 1 ]; then HAS_NVIDIA=1; fi
   fi
   check_prereqs
-  log "内核: $KERNELS"
+  log "Kernel: $KERNELS"
   log "NVIDIA: $HAS_NVIDIA  AMD: $HAS_AMD"
   if [ "${HW_DETECTED:-0}" -eq 1 ]; then
-    log "硬件: CPU=$CPU_VENDOR  GPU=[${GPU_VENDORS}]  Wi-Fi=$HAS_WIFI 蓝牙=$HAS_BT 摄像头=$HAS_CAMERA"
-    log "引导器: $BOOTLOADER  微码: $(hw_microcode_pkg)/$(hw_microcode_state)  microcode-hook=$MICROCODE_HOOK"
+    log "Hardware: CPU=$CPU_VENDOR  GPU=[${GPU_VENDORS}]  Wi-Fi=$HAS_WIFI BT=$HAS_BT Camera=$HAS_CAMERA"
+    log "Bootloader: $BOOTLOADER  Microcode: $(hw_microcode_pkg)/$(hw_microcode_state)  microcode-hook=$MICROCODE_HOOK"
   fi
 }
