@@ -125,7 +125,7 @@ archlinuxcn 12 个）；加 `--no-mirrors` 可保留你原来的列表。
 - 窗口动效：打开 240ms、关闭 160ms、最小化 260ms、恢复 180ms；玻璃全局模糊 0.10、liquid 强度 1.0
 - 动态主题默认 **有窗口打开时也继续动画**（`themeAnimated=true`；锁屏 / 减少动态效果仍会暂停）
 - Dock 默认 **智能隐藏**（安装器只在新装、尚无 Dock 配置时预置，已有配置不覆盖）
-- kitty 默认 **无标题栏**（KWin 窗口规则，只保留终端内容）
+- kitty 保留 KOS 的细标题栏（窗口装饰自带看不见的缩放边框），可以用鼠标拖边缩放
 - KOS 设置 / KDE 系统设置 / KDE 设置子窗口 / 系统监视器 / Dolphin：**半透明磨砂玻璃近似**（KOS 设置改 QML，后两者用 KWin 窗口规则）
 - 最小化动效使用 KOS 自带的 `kos_dock_window_animation`（genie 风格）；旧的独立 genie 插件源码已从仓库移除
 - SilentSDDM 登录主题使用当前壁纸；KOS 锁屏固定 ds2 背景，圆角半透明登录框，SDDM 头像与桌面同步
