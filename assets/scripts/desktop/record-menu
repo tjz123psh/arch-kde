@@ -1,13 +1,15 @@
 #!/usr/bin/env bash
-# KOS 录屏菜单：fuzzel 选动作，后端 gpu-screen-recorder（GPU 编码）。
+# KOS 录屏菜单（fuzzel 菜单 + gpu-screen-recorder 后端）
 #
-# 为什么不是 Kooha / wf-recorder：KWin 不实现 wlr-screencopy，wf-recorder / wl-screenrec
-# 这类工具在 KDE Wayland 上抓不到屏。gpu-screen-recorder 走 KMS + GPU 编码，最省资源。
+# 为什么不是 wf-recorder / wl-screenrec：KWin 不实现 wlr-screencopy，那些工具抓不到屏。
+# gpu-screen-recorder 走 KMS + GPU 编码，KDE Wayland 下最省资源，也是这里唯一的后端。
 set -u
 
 export PATH="$HOME/.local/bin:$HOME/bin:/usr/local/bin:/usr/bin:/bin:$PATH"
 
-OUTDIR="$HOME/Videos/Recordings"
+OUTDIR_DEFAULT="$HOME/Videos/Recordings"
+CONFIG_DIR="$HOME/.config/kos-record"
+CONFIG_FILE="$CONFIG_DIR/config"
 RUNTIME_DIR="$(printenv XDG_RUNTIME_DIR 2>/dev/null)"
 [ -n "$RUNTIME_DIR" ] || RUNTIME_DIR="/tmp"
 RUN="$RUNTIME_DIR/kos-record"
@@ -15,7 +17,46 @@ SOCK="$RUN/gsr.sock"
 PIDFILE="$RUN/pid"
 MODEFILE="$RUN/mode"
 LOGFILE="$RUN/log"
-mkdir -p "$OUTDIR" "$RUN"
+mkdir -p "$CONFIG_DIR" "$RUN"
+
+# ---- 持久化设置（~/.config/kos-record/config）----
+FPS=60
+CODEC=auto
+ENCODER=gpu
+AUDIO=output
+CONTAINER=mp4
+REPLAY_SECS=30
+OUTDIR="$OUTDIR_DEFAULT"
+
+load_config() {
+  [ -f "$CONFIG_FILE" ] || return 0
+  while IFS='=' read -r k v; do
+    case "$k" in
+      FPS) FPS="$v" ;;
+      CODEC) CODEC="$v" ;;
+      ENCODER) ENCODER="$v" ;;
+      AUDIO) AUDIO="$v" ;;
+      CONTAINER) CONTAINER="$v" ;;
+      REPLAY_SECS) REPLAY_SECS="$v" ;;
+      OUTDIR) [ -n "$v" ] && OUTDIR="$v" ;;
+    esac
+  done < "$CONFIG_FILE"
+}
+
+save_config() {
+  {
+    printf 'FPS=%s\n' "$FPS"
+    printf 'CODEC=%s\n' "$CODEC"
+    printf 'ENCODER=%s\n' "$ENCODER"
+    printf 'AUDIO=%s\n' "$AUDIO"
+    printf 'CONTAINER=%s\n' "$CONTAINER"
+    printf 'REPLAY_SECS=%s\n' "$REPLAY_SECS"
+    printf 'OUTDIR=%s\n' "$OUTDIR"
+  } > "$CONFIG_FILE"
+}
+
+load_config
+mkdir -p "$OUTDIR"
 
 notify() {
   command -v notify-send >/dev/null 2>&1 || return 0
@@ -31,25 +72,53 @@ running() {
 }
 
 mode() { cat "$MODEFILE" 2>/dev/null || true; }
-
 have_gsr() { command -v gpu-screen-recorder >/dev/null 2>&1; }
 
+audio_label() {
+  case "$AUDIO" in
+    output) echo 系统声音 ;;
+    both) echo 系统声音+麦克风 ;;
+    mic) echo 麦克风 ;;
+    none) echo 静音 ;;
+    *) echo "$AUDIO" ;;
+  esac
+}
+
+codec_label() {
+  case "$CODEC" in
+    auto) echo 自动 ;;
+    h264) echo H.264 ;;
+    hevc) echo HEVC ;;
+    av1) echo AV1 ;;
+    *) echo "$CODEC" ;;
+  esac
+}
+
 start_record() {
-  local fps="$1" audio="$2" out
+  local target="$1" out
   if running; then notify "已经在录制了" "先停止再开新的"; return 0; fi
   if ! have_gsr; then notify "缺少 gpu-screen-recorder" "sudo pacman -S gpu-screen-recorder"; return 1; fi
-  out="$OUTDIR/$(date +%Y%m%d-%H%M%S).mp4"
+  out="$OUTDIR/$(date +%Y%m%d-%H%M%S).$CONTAINER"
   rm -f "$SOCK"
-  if [ "$audio" = none ]; then
-    gpu-screen-recorder -w screen -f "$fps" -o "$out" -ipc "$SOCK" >"$LOGFILE" 2>&1 &
-  else
-    gpu-screen-recorder -w screen -f "$fps" -a "$audio" -o "$out" -ipc "$SOCK" >"$LOGFILE" 2>&1 &
-  fi
+  set -- -w "$target" -f "$FPS" -c "$CONTAINER"
+  case "$CODEC" in
+    auto) ;;
+    *) set -- "$@" -k "$CODEC" ;;
+  esac
+  case "$ENCODER" in
+    cpu) set -- "$@" -encoder cpu ;;
+  esac
+  case "$AUDIO" in
+    output) set -- "$@" -a default_output ;;
+    both) set -- "$@" -a 'default_output|default_input' ;;
+    mic) set -- "$@" -a default_input ;;
+  esac
+  gpu-screen-recorder "$@" -o "$out" -ipc "$SOCK" >"$LOGFILE" 2>&1 &
   echo $! > "$PIDFILE"
   echo record > "$MODEFILE"
   sleep 1.2
   if running; then
-    notify "开始录制 · $fps fps" "$(basename "$out")"
+    notify "开始录制 · $FPS fps · $(codec_label) · $(audio_label)" "$(basename "$out")"
   else
     notify "录制启动失败" "$(tail -2 "$LOGFILE" 2>/dev/null | tr '\n' ' ')"
     rm -f "$PIDFILE"
@@ -57,16 +126,25 @@ start_record() {
 }
 
 start_replay() {
-  local secs="$1"
   if running; then notify "已经在录制了" "先停止再开新的"; return 0; fi
   if ! have_gsr; then notify "缺少 gpu-screen-recorder" "sudo pacman -S gpu-screen-recorder"; return 1; fi
   rm -f "$SOCK"
-  gpu-screen-recorder -w screen -f 60 -a default_output -r "$secs" -o "$OUTDIR" -ipc "$SOCK" >"$LOGFILE" 2>&1 &
+  set -- -w screen -f "$FPS" -c "$CONTAINER"
+  case "$CODEC" in
+    auto) ;;
+    *) set -- "$@" -k "$CODEC" ;;
+  esac
+  case "$AUDIO" in
+    output) set -- "$@" -a default_output ;;
+    both) set -- "$@" -a 'default_output|default_input' ;;
+    mic) set -- "$@" -a default_input ;;
+  esac
+  gpu-screen-recorder "$@" -r "$REPLAY_SECS" -o "$OUTDIR" -ipc "$SOCK" >"$LOGFILE" 2>&1 &
   echo $! > "$PIDFILE"
   echo replay > "$MODEFILE"
   sleep 1.2
   if running; then
-    notify "回放缓冲已开启" "保留最近 $secs 秒，随时可以保存"
+    notify "回放缓冲已开启" "保留最近 $REPLAY_SECS 秒，随时可以保存"
   else
     notify "回放启动失败" "$(tail -2 "$LOGFILE" 2>/dev/null | tr '\n' ' ')"
     rm -f "$PIDFILE"
@@ -74,8 +152,8 @@ start_replay() {
 }
 
 stop_current() {
-  if ! running; then notify "当前没有在录制"; return 0; fi
   local m pid reply
+  if ! running; then notify "当前没有在录制"; return 0; fi
   m=$(mode)
   pid=$(cat "$PIDFILE" 2>/dev/null || true)
   if [ "$m" = replay ]; then
@@ -89,14 +167,21 @@ stop_current() {
   rm -f "$PIDFILE" "$MODEFILE"
 }
 
+toggle_pause() {
+  local out
+  if ! running; then notify "当前没有在录制"; return 0; fi
+  out=$(gsr-cli -ipc "$SOCK" toggle-pause 2>&1 || true)
+  notify "暂停 / 继续" "$out"
+}
+
 save_replay() {
+  local path
   if ! running || [ "$(mode)" != replay ]; then
     notify "回放缓冲没在运行" "先在菜单里选「开启回放缓冲」"
     return 0
   fi
-  local path
-  path=$(gsr-cli -ipc "$SOCK" save-replay 30 2>/dev/null || true)
-  notify "已保存最近 30 秒" "$path"
+  path=$(gsr-cli -ipc "$SOCK" save-replay "$REPLAY_SECS" 2>/dev/null || true)
+  notify "已保存最近 $REPLAY_SECS 秒" "$path"
 }
 
 status_line() {
@@ -107,24 +192,77 @@ status_line() {
   fi
 }
 
+pick() { fuzzel --dmenu --prompt=' 录屏 > ' --lines=12 --width=52 --placeholder="$1"; }
+
+settings_menu() {
+  local i_fps i_codec i_enc i_audio i_cont i_replay i_dir choice v
+  while :; do
+    i_fps="帧率：$FPS fps"
+    i_codec="编码：$(codec_label)"
+    i_enc="编码器：$ENCODER"
+    i_audio="音频：$(audio_label)"
+    i_cont="容器：$CONTAINER"
+    i_replay="回放缓冲：$REPLAY_SECS 秒"
+    i_dir="保存目录：$OUTDIR"
+    choice=$(printf '%s\n' "$i_fps" "$i_codec" "$i_enc" "$i_audio" "$i_cont" "$i_replay" "$i_dir" "返回" | pick "选择录屏设置") || return 0
+    case "$choice" in
+      帧率*)
+        v=$(printf '%s\n' 30 60 120 144 | pick "选择帧率") || continue
+        if [ -n "$v" ]; then FPS="$v"; save_config; fi ;;
+      编码*)
+        v=$(printf '%s\n' 自动 H.264 HEVC AV1 | pick "选择编码") || continue
+        case "$v" in
+          自动) CODEC=auto ;; H.264) CODEC=h264 ;; HEVC) CODEC=hevc ;; AV1) CODEC=av1 ;;
+        esac
+        save_config ;;
+      编码器*)
+        v=$(printf '%s\n' gpu cpu | pick "选择编码器") || continue
+        if [ -n "$v" ]; then ENCODER="$v"; save_config; fi ;;
+      音频*)
+        v=$(printf '%s\n' 系统声音 系统声音+麦克风 麦克风 静音 | pick "选择音频来源") || continue
+        case "$v" in
+          系统声音) AUDIO=output ;; 系统声音+麦克风) AUDIO=both ;; 麦克风) AUDIO=mic ;; 静音) AUDIO=none ;;
+        esac
+        save_config ;;
+      容器*)
+        v=$(printf '%s\n' mp4 mkv webm | pick "选择容器") || continue
+        if [ -n "$v" ]; then CONTAINER="$v"; save_config; fi ;;
+      回放缓冲*)
+        v=$(printf '%s\n' 30 60 120 300 | pick "回放缓冲长度（秒）") || continue
+        if [ -n "$v" ]; then REPLAY_SECS="$v"; save_config; fi ;;
+      保存目录*)
+        v=$(printf '%s\n' "$HOME/Videos/Recordings" "$HOME/Videos" "$HOME" | pick "选择保存目录") || continue
+        if [ -n "$v" ]; then OUTDIR="$v"; mkdir -p "$OUTDIR"; save_config; fi ;;
+      返回|"") return 0 ;;
+    esac
+  done
+}
+
 run_choice() {
   case "$1" in
-    录制全屏*60fps*系统声音*) start_record 60 default_output ;;
-    录制全屏*30fps*系统声音*) start_record 30 default_output ;;
-    录制全屏*静音*)           start_record 60 none ;;
-    开启回放缓冲*)            start_replay 30 ;;
-    保存最近*)               save_replay ;;
-    停止回放缓冲*)             stop_current ;;
-    停止录制*)               stop_current ;;
-    打开录制目录*)             xdg-open "$OUTDIR" >/dev/null 2>&1 & ;;
-    查看最近日志*)             notify "最近日志" "$(tail -3 "$LOGFILE" 2>/dev/null | tr '\n' ' ')" ;;
-    *)                        notify "没认出来这个选项" "$1" ;;
+    开始录制*)         start_record screen ;;
+    选择屏幕*)         start_record portal ;;
+    开启回放缓冲*)      start_replay ;;
+    暂停*)             toggle_pause ;;
+    保存最近*)         save_replay ;;
+    停止回放缓冲*)      stop_current ;;
+    停止录制*)         stop_current ;;
+    设置*)             settings_menu ;;
+    打开录制目录*)      xdg-open "$OUTDIR" >/dev/null 2>&1 & ;;
+    查看最近日志*)      notify "最近日志" "$(tail -3 "$LOGFILE" 2>/dev/null | tr '\n' ' ')" ;;
+    *)                 notify "没认出来这个选项" "$1" ;;
   esac
 }
 
-case "${1:-}" in
+arg=""
+[ $# -gt 0 ] && arg="$1"
+case "$arg" in
   --status) status_line; exit 0 ;;
-  --do) shift; run_choice "${1:-}"; exit 0 ;;
+  --settings) settings_menu; exit 0 ;;
+  --do)
+    shift
+    run_choice "$1"
+    exit 0 ;;
 esac
 
 if ! command -v fuzzel >/dev/null 2>&1; then
@@ -134,25 +272,25 @@ fi
 
 if running; then
   if [ "$(mode)" = replay ]; then
-    options="保存最近 30 秒
+    options="保存最近 $REPLAY_SECS 秒
 停止回放缓冲
 打开录制目录
 查看最近日志"
   else
-    options="停止录制
+    options="暂停 / 继续
+停止录制
 打开录制目录
 查看最近日志"
   fi
 else
-  options="录制全屏 · 60fps（系统声音）
-录制全屏 · 30fps（系统声音）
-录制全屏 · 60fps（静音）
-开启回放缓冲（最近 30 秒）
+  options="开始录制（全屏 · $FPS fps · $(codec_label) · $(audio_label)）
+选择屏幕/窗口录制（系统弹窗）
+开启回放缓冲（最近 $REPLAY_SECS 秒）
+设置…
 打开录制目录
 查看最近日志"
 fi
 
-choice=$(printf '%s\n' "$options" | fuzzel --dmenu --prompt=' 录屏 > ' --lines=10 --width=48 --placeholder='选择录屏动作') || exit 0
+choice=$(printf '%s\n' "$options" | pick "选择录屏动作") || exit 0
 [ -n "$choice" ] || exit 0
-
 run_choice "$choice"

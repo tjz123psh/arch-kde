@@ -104,7 +104,7 @@ archlinuxcn 12 个）；加 `--no-mirrors` 可保留你原来的列表。
 - 常驻脚本：**term-menu**（维护菜单）、**pac / pacr / pacd**（装 / 卸 / 降级）、**gsudo**（图形化 sudo）、**shortcuts**（快捷键查看器）；脚本放在 `~/scripts`，命令链接到 `~/bin`
 - 应用配置：**kitty / fish / yazi / fastfetch / mpv / fuzzel / btop / starship** 的配置随安装器部署到 `~/.config`
 - 截图：**Vellum**（官方 Rust/GTK4 发行包；只保留 Print 区域截图、Ctrl+Print 长截图；Vellum 自带的 Meta+... 已关闭，KOS platform 里的重复 vellum action 也关闭）
-- 录屏：**gpu-screen-recorder**（GPU 编码；`Alt+F5` 打开 fuzzel 菜单：录制全屏 / 回放缓冲 / 打开目录）
+- 录屏：**gpu-screen-recorder**（GPU 编码；`Alt+F5` 打开 fuzzel 菜单：录制全屏 / 选择屏幕或窗口 / 回放缓冲 / 设置 / 打开目录；设置持久化在 `~/.config/kos-record/config`）
 - 默认应用：**文本/代码 → Neovim，PDF/Office → WPS，图片 → nomacs，文件夹 → Dolphin，终端 → kitty**
 - Dolphin 默认详情视图：16px 图标、完整路径、小状态栏、紧凑行距，Places 侧栏保持显示
 - 快捷键：**Win+Shift+C** 打开 `term-menu`，**Alt+Enter** 打开 kitty，**Alt+Q** 关闭当前窗口，**Win** 打开 Dock 应用启动器，**Win+O** 打开 KOS 快速搜索/启动器，**Win+/** 打开快捷键查看器，**Alt+W** 打开全屏壁纸预览，**Print** 区域截图，**Ctrl+Print** 长截图，**Win+M** 打开 btop，**Ctrl+M** 打开 fuzzel（KDE KGlobalAccel）
