@@ -16,6 +16,7 @@ RUN="$RUNTIME_DIR/kos-record"
 SOCK="$RUN/gsr.sock"
 PIDFILE="$RUN/pid"
 MODEFILE="$RUN/mode"
+SRCFILE="$RUN/src"
 LOGFILE="$RUN/log"
 mkdir -p "$CONFIG_DIR" "$RUN"
 
@@ -24,8 +25,13 @@ FPS=60
 CODEC=auto
 ENCODER=gpu
 AUDIO=output
+AUDIO_DEV=""
 CONTAINER=mp4
 REPLAY_SECS=30
+ANIM_FORMAT=gif
+ANIM_FPS=15
+ANIM_WIDTH=640
+ANIM_MAX_MB=12
 OUTDIR="$OUTDIR_DEFAULT"
 
 load_config() {
@@ -36,8 +42,13 @@ load_config() {
       CODEC) CODEC="$v" ;;
       ENCODER) ENCODER="$v" ;;
       AUDIO) AUDIO="$v" ;;
+      AUDIO_DEV) AUDIO_DEV="$v" ;;
       CONTAINER) CONTAINER="$v" ;;
       REPLAY_SECS) REPLAY_SECS="$v" ;;
+      ANIM_FORMAT) ANIM_FORMAT="$v" ;;
+      ANIM_FPS) ANIM_FPS="$v" ;;
+      ANIM_WIDTH) ANIM_WIDTH="$v" ;;
+      ANIM_MAX_MB) ANIM_MAX_MB="$v" ;;
       OUTDIR) [ -n "$v" ] && OUTDIR="$v" ;;
     esac
   done < "$CONFIG_FILE"
@@ -49,8 +60,13 @@ save_config() {
     printf 'CODEC=%s\n' "$CODEC"
     printf 'ENCODER=%s\n' "$ENCODER"
     printf 'AUDIO=%s\n' "$AUDIO"
+    printf 'AUDIO_DEV=%s\n' "$AUDIO_DEV"
     printf 'CONTAINER=%s\n' "$CONTAINER"
     printf 'REPLAY_SECS=%s\n' "$REPLAY_SECS"
+    printf 'ANIM_FORMAT=%s\n' "$ANIM_FORMAT"
+    printf 'ANIM_FPS=%s\n' "$ANIM_FPS"
+    printf 'ANIM_WIDTH=%s\n' "$ANIM_WIDTH"
+    printf 'ANIM_MAX_MB=%s\n' "$ANIM_MAX_MB"
     printf 'OUTDIR=%s\n' "$OUTDIR"
   } > "$CONFIG_FILE"
 }
@@ -75,6 +91,7 @@ mode() { cat "$MODEFILE" 2>/dev/null || true; }
 have_gsr() { command -v gpu-screen-recorder >/dev/null 2>&1; }
 
 audio_label() {
+  if [ -n "$AUDIO_DEV" ]; then echo "$AUDIO_DEV"; return; fi
   case "$AUDIO" in
     output) echo 系统声音 ;;
     both) echo 系统声音+麦克风 ;;
@@ -95,10 +112,14 @@ codec_label() {
 }
 
 start_record() {
-  local target="$1" out
+  local target="$1" kind="$2" out
   if running; then notify "已经在录制了" "先停止再开新的"; return 0; fi
   if ! have_gsr; then notify "缺少 gpu-screen-recorder" "sudo pacman -S gpu-screen-recorder"; return 1; fi
-  out="$OUTDIR/$(date +%Y%m%d-%H%M%S).$CONTAINER"
+  if [ "$kind" = anim ]; then
+    out="$OUTDIR/anim-src-$(date +%H%M%S).mp4"
+  else
+    out="$OUTDIR/$(date +%Y%m%d-%H%M%S).$CONTAINER"
+  fi
   rm -f "$SOCK"
   set -- -w "$target" -f "$FPS" -c "$CONTAINER"
   case "$CODEC" in
@@ -108,14 +129,19 @@ start_record() {
   case "$ENCODER" in
     cpu) set -- "$@" -encoder cpu ;;
   esac
-  case "$AUDIO" in
-    output) set -- "$@" -a default_output ;;
-    both) set -- "$@" -a 'default_output|default_input' ;;
-    mic) set -- "$@" -a default_input ;;
-  esac
+  if [ -n "$AUDIO_DEV" ]; then
+    set -- "$@" -a "$AUDIO_DEV"
+  else
+    case "$AUDIO" in
+      output) set -- "$@" -a default_output ;;
+      both) set -- "$@" -a 'default_output|default_input' ;;
+      mic) set -- "$@" -a default_input ;;
+    esac
+  fi
   gpu-screen-recorder "$@" -o "$out" -ipc "$SOCK" >"$LOGFILE" 2>&1 &
   echo $! > "$PIDFILE"
-  echo record > "$MODEFILE"
+  echo "$kind" > "$MODEFILE"
+  echo "$out" > "$SRCFILE"
   sleep 1.2
   if running; then
     notify "开始录制 · $FPS fps · $(codec_label) · $(audio_label)" "$(basename "$out")"
@@ -134,11 +160,15 @@ start_replay() {
     auto) ;;
     *) set -- "$@" -k "$CODEC" ;;
   esac
-  case "$AUDIO" in
-    output) set -- "$@" -a default_output ;;
-    both) set -- "$@" -a 'default_output|default_input' ;;
-    mic) set -- "$@" -a default_input ;;
-  esac
+  if [ -n "$AUDIO_DEV" ]; then
+    set -- "$@" -a "$AUDIO_DEV"
+  else
+    case "$AUDIO" in
+      output) set -- "$@" -a default_output ;;
+      both) set -- "$@" -a 'default_output|default_input' ;;
+      mic) set -- "$@" -a default_input ;;
+    esac
+  fi
   gpu-screen-recorder "$@" -r "$REPLAY_SECS" -o "$OUTDIR" -ipc "$SOCK" >"$LOGFILE" 2>&1 &
   echo $! > "$PIDFILE"
   echo replay > "$MODEFILE"
@@ -151,20 +181,63 @@ start_replay() {
   fi
 }
 
+convert_anim() {
+  local src="$1" base out colors w attempt size mb final
+  if ! command -v ffmpeg >/dev/null 2>&1; then
+    notify "缺少 ffmpeg" "无法把录制转成动图"
+    return 1
+  fi
+  [ -f "$src" ] || return 1
+  base=$(printf '%s' "$src" | sed 's/\.mp4$//')
+  out="$base.$ANIM_FORMAT"
+  colors=256
+  w="$ANIM_WIDTH"
+  mb="$ANIM_MAX_MB"
+  attempt=0
+  while [ "$attempt" -lt 3 ]; do
+    if [ "$ANIM_FORMAT" = webp ]; then
+      ffmpeg -y -loglevel error -i "$src" -vf "fps=$ANIM_FPS,scale=$w:-1:flags=lanczos" -c:v libwebp -lossless 0 -q:v 80 -loop 0 "$out" || return 1
+    else
+      ffmpeg -y -loglevel error -i "$src" -vf "fps=$ANIM_FPS,scale=$w:-1:flags=lanczos,split[a][b];[a]palettegen=max_colors=$colors:stats_mode=diff[p];[b][p]paletteuse=dither=bayer:bayer_scale=4" "$out" || return 1
+    fi
+    size=$(stat -c %s "$out" 2>/dev/null || echo 0)
+    if [ "$mb" -le 0 ] || [ $((size / 1024 / 1024)) -le "$mb" ]; then break; fi
+    attempt=$((attempt + 1))
+    if [ "$colors" -gt 128 ]; then
+      colors=128
+    elif [ "$w" -gt 480 ]; then
+      w=$((w * 3 / 4))
+    else
+      break
+    fi
+  done
+  final="$OUTDIR/$(date +%Y%m%d-%H%M%S).$ANIM_FORMAT"
+  mv -f "$out" "$final" 2>/dev/null || final="$out"
+  rm -f "$src"
+  notify "动图已生成（$ANIM_FORMAT）" "$(basename "$final")"
+}
+
 stop_current() {
-  local m pid reply
+  local m pid reply src
   if ! running; then notify "当前没有在录制"; return 0; fi
   m=$(mode)
   pid=$(cat "$PIDFILE" 2>/dev/null || true)
-  if [ "$m" = replay ]; then
-    gsr-cli -ipc "$SOCK" stop >/dev/null 2>&1 || kill -INT "$pid" 2>/dev/null
-    notify "回放缓冲已关闭"
-  else
-    reply=$(gsr-cli -ipc "$SOCK" stop 2>/dev/null || kill -INT "$pid" 2>/dev/null)
-    notify "录制已保存" "$reply"
-  fi
+  src=$(cat "$SRCFILE" 2>/dev/null || true)
+  case "$m" in
+    replay)
+      gsr-cli -ipc "$SOCK" stop >/dev/null 2>&1 || kill -INT "$pid" 2>/dev/null
+      notify "回放缓冲已关闭" ;;
+    anim)
+      gsr-cli -ipc "$SOCK" stop >/dev/null 2>&1 || kill -INT "$pid" 2>/dev/null
+      sleep 1
+      notify "正在转成动图…" "$ANIM_FORMAT · $ANIM_FPS fps · $ANIM_WIDTH px"
+      convert_anim "$src" ;;
+    *)
+      reply=$(gsr-cli -ipc "$SOCK" stop 2>/dev/null || kill -INT "$pid" 2>/dev/null)
+      notify "录制已保存" "$reply" ;;
+  esac
   sleep 0.5
-  rm -f "$PIDFILE" "$MODEFILE"
+  rm -f "$PIDFILE" "$MODEFILE" "$SRCFILE"
 }
 
 toggle_pause() {
@@ -192,21 +265,49 @@ status_line() {
   fi
 }
 
-pick() { fuzzel --dmenu --prompt=' 录屏 > ' --lines=12 --width=52 --placeholder="$1"; }
+status_json() {
+  local state text
+  if running; then
+    state=$(mode)
+    text="录制中：$state"
+  else
+    state=idle
+    text="空闲"
+  fi
+  printf '{"text":"%s","class":"%s","tooltip":"%s"}\n' "$text" "$state" "保存目录：$OUTDIR"
+}
+
+pick() { fuzzel --dmenu --prompt=' 录屏 > ' --lines=14 --width=54 --placeholder="$1"; }
+
+pick_audio_device() {
+  local choice dev
+  choice=$( { echo "跟随默认（用上面那一档）"; gpu-screen-recorder --list-audio-devices 2>/dev/null; } | pick "选择音频设备") || return 0
+  case "$choice" in
+    "") return 0 ;;
+    跟随默认*) AUDIO_DEV="" ;;
+    *) dev=$(printf '%s' "$choice" | cut -d'|' -f1); AUDIO_DEV="$dev" ;;
+  esac
+  save_config
+}
 
 settings_menu() {
-  local i_fps i_codec i_enc i_audio i_cont i_replay i_dir choice v
+  local i_fps i_codec i_enc i_audio i_dev i_cont i_replay i_dir i_afmt i_afps i_aw i_amb choice v
   while :; do
     i_fps="帧率：$FPS fps"
     i_codec="编码：$(codec_label)"
     i_enc="编码器：$ENCODER"
     i_audio="音频：$(audio_label)"
+    i_dev="音频设备：$(if [ -n "$AUDIO_DEV" ]; then echo "$AUDIO_DEV"; else echo 跟随默认; fi)"
     i_cont="容器：$CONTAINER"
     i_replay="回放缓冲：$REPLAY_SECS 秒"
     i_dir="保存目录：$OUTDIR"
-    choice=$(printf '%s\n' "$i_fps" "$i_codec" "$i_enc" "$i_audio" "$i_cont" "$i_replay" "$i_dir" "返回" | pick "选择录屏设置") || return 0
+    i_afmt="动图格式：$ANIM_FORMAT"
+    i_afps="动图帧率：$ANIM_FPS fps"
+    i_aw="动图宽度：$ANIM_WIDTH px"
+    i_amb="动图体积上限：$ANIM_MAX_MB MB"
+    choice=$(printf '%s\n' "$i_fps" "$i_codec" "$i_enc" "$i_audio" "$i_dev" "$i_cont" "$i_replay" "$i_dir" "$i_afmt" "$i_afps" "$i_aw" "$i_amb" "返回" | pick "选择录屏设置") || return 0
     case "$choice" in
-      帧率*)
+      帧率：*)
         v=$(printf '%s\n' 30 60 120 144 | pick "选择帧率") || continue
         if [ -n "$v" ]; then FPS="$v"; save_config; fi ;;
       编码：*)
@@ -218,21 +319,37 @@ settings_menu() {
       编码器：*)
         v=$(printf '%s\n' gpu cpu | pick "选择编码器") || continue
         if [ -n "$v" ]; then ENCODER="$v"; save_config; fi ;;
-      音频*)
+      音频：*)
         v=$(printf '%s\n' 系统声音 系统声音+麦克风 麦克风 静音 | pick "选择音频来源") || continue
         case "$v" in
-          系统声音) AUDIO=output ;; 系统声音+麦克风) AUDIO=both ;; 麦克风) AUDIO=mic ;; 静音) AUDIO=none ;;
+          系统声音) AUDIO=output; AUDIO_DEV="" ;;
+          系统声音+麦克风) AUDIO=both; AUDIO_DEV="" ;;
+          麦克风) AUDIO=mic; AUDIO_DEV="" ;;
+          静音) AUDIO=none; AUDIO_DEV="" ;;
         esac
         save_config ;;
-      容器*)
+      音频设备：*) pick_audio_device ;;
+      容器：*)
         v=$(printf '%s\n' mp4 mkv webm | pick "选择容器") || continue
         if [ -n "$v" ]; then CONTAINER="$v"; save_config; fi ;;
-      回放缓冲*)
+      回放缓冲：*)
         v=$(printf '%s\n' 30 60 120 300 | pick "回放缓冲长度（秒）") || continue
         if [ -n "$v" ]; then REPLAY_SECS="$v"; save_config; fi ;;
-      保存目录*)
+      保存目录：*)
         v=$(printf '%s\n' "$HOME/Videos/Recordings" "$HOME/Videos" "$HOME" | pick "选择保存目录") || continue
         if [ -n "$v" ]; then OUTDIR="$v"; mkdir -p "$OUTDIR"; save_config; fi ;;
+      动图格式：*)
+        v=$(printf '%s\n' gif webp | pick "选择动图格式（webp 体积更小）") || continue
+        if [ -n "$v" ]; then ANIM_FORMAT="$v"; save_config; fi ;;
+      动图帧率：*)
+        v=$(printf '%s\n' 10 12.5 15 20 25 | pick "选择动图帧率") || continue
+        if [ -n "$v" ]; then ANIM_FPS="$v"; save_config; fi ;;
+      动图宽度：*)
+        v=$(printf '%s\n' 480 640 800 960 1280 | pick "选择动图宽度（px）") || continue
+        if [ -n "$v" ]; then ANIM_WIDTH="$v"; save_config; fi ;;
+      动图体积上限：*)
+        v=$(printf '%s\n' 5 8 12 20 0 | pick "体积上限（MB，0 = 不限）") || continue
+        if [ -n "$v" ]; then ANIM_MAX_MB="$v"; save_config; fi ;;
       返回|"") return 0 ;;
     esac
   done
@@ -240,13 +357,15 @@ settings_menu() {
 
 run_choice() {
   case "$1" in
-    开始录制*)         start_record screen ;;
-    选择屏幕*)         start_record portal ;;
+    开始录制*)         start_record screen record ;;
+    选择屏幕*)         start_record portal record ;;
+    录制动图*)         start_record screen anim ;;
     开启回放缓冲*)      start_replay ;;
     暂停*)             toggle_pause ;;
     保存最近*)         save_replay ;;
     停止回放缓冲*)      stop_current ;;
     停止录制*)         stop_current ;;
+    停止并转成动图*)    stop_current ;;
     设置*)             settings_menu ;;
     打开录制目录*)      xdg-open "$OUTDIR" >/dev/null 2>&1 & ;;
     查看最近日志*)      notify "最近日志" "$(tail -3 "$LOGFILE" 2>/dev/null | tr '\n' ' ')" ;;
@@ -258,7 +377,13 @@ arg=""
 [ $# -gt 0 ] && arg="$1"
 case "$arg" in
   --status) status_line; exit 0 ;;
+  --status-json) status_json; exit 0 ;;
   --settings) settings_menu; exit 0 ;;
+  --start) start_record screen record; exit 0 ;;
+  --stop) stop_current; exit 0 ;;
+  --toggle)
+    if running; then stop_current; else start_record screen record; fi
+    exit 0 ;;
   --do)
     shift
     run_choice "$1"
@@ -271,20 +396,26 @@ if ! command -v fuzzel >/dev/null 2>&1; then
 fi
 
 if running; then
-  if [ "$(mode)" = replay ]; then
-    options="保存最近 $REPLAY_SECS 秒
+  case "$(mode)" in
+    replay)
+      options="保存最近 $REPLAY_SECS 秒
 停止回放缓冲
 打开录制目录
-查看最近日志"
-  else
-    options="暂停 / 继续
+查看最近日志" ;;
+    anim)
+      options="停止并转成动图
+打开录制目录
+查看最近日志" ;;
+    *)
+      options="暂停 / 继续
 停止录制
 打开录制目录
-查看最近日志"
-  fi
+查看最近日志" ;;
+  esac
 else
   options="开始录制（全屏 · $FPS fps · $(codec_label) · $(audio_label)）
 选择屏幕/窗口录制（系统弹窗）
+录制动图（$ANIM_FORMAT · $ANIM_FPS fps · $ANIM_WIDTH px）
 开启回放缓冲（最近 $REPLAY_SECS 秒）
 设置…
 打开录制目录
