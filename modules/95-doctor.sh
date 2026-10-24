@@ -78,6 +78,41 @@ run_doctor() {
       test -d "$HOME/.config/$dir" && echo "  [OK]   $dir" || echo "  [MISS] $dir"
     done
     test -f "$HOME/.config/starship.toml" && echo "  [OK]   starship.toml" || echo "  [MISS] starship.toml"
+
+    # 桌面配置文件：缺一个都会让对应组件回到默认外观
+    for f in \
+      "$HOME/.config/kitty/kitty.conf" \
+      "$HOME/.config/fish/config.fish" \
+      "$HOME/.config/environment.d/90-kos.conf" \
+      "$HOME/.config/gtk-3.0/settings.ini" \
+      "$HOME/.config/gtk-4.0/settings.ini" \
+      "$HOME/.config/fontconfig/fonts.conf" \
+      "$HOME/.config/autostart/kos-display-1920x1080.desktop"; do
+      if test -f "$f"; then echo "  [OK]   ${f#"$HOME"/}"; else echo "  [MISS] ${f#"$HOME"/}"; fi
+    done
+
+    echo
+    echo "== 登录/外观 =="
+    if test -f /etc/sddm.conf.d/90-silent.conf && grep -q '^Current=silent' /etc/sddm.conf.d/90-silent.conf; then
+      echo "  [OK]   SDDM 主题配置（silent）"
+    else
+      echo "  [MISS] SDDM 主题配置（/etc/sddm.conf.d/90-silent.conf）"
+    fi
+    if test -f /etc/sddm.conf && grep -qE '^Current=' /etc/sddm.conf; then
+      echo "  [WARN] /etc/sddm.conf 里有 Current=，会覆盖 conf.d（安装器应已备份并改成 silent）"
+    fi
+    if test -f "/usr/share/sddm/faces/${USER:-$(id -un)}.face.icon"; then
+      echo "  [OK]   SDDM 登录头像"
+    else
+      echo "  [MISS] SDDM 登录头像（/usr/share/sddm/faces/${USER:-$(id -un)}.face.icon）"
+    fi
+    if test -f /boot/grub/grub.cfg; then
+      if grep -q 'Elegant-mojave-window-left-dark' /boot/grub/grub.cfg; then
+        echo "  [OK]   GRUB 主题（Elegant-mojave-window-left-dark）"
+      else
+        echo "  [MISS] GRUB 主题（grub.cfg 里没有主题路径）"
+      fi
+    fi
     echo
     echo "== 快捷键 =="
     for f in term-menu kitty-terminal btop fuzzel-launcher kos-wallpaper-preview kos-record; do
