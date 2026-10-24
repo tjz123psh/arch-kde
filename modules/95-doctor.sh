@@ -2,15 +2,6 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 # shellcheck shell=bash
 
-doctor_check() {
-  local label="$1" ok="$2" detail="$3"
-  if [ "$ok" -eq 1 ]; then
-    echo "  [OK]   $label $detail"
-  else
-    echo "  [MISS] $label $detail"
-  fi
-}
-
 run_doctor() {
   local mode="$1" gallery kos_dir="" ml ml_n ml_first ml_skip
   local report="$STATE_DIR/doctor-$RUN_ID.txt"
