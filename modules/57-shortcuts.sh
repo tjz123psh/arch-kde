@@ -395,6 +395,10 @@ EOF
   kwriteconfig6 --file kglobalshortcutsrc --group kwin --key "Switch Window Right" "Alt+L,Meta+Alt+Right,切换到右侧的窗口" --notify
   kwriteconfig6 --file kglobalshortcutsrc --group kwin --key "Kill Window" "Alt+F4,Meta+Ctrl+Esc,强制终止窗口" --notify
 
+  # 工作区切换（用户 2026-10-24 指定）：Alt+Shift+H / Alt+Shift+L 左右切换工作区
+  kwriteconfig6 --file kglobalshortcutsrc --group kwin --key "Switch One Desktop to the Left" "Alt+Shift+H,Meta+Ctrl+Left,切换到左侧桌面" --notify
+  kwriteconfig6 --file kglobalshortcutsrc --group kwin --key "Switch One Desktop to the Right" "Alt+Shift+L,Meta+Ctrl+Right,切换到右侧桌面" --notify
+
   if have kbuildsycoca6; then
     kbuildsycoca6 --noincremental >/dev/null 2>&1 || true
   fi
