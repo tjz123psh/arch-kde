@@ -13,6 +13,9 @@
 #
 set -Eeuo pipefail
 export LC_ALL=C
+# 无 TTY 的环境（例如通过 ssh 远程跑安装器）没有 TERM，makepkg 构建某些 AUR 包
+#（WhiteSur 主题的 install.sh 会调用 setterm/tput）会直接失败；这里兜底一个值。
+export TERM="${TERM:-xterm-256color}"
 
 INSTALLER_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
 export INSTALLER_DIR
