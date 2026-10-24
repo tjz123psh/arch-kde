@@ -388,6 +388,13 @@ EOF
   kwriteconfig6 --file kglobalshortcutsrc --group kwin --key "Window Maximize" "Meta+F,Meta+PgUp,最大化窗口" --notify
   kwriteconfig6 --file kglobalshortcutsrc --group kwin --key "Window Minimize" "Meta+C,Meta+PgDown,最小化窗口" --notify
 
+  # 窗口切换 / 强杀（用户 2026-10-24 指定）：Alt+K/J/H/L 切换方向窗口，Alt+F4 强制终止窗口
+  kwriteconfig6 --file kglobalshortcutsrc --group kwin --key "Switch Window Up" "Alt+K,Meta+Alt+Up,切换到上面的窗口" --notify
+  kwriteconfig6 --file kglobalshortcutsrc --group kwin --key "Switch Window Down" "Alt+J,Meta+Alt+Down,切换到下面的窗口" --notify
+  kwriteconfig6 --file kglobalshortcutsrc --group kwin --key "Switch Window Left" "Alt+H,Meta+Alt+Left,切换到左侧的窗口" --notify
+  kwriteconfig6 --file kglobalshortcutsrc --group kwin --key "Switch Window Right" "Alt+L,Meta+Alt+Right,切换到右侧的窗口" --notify
+  kwriteconfig6 --file kglobalshortcutsrc --group kwin --key "Kill Window" "Alt+F4,Meta+Ctrl+Esc,强制终止窗口" --notify
+
   if have kbuildsycoca6; then
     kbuildsycoca6 --noincremental >/dev/null 2>&1 || true
   fi
