@@ -183,6 +183,20 @@ GreeterEnvironment=QML2_IMPORT_PATH=/usr/share/sddm/themes/silent/components/,QT
 [Theme]
 Current=silent
 CONF
+  # /etc/sddm.conf 的优先级比 /etc/sddm.conf.d/*.conf 高：如果它存在并且设了 Theme，
+  # 会把上面写的 Current=silent 盖回去。这里备份后把 Current 改成 silent。
+  if [ -f /etc/sddm.conf ]; then
+    backup_file /etc/sddm.conf
+    if sudo grep -q '^\[Theme\]' /etc/sddm.conf; then
+      sudo sed -i '/^\[Theme\]/,/^\[/ s/^Current=.*/Current=silent/' /etc/sddm.conf
+      sudo grep -q '^Current=silent' /etc/sddm.conf ||
+        printf 'Current=silent\n' | sudo tee -a /etc/sddm.conf >/dev/null
+    else
+      printf '\n[Theme]\nCurrent=silent\n' | sudo tee -a /etc/sddm.conf >/dev/null
+    fi
+    log "已处理 /etc/sddm.conf 的 Theme 覆盖（Current=silent）"
+  fi
+
   customize_sddm_theme
   log "SDDM 主题已切换到 silent（可到主题目录跑 ./test.sh 预览）"
 }
