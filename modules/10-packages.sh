@@ -535,30 +535,72 @@ setup_aur_helper() {
     log "Skipping the AUR (--no-aur)"
     return 0
   fi
-  # 固定用 paru，不安装也不使用 yay。系统已有 paru 就直接用；
-  # 没有就现场从 AUR 构建 paru-bin（预编译版，省去编译 Rust 的时间）。
-  if have paru; then
+
+  # 固定用 paru，不安装也不使用 yay。
+  # 优先用已有的 paru，但必须真的能跑：paru-bin 是预编译二进制，pacman 的
+  # libalpm 换了 soname（libalpm.so.15 -> .16）之后它会直接报
+  # "cannot open shared object file"，所以要看实际执行结果，不能只看命令是否存在。
+  if have paru && paru --version >/dev/null 2>&1; then
     AUR_CMD=paru
     log "AUR helper: $AUR_CMD"
     return 0
   fi
 
-  log "paru not found, building paru-bin ..."
   if [ "$DRY_RUN" -eq 1 ]; then
-    log "[dry-run] build paru-bin"
+    log "[dry-run] build paru (paru-bin, fallback to source)"
     AUR_CMD=paru
     return 0
   fi
 
   local cache="$HOME/.cache/kos-installer/aur"
   mkdir -p "$cache"
+
+  # 已有 paru 但跑不起来（多为 paru-bin 与 libalpm ABI 不匹配），先卸掉
+  # 注意 paru-bin-debug / paru-debug 也要一起清，否则会和源码编译版的文件冲突
+  if have paru; then
+    warn "installed paru is not runnable (libalpm ABI mismatch?), removing it first"
+    for _p in paru paru-debug paru-bin paru-bin-debug; do
+      sudo pacman -Rns --noconfirm "$_p" >/dev/null 2>&1 || true
+    done
+  fi
+
+  # 优先用 archlinuxcn 仓库里的预编译 paru（比 AUR 编译快得多）；
+  # --no-archlinuxcn 时没有这个仓库，直接跳过。
+  if pacman -Sl archlinuxcn >/dev/null 2>&1; then
+    log "Installing paru from archlinuxcn ..."
+    sudo pacman -S --needed --noconfirm paru >/dev/null 2>&1 || true
+    if paru --version >/dev/null 2>&1; then
+      AUR_CMD=paru
+      log "AUR helper: $AUR_CMD"
+      return 0
+    fi
+    warn "paru from archlinuxcn is not usable, falling back to AUR build"
+  fi
+
+  # 先试预编译的 paru-bin（省掉 Rust 编译时间）
+  log "paru not found, building paru-bin ..."
   if [ ! -d "$cache/paru-bin" ]; then
     git clone --depth 1 https://aur.archlinux.org/paru-bin.git "$cache/paru-bin" ||
       die "Failed to download paru-bin (check the network / AUR reachability)"
   fi
   ( cd "$cache/paru-bin" && makepkg -si --noconfirm ) ||
     die "paru-bin install failed (missing base-devel / git, or makepkg interrupted)"
-  have paru || die "paru still not found after installing paru-bin"
+
+  # 预编译版跑不起来（libalpm ABI 变化）就从源码编译 paru
+  if ! paru --version >/dev/null 2>&1; then
+    warn "paru-bin cannot run (libalpm ABI mismatch?), building paru from source"
+    for _p in paru paru-debug paru-bin paru-bin-debug; do
+      sudo pacman -Rns --noconfirm "$_p" >/dev/null 2>&1 || true
+    done
+    if [ ! -d "$cache/paru" ]; then
+      git clone --depth 1 https://aur.archlinux.org/paru.git "$cache/paru" ||
+        die "Failed to download paru source (check the network / AUR reachability)"
+    fi
+    ( cd "$cache/paru" && makepkg -si --noconfirm ) ||
+      die "paru source build failed (missing base-devel / rust, or makepkg interrupted)"
+  fi
+
+  paru --version >/dev/null 2>&1 || die "paru is still not runnable after install"
   AUR_CMD=paru
   log "AUR helper: $AUR_CMD"
 }
