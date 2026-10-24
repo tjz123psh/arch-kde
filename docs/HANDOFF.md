@@ -124,6 +124,28 @@ bash install.sh --dry-run --yes --no-archlinuxcn --no-aur
 grep -nE 'Print|vellum' ~/.config/kglobalshortcutsrc
 ```
 
+## 快捷键（2026-10-24 定稿）
+
+安装器在 `modules/57-shortcuts.sh` 里写入，装完注销重登生效：
+
+| 快捷键 | 功能 |
+|---|---|
+| `Meta+F` / `Meta+C` | 最大化 / 最小化窗口 |
+| `Alt+Q` | 关闭窗口 |
+| `Alt+F4` | 强制终止窗口（默认值仍为 Meta+Ctrl+Esc） |
+| `Alt+K/J/H/L` | 切换到上/下/左/右的窗口 |
+| `Alt+Shift+H/L` | 切换到左/右工作区 |
+| `Alt+Return` | 打开终端（kitty） |
+| `Alt+W` | 壁纸全屏预览 |
+| `Ctrl+M` | 备用启动器（fuzzel） |
+| `Meta+M` | 系统监视（btop） |
+| `Meta+Shift+C` | 终端工具菜单 |
+| `Meta+/` | 快捷键查看器 |
+| `Alt+F5` / `Alt+F6` | 录屏菜单 / 热点菜单 |
+| `Print` / `Ctrl+Print` | 区域截图 / 长截图（Vellum） |
+
+KOS 壳自己的快捷键存在 `~/.local/state/quickshell/kos/shortcuts/config.json`：启动器 `Meta`、快速搜索 `Meta+O`，其余为 KOS 默认。
+
 ## 约定（不要破坏）
 
 - 以桌面用户身份运行，**不要整脚本 sudo**；KOS 配置写 `~/.config/quickshell/kos`。
