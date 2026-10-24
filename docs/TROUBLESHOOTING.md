@@ -203,7 +203,28 @@ grep '^Exec' ~/.local/share/applications/google-chrome.desktop   # 应该带 --p
 换成 basic 存储后，Chrome 会重新生成 cookie 加密密钥，个别站点可能要重新登录一次。
 ## 完全回退
 
-- 单个配置：按 `~/.local/state/kos-installer/backup/<时间>/manifest.txt` 复制回去。
+一条命令退回安装前（装好后在 `~/bin`；还没装完就用仓库里的 `bash rollback.sh`）：
+
+~~~bash
+kos-undo            # 卸掉这次新装的包 + 还原文件 + 清残留目录；先列清单再问你
+kos-undo --dry-run  # 只打印计划
+~~~
+
+包清单来自安装开始时记的 `~/.local/state/kos-installer/baseline/<时间>-pacman-Qq.txt`；
+旧版本安装器装的没有这份基线，会退回解析 `/var/log/pacman.log`。都没有就只还原文件。
+
+另一条路是整机快照（不需要它也能用 `kos-undo`）：
+
+~~~bash
+kos-undo list         # 安装记录 + Snapper 快照
+kos-undo snapshot 12  # 回档到 Snapper 12（要 root，回档后重启）
+~~~
+
+- 清单在 `~/.local/state/kos-installer/backup/<时间>/manifest.txt`：`<原路径> <sha256> <备份路径>`
+  的行会被拷回去，`created <原路径>` 的行是安装器新建的文件、会被删掉。
+- 安装器在装桌面前会落一个 Snapper 快照 `kos-installer: before desktop`，
+  比文件级回滚更彻底（连包一起退）。
+- 只想重来一遍：直接 `bash install.sh --yes`，不用回滚。
 - 镜像：见上面。
 - KOS 桌面：用上游 `kosctl uninstall`（本仓库不接管桌面本体卸载）。
 - 旧桌面遗留包：默认不删；明确要删才用 `bash install.sh --clean-old-desktop`，

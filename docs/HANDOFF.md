@@ -1,6 +1,6 @@
 # 交接状态（新会话先读）
 
-最后更新：2026-10-23
+最后更新：2026-10-24
 
 ## 一句话
 
@@ -26,6 +26,12 @@
 - `Win+/` 快捷键查看器：KOS + KDE 快捷键按分类列出，媒体键显示成中文键名，Meta 显示为 Win
 - `rclone` 随安装器一起装（云盘同步 / 异地备份用；不写任何远端配置）
 - 窗口动效：KOS 动画走 genie（最小化吸进 Dock），叠加 KDE 自带的摆动窗口（拖动/缩放形变）
+- 默认壁纸：安装器把 Plasma 桌面和 KOS 都指到图集里的一张（默认 `樱吹雪.png`，`--wallpaper` 可改），
+  不再出现 KDE 默认壁纸；用户自己在图集里选过的图不会被重跑覆盖
+- 回滚：`kos-undo`（`assets/scripts/maintenance/kos-undo`，链到 `~/bin`；仓库里是 `rollback.sh`）。
+  不带参数就是“回到安装前”：卸掉这次新装的包（`record_baseline` 记的 `pacman -Qq` 基线做差集，
+  旧安装没有基线时退回解析 `/var/log/pacman.log`）、按 manifest 还原文件、删掉新建的文件和
+  `~/.cache/kos-src` 等目录；`kos-undo snapshot <序号>` 是另一条路（Snapper 整机回档）
 
 ## 仓库结构
 
@@ -46,9 +52,10 @@ docs/                    本文件 + 排障手册
 | `00-preflight` | 预检、内核/headers 探测、硬件探测、archinstall 前提检查 |
 | `05-cleanup` | 显式 `--clean-old-desktop` 才删旧桌面包 |
 | `10-packages` | 镜像、系统更新、官方包、AUR、硬件固定名单 |
+| `15-grub-theme` | GRUB 主题（只改显示相关项，失败只 warn） |
 | `20-hardware` | 全量只读硬件探测（doctor 用） |
 | `30-locale` / `40-system` | locale、用户组、shell、服务、微码、时间同步、zram、快照 |
-| `45-ime` / `50-terminal` / `52-configs` | 输入法、终端、应用配置 |
+| `45-ime` / `47-hotspot` / `50-terminal` / `52-configs` | 输入法、热点转发 drop-in、终端、应用配置 |
 | `55-apps` | QQ 启动器去重、Vellum 安装 |
 | `57-shortcuts` | KDE 快捷键、Vellum 截图键 |
 | `58-scripts` | 常驻脚本安装到 `~/scripts`，链接到 `~/bin` |
@@ -76,17 +83,12 @@ bash install.sh --dry-run --yes
    `install.sh --yes`。按项目约定，改主流程 / 包清单 / 镜像逻辑后必须在干净 VM
    验证，不能只靠宿主 dry-run。
 
-2. **AGENTS.md 仍是旧约束**
-   项目级 `AGENTS.md` 的旧桌面清单里还写着 `fuzzel`，但安装器现在把 fuzzel
-   当备用启动器安装，`05-cleanup.sh` 已从删除清单移除。按 `AGENTS.md` 自己的
-   要求，改它之前要先问用户；新会话不要静默修改。
-
-3. **KDE 原生音量/亮度键的验证**
+2. **KDE 原生音量/亮度键的验证**
    当前系统已恢复 KDE 原生快捷键。若下次登录后按键失效，先重启
    `plasma-kded6`（音量）和 `plasma-powerdevil`（亮度），再按排障手册检查
    `kglobalshortcutsrc` 中的 kmix / PowerDevil 动作。
 
-4. **首次登录引导**
+3. **首次登录引导**
    属于桌面仓库（NextKDE）的责任，本仓库不实现。
 
 ## 本机系统级改动（安装器不管，重装系统会丢）
@@ -96,7 +98,7 @@ bash install.sh --dry-run --yes
 | 项目 | 现状 | 回退方式 |
 |---|---|---|
 | SDDM 用 Wayland greeter | `/etc/sddm.conf.d/10-wayland.conf`：`DisplayServer=wayland` + `CompositorCommand=kwin_wayland --drm --no-lockscreen --no-global-shortcuts` | 删该文件 → `sudo systemctl restart sddm`；配置备份在 `/root/sddm-backup-20261023-202326/` |
-| GRUB 主题 | `Elegant-mojave-window-left-dark`；`GRUB_THEME`、`GRUB_TIMEOUT=5`、`GRUB_GFXMODE=1920x1080,auto`、`GRUB_PRELOAD_MODULES` 含 `usb usb_keyboard` | `/root/grub-backup-20261023-195626/`（`default-grub` + `grub.cfg`），拷回后 `grub-mkconfig` |
+| GRUB 主题（2026-10-24 起已由 `15-grub-theme` 接管，见下方注） | `Elegant-mojave-window-left-dark`；`GRUB_THEME`、`GRUB_TIMEOUT=5`、`GRUB_GFXMODE=1920x1080,auto`、`GRUB_PRELOAD_MODULES` 含 `usb usb_keyboard` | `/root/grub-backup-20261023-195626/`（`default-grub` + `grub.cfg`），拷回后 `grub-mkconfig` |
 | Plasma 桌面壁纸 | 樱吹雪（`~/.local/share/kos/gallery/`），作为 KOS shell 加载完成前的兜底背景，避免登录后黑屏 | 删 `plasma-org.kde.plasma.desktop-appletsrc` 里 `[Containments][1][Wallpaper]` 段 |
 | 开机提速 | `NetworkManager-wait-online.service` 已 disable；`rjsupplicant.service` 加了 `10-no-wait-online.conf` drop-in | `systemctl enable --now NetworkManager-wait-online`；删 drop-in 后 `daemon-reload` |
 
@@ -110,6 +112,7 @@ bash install.sh --dry-run --yes
 登录时慢是因为 **KWin 启动阶段在编译 KOS 的效果着色器**，主循环不响应桥接轮询，shell 只能等。
 日志特征：`KOS continuous corners: shader failed; using native arcs`（该 shader 编译失败，属上游 bug）。
 已做缓解：给 Plasma 桌面配了壁纸，过渡期间显示壁纸而不是黑屏。
+
 ## 常用验证
 
 ```bash
@@ -131,7 +134,7 @@ grep -nE 'Print|vellum' ~/.config/kglobalshortcutsrc
 | 快捷键 | 功能 |
 |---|---|
 | `Meta+F` / `Meta+C` | 最大化 / 最小化窗口 |
-| `Alt+Q` | 关闭窗口 |
+| `Alt+Q` | 关闭窗口（只绑这一个键，不再附带 Alt+F4） |
 | `Alt+F4` | 强制终止窗口（默认值仍为 Meta+Ctrl+Esc） |
 | `Alt+K/J/H/L` | 切换到上/下/左/右的窗口 |
 | `Alt+Shift+H/L` | 切换到左/右工作区 |
@@ -157,9 +160,8 @@ KOS 壳自己的快捷键存在 `~/.local/state/quickshell/kos/shortcuts/config.
 
 ## 当前提交锚点
 
-- 后续以 `git log` 为准；KOS OSD 实验已在后续提交里回退。
+以 `git log` 为准（本节只是最近一次的写作锚点，别当成 HEAD）：
 
-- `05685d6` feat(lock): customize KOS lock screen
-- `51ff09f` chore(shortcuts): keep only Print and Ctrl+Print for screenshots
-
-后续提交以 `git log` 为准。
+- `29fe747` docs: document the final shortcut set
+- `163a72a` feat(shortcuts): switch workspaces left/right with Alt+Shift+H/L
+- `338cfe8` feat(shortcuts): remap window switching to Alt+HJKL and kill window to Alt+F4
