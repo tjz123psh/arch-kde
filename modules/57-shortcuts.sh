@@ -6,6 +6,7 @@
 #   Win+Shift+C -> kitty -e term-menu
 #   Alt+Enter   -> 打开 kitty
 #   Alt+Q       -> 关闭当前窗口（KWin Window Close）
+#   Alt+F4      -> 强制终止窗口（KWin Kill Window，不与关闭共用）
 #   Alt+W       -> 打开全屏壁纸预览
 # 使用 KGlobalAccel 的 command shortcut desktop 文件，不依赖 KOS 私有快捷键。
 
@@ -382,7 +383,8 @@ EOF
   kwriteconfig6 --file kglobalshortcutsrc --group services --group kitty-terminal.desktop --key _launch "Alt+Return" --notify
   kwriteconfig6 --file kglobalshortcutsrc --group services --group btop.desktop --key _launch "Meta+M" --notify
   kwriteconfig6 --file kglobalshortcutsrc --group services --group fuzzel-launcher.desktop --key _launch "Ctrl+M" --notify
-  kwriteconfig6 --file kglobalshortcutsrc --group kwin --key "Window Close" "Alt+Q,Alt+F4,Close Window" --notify
+  # 关闭窗口只绑 Alt+Q；Alt+F4 专用于下面的 Kill Window（用户 2026-10-24 指定）
+  kwriteconfig6 --file kglobalshortcutsrc --group kwin --key "Window Close" "Alt+Q,Alt+Q,关闭窗口" --notify
 
   # 窗口最大化/最小化（用户 2026-10-24 指定）：Win+F 最大化、Win+C 最小化
   kwriteconfig6 --file kglobalshortcutsrc --group kwin --key "Window Maximize" "Meta+F,Meta+PgUp,最大化窗口" --notify
