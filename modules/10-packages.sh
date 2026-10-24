@@ -354,7 +354,7 @@ sddm qt6-tools qt6-translations libxml2
 noto-fonts noto-fonts-cjk noto-fonts-emoji inter-font ttf-jetbrains-mono-nerd
 fcitx5 fcitx5-configtool fcitx5-gtk fcitx5-qt fcitx5-chinese-addons
 fcitx5-pinyin-zhwiki fcitx5-material-color fcitx5-nord fcitx5-lua
-kitty fish starship fzf eza bat fd ripgrep zoxide fastfetch
+kitty fish starship fzf eza bat fd ripgrep zoxide fastfetch imagemagick
 mpv tesseract-data-eng
 networkmanager bluez bluez-utils bluedevil bluez-obex linux-firmware
 base-devel git curl jq unzip xdg-utils xdg-user-dirs man-db cmake extra-cmake-modules python

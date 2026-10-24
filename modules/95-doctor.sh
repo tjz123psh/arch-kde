@@ -78,6 +78,7 @@ run_doctor() {
       test -d "$HOME/.config/$dir" && echo "  [OK]   $dir" || echo "  [MISS] $dir"
     done
     test -f "$HOME/.config/starship.toml" && echo "  [OK]   starship.toml" || echo "  [MISS] starship.toml"
+    pkg_installed imagemagick && echo "  [OK]   imagemagick（fastfetch 图片 logo）" || echo "  [MISS] imagemagick（fastfetch 图片 logo 需要它）"
 
     # 桌面配置文件：缺一个都会让对应组件回到默认外观
     for f in \
