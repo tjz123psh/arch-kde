@@ -32,7 +32,7 @@ assets/             配置、壁纸
 ## 四、硬约定（改之前先读）
 
 1. **以桌面用户身份运行，不要整脚本 sudo**：KOS 配置写 `~/.config/quickshell/kos`，用 root 跑会写进 root 的 HOME。
-2. **破坏性动作不做**：分区、挂载、bootloader、内核安装/切换、时区都不碰；这些是 archinstall 的前提。
+2. **破坏性动作不做**：分区、挂载、bootloader 本体（安装/切换）、内核安装/切换、时区都不碰；这些是 archinstall 的前提。例外：GRUB **主题**可以装——只改 `/etc/default/grub` 的显示相关项并跑 `grub-mkconfig`，改前必须备份，失败只 `warn` 不中断。
 3. **硬件固定按目标机**：ASUS TUF A15（AMD 7735H + RTX 4050 + RTL8852BE）。驱动名单写死在 `modules/10-packages.sh` 的"硬件驱动：固定按目标机装"一段，**不再按探测结果决定装包**；换机器时改那一段和 `hw_policy_resolve()`。蓝牙固定装 `bluez` + `bluedevil` + `bluez-obex`，`bluetooth.service` 常开；打印、指纹、WWAN 不装。
 4. **archinstall 前提只做 `--needed` 兜底**：内核 headers、`neovim`、`exfatprogs`、`os-prober`、`zram-generator`。装过就跳过。
 5. **镜像文件策略**：默认整份覆盖 `/etc/pacman.d/mirrorlist`（archinstall 常留 aliyun 单源）与 `/etc/pacman.d/archlinuxcn-mirrorlist`；清华必须第一，官方 16 个 / archlinuxcn 12 个国内镜像；网络失败自动降级（注释当前第一条 `Server =`，最多 3 次）。改镜像清单要重新用 curl 验证 `core.db` / `archlinuxcn.db`。
