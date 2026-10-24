@@ -19,6 +19,85 @@ install_wallpapers() {
   log "Wallpapers in gallery: $(find "$dst" -maxdepth 1 -type f | wc -l)"
 }
 
+# 默认壁纸：把 Plasma 桌面和 KOS 都指到图集里的一张，别让新系统先露出 KDE 的默认壁纸。
+# 只写“还没配过”的情况；重跑安装器时，用户自己在图集里选过的图不会被换掉。
+seed_default_wallpaper() {
+  local gallery="${XDG_DATA_HOME:-$HOME/.local/share}/kos/gallery"
+  local pick="${WALLPAPER:-樱吹雪.png}"
+  local dest ini applets current=""
+
+  log "Setting the default wallpaper ($pick)..."
+  if [ "$DRY_RUN" -eq 1 ]; then
+    log "[dry-run] point the Plasma desktop and the KOS wallpaper at $gallery/$pick"
+    return 0
+  fi
+
+  if [ ! -f "$gallery/$pick" ] && [ -f "$gallery/$pick.png" ]; then
+    pick="$pick.png"
+  fi
+  if [ ! -f "$gallery/$pick" ]; then
+    pick=$(find "$gallery" -maxdepth 1 -type f -name '*.png' -printf '%f\n' 2>/dev/null | sort | head -n 1 || true)
+    if [ -z "$pick" ]; then
+      warn "No wallpaper in $gallery; leaving the wallpaper alone"
+      return 0
+    fi
+    warn "Wallpaper not found; falling back to $pick"
+  fi
+  dest="$gallery/$pick"
+
+  # Plasma 桌面：KOS shell 起来之前看到的就是这张，否则会先闪一下 KDE 的默认壁纸。
+  if have kwriteconfig6; then
+    applets="$HOME/.config/plasma-org.kde.plasma.desktop-appletsrc"
+    if have kreadconfig6; then
+      current=$(kreadconfig6 --file plasma-org.kde.plasma.desktop-appletsrc \
+        --group Containments --group 1 --group Wallpaper --group org.kde.image --group General \
+        --key Image 2>/dev/null || true)
+    fi
+    case "$current" in
+      */kos/gallery/*)
+        if [ "${WALLPAPER_FORCE:-0}" -ne 1 ]; then
+          log "Plasma wallpaper already picked from the gallery; keeping $current"
+          applets=""
+        fi
+        ;;
+    esac
+    if [ -n "$applets" ]; then
+      if [ -n "${WAYLAND_DISPLAY:-}${DISPLAY:-}" ] && have plasma-apply-wallpaperimage; then
+        plasma-apply-wallpaperimage "$dest" >/dev/null 2>&1 ||
+          warn "plasma-apply-wallpaperimage failed; writing the config instead"
+      fi
+      record_created "$applets"
+      backup_file "$applets"
+      kwriteconfig6 --file plasma-org.kde.plasma.desktop-appletsrc \
+        --group Containments --group 1 --group Wallpaper --key wallpaperplugin org.kde.image --notify
+      kwriteconfig6 --file plasma-org.kde.plasma.desktop-appletsrc \
+        --group Containments --group 1 --group Wallpaper --group org.kde.image --group General \
+        --key Image "file://$dest" --notify
+      log "Plasma desktop wallpaper -> $dest"
+    fi
+  else
+    warn "kwriteconfig6 missing; skipping the Plasma wallpaper"
+  fi
+
+  # KOS 自己的壁纸配置：只在还没生成时预置，免得覆盖用户已经在设置里选好的壁纸。
+  ini="${XDG_STATE_HOME:-$HOME/.local/state}/quickshell/kos/wallpaper.ini"
+  if [ -e "$ini" ] && [ "${WALLPAPER_FORCE:-0}" -ne 1 ]; then
+    log "Existing KOS wallpaper config found; keeping it: $ini"
+    return 0
+  fi
+  mkdir -p "$(dirname "$ini")"
+  write_file "$ini" <<EOF
+[Wallpaper]
+image=$dest
+mode=image
+fitMode=crop
+takeoverEnabled=true
+themeAnimated=true
+libraryMigrated=true
+EOF
+  log "KOS wallpaper -> $dest"
+}
+
 # KOS 首次启动前预置的组件外观；已有配置绝不覆盖。
 # widgetStyle=glass 是官方视频里的液体玻璃桌面组件，glassStyle=liquid 是默认液体材质。
 seed_kos_widget_style() {

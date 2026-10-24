@@ -41,6 +41,9 @@ KOS_SPATIAL=0
 IME=fcitx5
 LOCALE_MODE=en
 HW_ASUS=1
+# 桌面默认壁纸：assets/wallpapers 里的文件名；--wallpaper 可改，带 --wallpaper 时强制覆盖
+WALLPAPER="樱吹雪.png"
+WALLPAPER_FORCE=0
 
 source "$INSTALLER_DIR/lib/common.sh"
 for _m in "$INSTALLER_DIR"/modules/*.sh; do
@@ -67,6 +70,9 @@ What gets installed:
   --spatial          Also build spatial depth (installs OpenCV + ONNX Runtime; off by default)
   --ime fcitx5|rime|none
   --locale en|zh
+  --wallpaper NAME   Default desktop wallpaper from assets/wallpapers
+                     (name with or without .png; default 樱吹雪.png). Only used
+                     when there is no wallpaper yet, unless you pass it again.
 
 Skip:
   --no-sddm-theme    Leave the SDDM login theme alone
@@ -114,6 +120,7 @@ parse_args() {
       --ime) shift; IME="${1:?--ime needs a value}" ;;
       --undo) shift; exec bash "$ASSET_DIR/scripts/maintenance/kos-undo" "$@" ;;
       --locale) shift; LOCALE_MODE="${1:?--locale needs a value}" ;;
+      --wallpaper) shift; WALLPAPER="${1:?--wallpaper needs a value}"; WALLPAPER_FORCE=1 ;;
       --no-sddm-theme) NO_SDDM_THEME=1 ;;
       --no-aur) NO_AUR=1 ;;
       --no-mirrors) NO_MIRRORS=1 ;;
@@ -140,7 +147,7 @@ print_plan() {
   log " KOS desktop installation plan"
   log " Installer: $INSTALLER_DIR"
   log " KOS source: $(kos_repo_dir) (from $KOS_SRC_URL)"
-  log " Input method: $IME   Locale: $LOCALE_MODE"
+  log " Input method: $IME   Locale: $LOCALE_MODE   Wallpaper: $WALLPAPER"
   log " Standalone apps: $([ "$KOS_WITH_APPS" -eq 1 ] && echo yes || echo no)   Lock screen: $([ "$KOS_WITH_LOCKSCREEN" -eq 1 ] && echo yes || echo no)"
   log " SDDM theme: $([ "$NO_SDDM_THEME" -eq 1 ] && echo keep-current || echo SilentSDDM)"
   log " Spatial depth: $([ "$KOS_SPATIAL" -eq 1 ] && echo build || echo skip)"
@@ -211,6 +218,7 @@ main() {
   setup_sddm_theme
   install_desktop_config
   install_wallpapers
+  seed_default_wallpaper
   install_user_scripts || warn "Maintenance/package scripts failed to install; rerun later"
   install_kde_shortcuts || warn "KDE shortcuts setup failed; rerun later"
   install_wallpaper_shortcut || warn "Wallpaper shortcut setup failed; rerun later"

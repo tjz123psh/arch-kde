@@ -4,6 +4,7 @@
 
 run_doctor() {
   local mode="$1" gallery kos_dir="" ml ml_n ml_first ml_skip
+  local wallpaper_ini kos_wp plasma_wp
   local report="$STATE_DIR/doctor-$RUN_ID.txt"
   mkdir -p "$STATE_DIR"
   {
@@ -118,6 +119,27 @@ run_doctor() {
     systemctl is-enabled snapper-timeline.timer 2>&1 || true
     systemctl is-enabled snapper-cleanup.timer 2>&1 || true
     pkg_installed btrfs-assistant && echo "  [OK]   btrfs-assistant" || echo "  [MISS] btrfs-assistant"
+    echo
+    echo "== 壁纸 =="
+    wallpaper_ini="${XDG_STATE_HOME:-$HOME/.local/state}/quickshell/kos/wallpaper.ini"
+    if [ -f "$wallpaper_ini" ]; then
+      kos_wp=$(sed -n 's/^image=//p' "$wallpaper_ini" 2>/dev/null | head -n 1)
+      if [ -n "$kos_wp" ] && [ -f "$kos_wp" ]; then
+        echo "  [OK]   KOS 壁纸：$kos_wp"
+      else
+        echo "  [MISS] KOS 壁纸（wallpaper.ini 里的 image 不存在：${kos_wp:-空}）"
+      fi
+    else
+      echo "  [MISS] KOS 壁纸配置（$wallpaper_ini）"
+    fi
+    plasma_wp=$(kreadconfig6 --file plasma-org.kde.plasma.desktop-appletsrc \
+      --group Containments --group 1 --group Wallpaper --group org.kde.image --group General \
+      --key Image 2>/dev/null || true)
+    case "$plasma_wp" in
+      *"/kos/gallery/"*) echo "  [OK]   Plasma 桌面壁纸：$plasma_wp" ;;
+      "")                echo "  [MISS] Plasma 桌面壁纸（还没设置）" ;;
+      *)                 echo "  [MISS] Plasma 桌面壁纸仍是 $plasma_wp（不在 KOS 图集里）" ;;
+    esac
     echo
     echo "== 字体 =="
     fc-match "Noto Sans CJK SC" 2>/dev/null | head -1 || true
