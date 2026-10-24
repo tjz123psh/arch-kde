@@ -102,6 +102,8 @@ bash install.sh --dry-run --yes
 
 ⚠️ `/boot` 是 **vfat（EFI 分区）**，GRUB 主题只能用 `cp -rL`（解引用符号链接）安装；上游 `install.sh` 的直接 `cp -a` 会因为符号链接报 `文件已存在`。
 
+> 2026-10-24 起：GRUB 主题与登录头像已纳入安装器（`modules/15-grub-theme.sh` + `assets/grub-theme/`、`modules/80-sddm.sh` + `assets/avatar/`），不再需要手动处理。
+
 ## KOS 启动慢的已知瓶颈（上游问题，未解决）
 
 登录后 KOS 顶栏/Dock 要等约 8 秒才出现。实测：`kos-shell` 单独重启只需 ~2.7 秒（CPU 满载、清空页缓存都一样），

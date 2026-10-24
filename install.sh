@@ -185,6 +185,7 @@ main() {
   setup_aur_helper
   install_aur_packages
   setup_system
+  setup_grub_theme
   setup_hotspot_dispatcher
   setup_ime
   setup_terminal

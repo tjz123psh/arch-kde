@@ -6,6 +6,56 @@
 #   https://github.com/uiriansan/SilentSDDM
 # 要求 SDDM >= 0.21、Qt >= 6.5；Arch 的 sddm 0.21 满足。
 
+
+# 登录头像：用户自备 ~/.face 优先；没有就用仓库里的默认头像（assets/avatar/default.png）。
+# 三处同步：~/.face（Plasma 认）、/usr/share/sddm/faces/<user>.face.icon（SDDM 认）、
+# /var/lib/AccountsService/icons/<user> + users 文件里的 Icon=（KDE 用户页 / 登录页认）。
+install_user_avatar() {
+  local user face asset
+  user=$(id -un)
+  face="$HOME/.face"
+  asset="$ASSET_DIR/avatar/default.png"
+
+  if [ ! -f "$face" ] && [ -f "$asset" ]; then
+    install -Dm644 "$asset" "$face" || { warn "写入 ~/.face 失败"; return 0; }
+    install -Dm644 "$asset" "$HOME/.face.icon" || true
+  fi
+  if [ ! -f "$face" ]; then
+    warn "没有可用的头像（缺 ~/.face 和 assets/avatar/default.png）"
+    return 0
+  fi
+
+  sudo_run install -Dm644 "$face" "/usr/share/sddm/faces/$user.face.icon" || warn "写入 SDDM 头像失败"
+  sudo_run install -Dm644 "$face" "/var/lib/AccountsService/icons/$user" || warn "写入 AccountsService 头像失败"
+
+  sudo mkdir -p /var/lib/AccountsService/users 2>/dev/null || true
+  sudo python3 - "$user" <<'PY' 2>/dev/null || warn "更新 AccountsService 用户配置失败"
+from pathlib import Path
+import sys
+
+user = sys.argv[1]
+p = Path("/var/lib/AccountsService/users") / user
+lines = p.read_text().splitlines() if p.exists() else []
+out, inside = [], False
+for line in lines:
+    stripped = line.strip()
+    if stripped.startswith("[") and stripped.endswith("]"):
+        inside = stripped == "[User]"
+        out.append(line)
+        continue
+    if inside and stripped.startswith("Icon="):
+        out.append("Icon=/var/lib/AccountsService/icons/" + user)
+        continue
+    out.append(line)
+if not any(l.strip() == "[User]" for l in out):
+    out.append("[User]")
+if not any(l.strip().startswith("Icon=") for l in out):
+    out.append("Icon=/var/lib/AccountsService/icons/" + user)
+p.write_text("\n".join(out).rstrip() + "\n")
+PY
+  log "登录头像已安装（$user）"
+}
+
 # 登录页外观：Silent 主题的 configs/default.conf；登录/锁屏共用当前壁纸，
 # 头像同步到 SDDM，登录框改为圆角半透明。认证逻辑完全不动。
 customize_sddm_theme() {
@@ -88,9 +138,7 @@ PY
   if [ -f "$ASSET_DIR/wallpapers/樱吹雪.png" ]; then
     sudo_run install -Dm644 "$ASSET_DIR/wallpapers/樱吹雪.png" "$theme/backgrounds/kos-wallpaper.png" || warn "复制 SDDM 壁纸失败"
   fi
-  if [ -f "$HOME/.face" ]; then
-    sudo_run install -Dm644 "$HOME/.face" "/usr/share/sddm/faces/$(id -un).face.icon" || warn "写入 SDDM 头像失败"
-  fi
+  install_user_avatar
   sudo_run install -Dm644 "$tmp" "$cfg" || warn "写入 SDDM 主题配置失败"
   rm -f "$tmp"
   log "Silent 登录页已应用背景 / 模糊 / 头像 / 圆角登录框"
