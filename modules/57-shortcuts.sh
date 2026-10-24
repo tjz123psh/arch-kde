@@ -384,9 +384,9 @@ EOF
   kwriteconfig6 --file kglobalshortcutsrc --group services --group fuzzel-launcher.desktop --key _launch "Ctrl+M" --notify
   kwriteconfig6 --file kglobalshortcutsrc --group kwin --key "Window Close" "Alt+Q,Alt+F4,Close Window" --notify
 
-  # 窗口最大化/最小化（用户 2026-10-24 指定）：Alt+F 最大化、Alt+C 最小化
-  kwriteconfig6 --file kglobalshortcutsrc --group kwin --key "Window Maximize" "Alt+F,Meta+PgUp,最大化窗口" --notify
-  kwriteconfig6 --file kglobalshortcutsrc --group kwin --key "Window Minimize" "Alt+C,Meta+PgDown,最小化窗口" --notify
+  # 窗口最大化/最小化（用户 2026-10-24 指定）：Win+F 最大化、Win+C 最小化
+  kwriteconfig6 --file kglobalshortcutsrc --group kwin --key "Window Maximize" "Meta+F,Meta+PgUp,最大化窗口" --notify
+  kwriteconfig6 --file kglobalshortcutsrc --group kwin --key "Window Minimize" "Meta+C,Meta+PgDown,最小化窗口" --notify
 
   if have kbuildsycoca6; then
     kbuildsycoca6 --noincremental >/dev/null 2>&1 || true
