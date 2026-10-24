@@ -90,6 +90,11 @@ Environment:
   KOS_SRC_URL        Source repository URL (default: upstream)
   KOS_SRC_REF        Source branch or tag (default: newest stable release; use main for development)
 
+Undo:
+  --undo [args...]   Restore what the installer changed, then exit. Without args
+                     it lists the backup runs; see `bash install.sh --undo --help`.
+                     Snapshot rollback: kos-undo snapshot <N> (Snapper).
+
   -h, --help         Show this help
 USAGE
 }
@@ -107,6 +112,7 @@ parse_args() {
       --start) KOS_START=1 ;;
       --spatial) KOS_SPATIAL=1 ;;
       --ime) shift; IME="${1:?--ime needs a value}" ;;
+      --undo) shift; exec bash "$ASSET_DIR/scripts/maintenance/kos-undo" "$@" ;;
       --locale) shift; LOCALE_MODE="${1:?--locale needs a value}" ;;
       --no-sddm-theme) NO_SDDM_THEME=1 ;;
       --no-aur) NO_AUR=1 ;;
@@ -160,6 +166,7 @@ summary() {
 main() {
   parse_args "$@"
   init_state
+  record_baseline
   preflight
   hw_policy_resolve
   print_plan

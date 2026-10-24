@@ -267,6 +267,19 @@ setup_snapshots() {
     fi
   done
 
+  # 落一个“装桌面前”的回滚点：桌面/KOS 的配置都在这一步之后写，装坏了可以
+  # 用 kos-undo snapshot <序号> 退回来。描述相同就不再重复建，避免重跑堆快照。
+  local snap_desc="kos-installer: before desktop"
+  for spec in root home; do
+    [ -e "/etc/snapper/configs/$spec" ] || continue
+    if sudo snapper -c "$spec" list 2>/dev/null | grep -qF "$snap_desc"; then
+      log "Snapshot \"$snap_desc\" already exists for $spec; skipping"
+      continue
+    fi
+    sudo_run snapper -c "$spec" create -d "$snap_desc" ||
+      warn "Failed to create the $spec snapshot"
+  done
+
   # Snapper 默认每小时触发 timeline；用户要求每周一次，改为周日 03:00。
   # 只覆盖 timer 时间表，不改 Snapper 的保留策略（weekly=4）。
   sudo_write_file /etc/systemd/system/snapper-timeline.timer.d/90-weekly.conf <<'EOF'

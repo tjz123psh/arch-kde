@@ -14,7 +14,16 @@ MANIFEST="$BACKUP_DIR/manifest.txt"
 SUDO_KEEPALIVE_PID=
 
 init_state() {
-  mkdir -p "$LOG_DIR" "$BACKUP_DIR"
+  mkdir -p "$LOG_DIR"
+  if [ "$DRY_RUN" -eq 1 ] || [ "${CHECK_ONLY:-0}" -eq 1 ]; then
+    # 演练 / 只预检都不产生备份：否则 ~/.local/state/kos-installer/backup 会被
+    # 空目录塞满，回滚工具（kos-undo list）里全是 “0 个文件” 的噪音。
+    MANIFEST=/dev/null
+    log "Log: $LOG_FILE"
+    log "Backup: skipped (dry-run / --check)"
+    return 0
+  fi
+  mkdir -p "$BACKUP_DIR"
   : > "$MANIFEST"
   log "Log: $LOG_FILE"
   log "Backup: $BACKUP_DIR"
@@ -75,6 +84,28 @@ cleanup() {
   fi
 }
 
+# 安装真正开始前，把现有包清单留一份。回滚时拿它和当前 pacman -Qq 做差集，
+# 就能知道“这次到底新装了哪些包”，进而把它们卸掉——光靠文件备份退不干净。
+record_baseline() {
+  [ "${DRY_RUN:-0}" -eq 1 ] && return 0
+  [ "${CHECK_ONLY:-0}" -eq 1 ] && return 0
+  have pacman || return 0
+  mkdir -p "$STATE_DIR/baseline"
+  pacman -Qq | sort > "$STATE_DIR/baseline/$RUN_ID-pacman-Qq.txt"
+  log "Baseline: $STATE_DIR/baseline/$RUN_ID-pacman-Qq.txt ($(wc -l < "$STATE_DIR/baseline/$RUN_ID-pacman-Qq.txt") packages)"
+}
+
+# 记下“本来就存在、被我们覆盖”的文件（还原时拷回）之外，还要记下“安装器新建”
+# 的文件（还原时删掉），否则回滚只能恢复旧文件、留下半套新配置。
+record_created() {
+  local dest="$1"
+  [ -n "${MANIFEST:-}" ] || return 0
+  [ -d "$(dirname "$MANIFEST")" ] || return 0
+  [ -e "$dest" ] && return 0
+  grep -qxF "created $dest" "$MANIFEST" 2>/dev/null && return 0
+  echo "created $dest" >> "$MANIFEST"
+}
+
 backup_file() {
   local src="$1"
   local rel dst sum
@@ -93,6 +124,7 @@ install_file() {
   if [ "$#" -ge 3 ]; then mode="$3"; fi
   if [ ! -f "$src" ]; then die "Missing file: $src"; fi
   if [ "$DRY_RUN" -eq 1 ]; then log "[dry-run] install $src -> $dest"; return 0; fi
+  record_created "$dest"
   backup_file "$dest"
   mkdir -p "$(dirname "$dest")"
   install -Dm"$mode" "$src" "$dest"
@@ -101,6 +133,7 @@ install_file() {
 write_file() {
   local dest="$1"
   if [ "$DRY_RUN" -eq 1 ]; then log "[dry-run] write $dest"; cat > /dev/null; return 0; fi
+  record_created "$dest"
   backup_file "$dest"
   mkdir -p "$(dirname "$dest")"
   cat > "$dest"
@@ -109,6 +142,7 @@ write_file() {
 sudo_write_file() {
   local dest="$1" tmp
   if [ "$DRY_RUN" -eq 1 ]; then log "[dry-run] sudo write $dest"; cat > /dev/null; return 0; fi
+  record_created "$dest"
   backup_file "$dest"
   tmp=$(mktemp)
   cat > "$tmp"
