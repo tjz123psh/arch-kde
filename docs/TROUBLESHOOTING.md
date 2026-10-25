@@ -221,6 +221,23 @@ cat ~/.config/Code/User/argv.json          # VS Code 自己读的运行时参数
 
 想改成用钱包加密：删掉那一行里的 `--password-store=basic`，装 `kwalletmanager`、
 建一个 kdewallet 钱包，然后重启 VS Code。
+## GRUB 菜单里上下键没反应
+
+典型症状：开机停在 GRUB 菜单，按 ↑↓ 不动、只能等超时自己启动。
+
+原因几乎都是 `GRUB_PRELOAD_MODULES` 里写了 `usb_keyboard`：笔记本内置键盘走 AT/PS2
+（`/proc/bus/input/devices` 里叫 `AT Translated Set 2 keyboard`），不是 USB 设备，
+UEFI 下再加载 USB 键盘驱动会把输入抢掉。
+
+```bash
+grep GRUB_PRELOAD_MODULES /etc/default/grub
+# 有问题的话改成（保留分区模块）：GRUB_PRELOAD_MODULES="part_gpt part_msdos at_keyboard"
+sudo grub-mkconfig -o /boot/grub/grub.cfg
+```
+
+安装器现在不再写 `usb_keyboard`，遇到旧值会自动换成 `at_keyboard`；
+`bash install.sh --yes` 重跑一次即可修好。
+
 ## 桌面壁纸还是 KDE 默认的那张
 
 壁纸有两个来源，先分清是哪一个：
