@@ -140,7 +140,13 @@ run_doctor() {
       --key Image 2>/dev/null || true)
     case "$plasma_wp" in
       *"/kos/gallery/"*) echo "  [OK]   Plasma 桌面壁纸：$plasma_wp" ;;
-      "")                echo "  [MISS] Plasma 桌面壁纸（还没设置）" ;;
+      "")
+        if [ -f "$HOME/.config/autostart/kos-wallpaper-first-login.desktop" ]; then
+          echo "  [OK]   Plasma 桌面壁纸：首次登录时由自启动设置"
+        else
+          echo "  [MISS] Plasma 桌面壁纸（还没设置，也没有首登自启动）"
+        fi
+        ;;
       *)                 echo "  [MISS] Plasma 桌面壁纸仍是 $plasma_wp（不在 KOS 图集里）" ;;
     esac
     echo
