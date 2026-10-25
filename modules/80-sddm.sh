@@ -7,6 +7,23 @@
 # 要求 SDDM >= 0.21、Qt >= 6.5；Arch 的 sddm 0.21 满足。
 
 
+# SDDM 实际会用哪个主题：/etc/sddm.conf.d/*.conf 按文件名排序、后读的覆盖先读的，
+# /etc/sddm.conf 优先级更高（会盖掉 conf.d）。只解析 [Theme] 段里的 Current=。
+sddm_effective_theme() {
+  local f v current=""
+  if [ -d /etc/sddm.conf.d ]; then
+    while IFS= read -r f; do
+      v=$(awk -F= '/^\[Theme\]/{t=1;next} /^\[/{t=0} t && $1=="Current"{gsub(/[ \t]/,"",$2);c=$2} END{print c}' "$f" 2>/dev/null || true)
+      [ -n "$v" ] && current="$v"
+    done < <(find /etc/sddm.conf.d -maxdepth 1 -type f -name '*.conf' 2>/dev/null | sort)
+  fi
+  if [ -f /etc/sddm.conf ]; then
+    v=$(awk -F= '/^\[Theme\]/{t=1;next} /^\[/{t=0} t && $1=="Current"{gsub(/[ \t]/,"",$2);c=$2} END{print c}' /etc/sddm.conf 2>/dev/null || true)
+    [ -n "$v" ] && current="$v"
+  fi
+  printf '%s\n' "$current"
+}
+
 # 登录头像：用户自备 ~/.face 优先；没有就用仓库里的默认头像（assets/avatar/default.png）。
 # 三处同步：~/.face（Plasma 认）、/usr/share/sddm/faces/<user>.face.icon（SDDM 认）、
 # /var/lib/AccountsService/icons/<user> + users 文件里的 Icon=（KDE 用户页 / 登录页认）。
@@ -169,13 +186,20 @@ setup_sddm_theme() {
     return 0
   fi
 
-  log "写入 /etc/sddm.conf.d/90-silent.conf"
+  # 文件名要排在所有 *.conf 之后（z > k），否则 KDE 写的 kde_settings.conf 会把
+  # Current 盖回去——那正是“装了主题却还是默认登录页”的常见原因。
+  log "写入 /etc/sddm.conf.d/zz-kos-silent.conf"
   if [ "$DRY_RUN" -eq 1 ]; then
     log "[dry-run] 写 sddm 配置（Current=silent）"
     return 0
   fi
   sudo mkdir -p /etc/sddm.conf.d
-  sudo tee /etc/sddm.conf.d/90-silent.conf >/dev/null <<'CONF'
+  if [ -f /etc/sddm.conf.d/90-silent.conf ]; then
+    backup_file /etc/sddm.conf.d/90-silent.conf
+    sudo rm -f /etc/sddm.conf.d/90-silent.conf
+    log "已移除旧的 90-silent.conf（改名成 zz-kos-silent.conf）"
+  fi
+  sudo tee /etc/sddm.conf.d/zz-kos-silent.conf >/dev/null <<'CONF'
 [General]
 InputMethod=qtvirtualkeyboard
 GreeterEnvironment=QML2_IMPORT_PATH=/usr/share/sddm/themes/silent/components/,QT_IM_MODULE=qtvirtualkeyboard
@@ -198,5 +222,19 @@ CONF
   fi
 
   customize_sddm_theme
+
+  # 自检：写进去的配置到底生不生效。以前 AUR 装失败只 warn 一句就继续，
+  # 结果登录页还是默认主题，从日志里很难看出是包没装上还是被别的 conf 覆盖。
+  local effective
+  effective=$(sddm_effective_theme)
+  if ! pkg_installed sddm-silent-theme; then
+    warn "sddm-silent-theme 没装上（AUR 构建失败？），登录页会退回 SDDM 默认主题；装好后重跑 install.sh 即可"
+  elif [ ! -f /usr/share/sddm/themes/silent/Main.qml ]; then
+    warn "主题包在，但 /usr/share/sddm/themes/silent/Main.qml 不存在，SDDM 会退回默认主题"
+  elif [ "$effective" != "silent" ]; then
+    warn "SDDM 实际生效的主题是 '${effective:-未配置}'，不是 silent —— 检查 /etc/sddm.conf.d/*.conf 有没有更靠后的文件设了 Current="
+  else
+    log "SDDM 自检通过：生效主题 = silent"
+  fi
   log "SDDM 主题已切换到 silent（可到主题目录跑 ./test.sh 预览）"
 }
