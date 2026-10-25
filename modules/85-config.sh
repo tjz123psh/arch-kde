@@ -19,6 +19,20 @@ install_wallpapers() {
   log "Wallpapers in gallery: $(find "$dst" -maxdepth 1 -type f | wc -l)"
 }
 
+# KOS 把 Plasmashell 的 shell 包换成了 org.kos.desktop，plasmashell 会把桌面配置写到
+# ~/.config/plasma-org.kos.desktop-appletsrc；KDE 默认名字是
+# ~/.config/plasma-org.kde.plasma.desktop-appletsrc。两个都要认：优先已存在的那个，
+# 都没有时用 KOS 的名字（因为这台机器装完就是 KOS 桌面）。
+# 2026-10-25 在干净 VM 上发现：只写 KDE 那个名字时，配置写到了 plasmashell 不读的文件里。
+plasma_appletsrc() {
+  local kos="$HOME/.config/plasma-org.kos.desktop-appletsrc"
+  local kde="$HOME/.config/plasma-org.kde.plasma.desktop-appletsrc"
+  if [ -f "$kos" ]; then printf '%s' "$kos"
+  elif [ -f "$kde" ]; then printf '%s' "$kde"
+  else printf '%s' "$kos"
+  fi
+}
+
 # 默认壁纸：把 Plasma 桌面和 KOS 都指到图集里的一张，别让新系统先露出 KDE 的默认壁纸。
 # 只写“还没配过”的情况；重跑安装器时，用户自己在图集里选过的图不会被换掉。
 # 首次登录再设一次 Plasma 壁纸：安装器在 TTY 里跑，碰不到运行中的 plasmashell；
@@ -27,6 +41,9 @@ install_wallpaper_first_login() {
   local dest="$1"
   local script="$HOME/.local/bin/kos-wallpaper-first-login"
   local entry="$HOME/.config/autostart/kos-wallpaper-first-login.desktop"
+  # 首登脚本要读"Plasma 真正在用的"那份配置（KOS 下是 plasma-org.kos.desktop-appletsrc）
+  local applets_name
+  applets_name=$(basename "$(plasma_appletsrc)")
 
   mkdir -p "$HOME/.local/bin" "$HOME/.config/autostart"
   write_file "$script" <<EOF
@@ -46,7 +63,7 @@ for _ in \$(seq 1 60); do
   sleep 1
 done
 sleep 2
-cur=\$(kreadconfig6 --file plasma-org.kde.plasma.desktop-appletsrc \
+cur=\$(kreadconfig6 --file $applets_name \
   --group Containments --group 1 --group Wallpaper --group org.kde.image --group General \
   --key Image 2>/dev/null || true)
 case "\$cur" in
@@ -109,10 +126,10 @@ seed_default_wallpaper() {
   #   b) 全新系统还没有 appletsrc → **不要**伪造 [Containments][1]：Plasma 第一次启动时
   #      会自己建一个带 activityId/plugin 的 containment，我们写的那个没人认领，结果
   #      还是 KDE 默认壁纸。这种情况改为装一个“首次登录自启动”，进桌面后再设置。
-  applets="$HOME/.config/plasma-org.kde.plasma.desktop-appletsrc"
+  applets=$(plasma_appletsrc)
   if [ -f "$applets" ] && have kwriteconfig6; then
     if have kreadconfig6; then
-      current=$(kreadconfig6 --file plasma-org.kde.plasma.desktop-appletsrc \
+      current=$(kreadconfig6 --file "$applets" \
         --group Containments --group 1 --group Wallpaper --group org.kde.image --group General \
         --key Image 2>/dev/null || true)
     fi
@@ -131,9 +148,9 @@ seed_default_wallpaper() {
       fi
       record_created "$applets"
       backup_file "$applets"
-      kwriteconfig6 --file plasma-org.kde.plasma.desktop-appletsrc \
+      kwriteconfig6 --file "$applets" \
         --group Containments --group 1 --group Wallpaper --key wallpaperplugin org.kde.image --notify
-      kwriteconfig6 --file plasma-org.kde.plasma.desktop-appletsrc \
+      kwriteconfig6 --file "$applets" \
         --group Containments --group 1 --group Wallpaper --group org.kde.image --group General \
         --key Image "file://$dest" --notify
       log "Plasma desktop wallpaper -> $dest"

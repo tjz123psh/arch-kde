@@ -161,11 +161,21 @@ run_doctor() {
     else
       echo "  [MISS] KOS 壁纸配置（$wallpaper_ini）"
     fi
-    plasma_wp=$(kreadconfig6 --file plasma-org.kde.plasma.desktop-appletsrc \
-      --group Containments --group 1 --group Wallpaper --group org.kde.image --group General \
-      --key Image 2>/dev/null || true)
+    # KOS 的 shell 包是 org.kos.desktop，plasmashell 因此把配置写在
+    # plasma-org.kos.desktop-appletsrc；普通 KDE 是 plasma-org.kde.plasma.desktop-appletsrc。
+    plasma_wp=""
+    for _f in plasma-org.kos.desktop-appletsrc plasma-org.kde.plasma.desktop-appletsrc; do
+      [ -f "$HOME/.config/$_f" ] || continue
+      plasma_wp=$(kreadconfig6 --file "$HOME/.config/$_f" \
+        --group Containments --group 1 --group Wallpaper --group org.kde.image --group General \
+        --key Image 2>/dev/null || true)
+      [ -n "$plasma_wp" ] && break
+    done
     case "$plasma_wp" in
       *"/kos/gallery/"*) echo "  [OK]   Plasma 桌面壁纸：$plasma_wp" ;;
+      # KOS 接管壁纸（takeoverEnabled=true）时，Plasma 这张实际显示的是 KOS 生成的
+      # 基础壁纸（~/.local/share/wallpapers/KOS-Backdrop-*），不是图集里的原图。
+      *"/wallpapers/KOS-"*) echo "  [OK]   Plasma 桌面壁纸：$plasma_wp（KOS 接管时生成的基础壁纸）" ;;
       "")
         if [ -f "$HOME/.config/autostart/kos-wallpaper-first-login.desktop" ]; then
           echo "  [OK]   Plasma 桌面壁纸：首次登录时由自启动设置"
