@@ -355,7 +355,7 @@ noto-fonts noto-fonts-cjk noto-fonts-emoji inter-font ttf-jetbrains-mono-nerd
 fcitx5 fcitx5-configtool fcitx5-gtk fcitx5-qt fcitx5-chinese-addons
 fcitx5-pinyin-zhwiki fcitx5-material-color fcitx5-nord fcitx5-lua
 kitty fish starship fzf eza bat fd ripgrep zoxide fastfetch imagemagick
-mpv tesseract-data-eng
+mpv tesseract-data-eng yt-dlp
 networkmanager bluez bluez-utils bluedevil bluez-obex linux-firmware
 base-devel git curl jq unzip xdg-utils xdg-user-dirs man-db cmake extra-cmake-modules python
 "
@@ -405,6 +405,9 @@ base-devel git curl jq unzip xdg-utils xdg-user-dirs man-db cmake extra-cmake-mo
   # pciutils/usbutils/libnotify/efibootmgr 供 hw-doctor、通知、boot-check 使用。
   # rclone 供云盘同步 / 异地备份使用；只装命令行工具，不写任何远端配置。
   pkgs="$pkgs git-delta strace reflector snapper flatpak rsync rclone zstd upower pacman-contrib fakeroot pciutils usbutils libnotify efibootmgr fuzzel papirus-icon-theme btrfs-assistant btop"
+
+  # yt-dlp：~/bin/b23（B 站链接 -> mpv）靠它解析地址和格式；不装的话 b23 直接报缺依赖。
+  # （上面那行里的 yt-dlp 就是它，放在 mpv 旁边便于对照。）
 
   # ---- 硬件驱动：固定按目标机装（2026-10-21 用户要求，不再看探测结果）----
   # 目标机：ASUS TUF A15 / AMD Ryzen 7 7735H（Radeon 680M）+ RTX 4050 + RTL8852BE。
