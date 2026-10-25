@@ -237,6 +237,22 @@ main() {
     done < <(find "$BACKUP_ROOT" -mindepth 1 -maxdepth 1 -type d | sort)
   fi
 
+  # 如果连桌面（plasma-desktop / kwin）都在卸载名单里，那 KDE 的配置文件也没必要留：
+  # 它们只可能来自这次安装。统一划进删除集，避免"桌面没了但 ~/.config 还留一堆"。
+  local desktop_removed=0
+  for p in "${added[@]:-}"; do
+    case "$p" in plasma-desktop|kwin|plasma-workspace) desktop_removed=1 ;; esac
+  done
+  if [ "$desktop_removed" -eq 1 ]; then
+    del_files+=(
+      "$HOME/.config/kdeglobals" "$HOME/.config/kwinrc" "$HOME/.config/kglobalshortcutsrc"
+      "$HOME/.config/kcminputrc" "$HOME/.config/kwinrulesrc" "$HOME/.config/dolphinrc"
+      "$HOME/.config/mimeapps.list" "$HOME/.config/plasmashellrc" "$HOME/.config/kscreenlockerrc"
+      "$HOME/.config/plasma-localerc" "$HOME/.config/plasma-org.kos.desktop-appletsrc"
+      "$HOME/.config/plasma-org.kde.plasma.desktop-appletsrc"
+    )
+  fi
+
   # 目录已经整删的，不再逐个删文件；还原过的文件不再删
   local -a del_keep=()
   for p in "${del_files[@]:-}"; do
@@ -249,6 +265,28 @@ main() {
     [ "$skip" -eq 1 ] || del_keep+=("$p")
   done
   del_files=("${del_keep[@]:-}")
+
+  # 还原项过滤：要整删的目录里的文件不用还原；删除集里的文件删除优先
+  local -a rs_final=() rb_final=()
+  local k in_deleted_dir
+  for k in "${!restore_src[@]}"; do
+    p="${restore_src[$k]}"
+    in_deleted_dir=0
+    local dd
+    for dd in "${del_dirs[@]:-}"; do
+      [ -n "$dd" ] || continue
+      case "$p" in "$dd"/*) in_deleted_dir=1; break ;; esac
+    done
+    [ "$in_deleted_dir" -eq 1 ] && continue
+    local skip2=0 f
+    for f in "${del_files[@]:-}"; do
+      [ "${f:-}" = "$p" ] && { skip2=1; break; }
+    done
+    [ "$skip2" -eq 1 ] && continue
+    rs_final+=("$p"); rb_final+=("${restore_bak[$k]}")
+  done
+  restore_src=("${rs_final[@]:-}")
+  restore_bak=("${rb_final[@]:-}")
 
   local -a existing_dirs=() existing_files=()
   for p in "${del_dirs[@]:-}"; do [ -n "$p" ] && [ -e "$p" ] && existing_dirs+=("$p"); done
