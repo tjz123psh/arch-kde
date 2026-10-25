@@ -221,6 +221,22 @@ cat ~/.config/Code/User/argv.json          # VS Code 自己读的运行时参数
 
 想改成用钱包加密：删掉那一行里的 `--password-store=basic`，装 `kwalletmanager`、
 建一个 kdewallet 钱包，然后重启 VS Code。
+## 登录页还是 SDDM 默认主题（silent 没生效）
+
+按可能性从高到低查：
+
+1. **主题包没装上**：`pacman -Q sddm-silent-theme`；主题目录 `/usr/share/sddm/themes/silent/Main.qml`
+   是否存在。AUR 构建失败时安装器只 warn，不会中断，所以登录页会静默退回默认主题。
+2. **有更靠后的配置文件覆盖**：`grep -rn 'Current=' /etc/sddm.conf /etc/sddm.conf.d/`。
+   SDDM 按文件名排序读 `conf.d/*.conf`，**后读的赢**；KDE 的「登录屏幕」设置会写
+   `kde_settings.conf`，它排在 `90-silent.conf` 之后，会把 Current 盖回 breeze ——
+   这是最常见的坑。安装器现在写 `zz-kos-silent.conf`（排序最后）并顺手删掉旧的 90 文件。
+3. **`/etc/sddm.conf` 设了 Current**：它的优先级高于 conf.d，安装器会备份后改成 silent。
+
+安装器收尾会自检并打印「SDDM 自检通过：生效主题 = silent」；没通过会直接说是哪一条。
+改完配置要重启 SDDM 才生效（会中断当前图形会话）：`systemctl restart sddm`，或者直接重启。
+看日志：`journalctl -u sddm -b --no-pager | tail -50`。
+
 ## 完全回退
 
 一条命令退回安装前（装好后在 `~/bin`；还没装完就用仓库里的 `bash rollback.sh`）：
