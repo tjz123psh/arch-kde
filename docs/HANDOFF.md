@@ -108,20 +108,18 @@ bash install.sh --dry-run --yes
 3. **首次登录引导**
    属于桌面仓库（NextKDE）的责任，本仓库不实现。
 
-## 本机系统级改动（安装器不管，重装系统会丢）
+## 本机系统级改动（安装器不管）
 
-下面这些是按用户要求在这台机器上做的，**故意没写进安装器**（引导/登录管理器不在安装器职责内）：
+2026-10-25 复查：SDDM Wayland greeter、GRUB 主题、登录头像、桌面壁纸都已经并入安装器
+（`modules/80-sddm.sh`、`modules/15-grub-theme.sh`、`modules/85-config.sh`），重装会自己带上。
+真正留在安装器之外的只剩"开机提速"这一条：
 
 | 项目 | 现状 | 回退方式 |
 |---|---|---|
-| SDDM 用 Wayland greeter | `/etc/sddm.conf.d/10-wayland.conf`：`DisplayServer=wayland` + `CompositorCommand=kwin_wayland --drm --no-lockscreen --no-global-shortcuts` | 删该文件 → `sudo systemctl restart sddm`；配置备份在 `/root/sddm-backup-20261023-202326/` |
-| GRUB 主题（2026-10-24 起已由 `15-grub-theme` 接管，见下方注） | `Elegant-mojave-window-left-dark`；`GRUB_THEME`、`GRUB_TIMEOUT=5`、`GRUB_GFXMODE=1920x1080,auto`、`GRUB_PRELOAD_MODULES` 含 `usb usb_keyboard` | `/root/grub-backup-20261023-195626/`（`default-grub` + `grub.cfg`），拷回后 `grub-mkconfig` |
-| Plasma 桌面壁纸 | 樱吹雪（`~/.local/share/kos/gallery/`），作为 KOS shell 加载完成前的兜底背景，避免登录后黑屏 | 删 `plasma-org.kde.plasma.desktop-appletsrc` 里 `[Containments][1][Wallpaper]` 段 |
 | 开机提速 | `NetworkManager-wait-online.service` 已 disable；`rjsupplicant.service` 加了 `10-no-wait-online.conf` drop-in | `systemctl enable --now NetworkManager-wait-online`；删 drop-in 后 `daemon-reload` |
 
-⚠️ `/boot` 是 **vfat（EFI 分区）**，GRUB 主题只能用 `cp -rL`（解引用符号链接）安装；上游 `install.sh` 的直接 `cp -a` 会因为符号链接报 `文件已存在`。
-
-> 2026-10-24 起：GRUB 主题与登录头像已纳入安装器（`modules/15-grub-theme.sh` + `assets/grub-theme/`、`modules/80-sddm.sh` + `assets/avatar/`），不再需要手动处理。
+⚠️ `/boot` 是 **vfat（EFI 分区）**，GRUB 主题只能用 `cp -rL`（解引用符号链接）安装；
+直接 `cp -a` 会因为符号链接报"文件已存在"。`modules/15-grub-theme.sh` 用的就是 `-L`。
 
 ## KOS 启动慢的已知瓶颈（上游问题，未解决）
 
