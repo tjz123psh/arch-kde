@@ -119,10 +119,21 @@ parse_args() {
       --no-lockscreen) KOS_WITH_LOCKSCREEN=0 ;;
       --start) KOS_START=1 ;;
       --spatial) KOS_SPATIAL=1 ;;
-      --ime) shift; IME="${1:?--ime needs a value}" ;;
+      --ime)
+        shift; IME="${1:?--ime needs a value}"
+        case "$IME" in fcitx5|rime|none) ;; *) die "--ime must be fcitx5, rime or none (got: $IME)" ;; esac
+        ;;
       --undo) shift; exec bash "$ASSET_DIR/scripts/maintenance/kos-undo" "$@" ;;
-      --locale) shift; LOCALE_MODE="${1:?--locale needs a value}" ;;
-      --wallpaper) shift; WALLPAPER="${1:?--wallpaper needs a value}"; WALLPAPER_FORCE=1 ;;
+      --locale)
+        shift; LOCALE_MODE="${1:?--locale needs a value}"
+        case "$LOCALE_MODE" in en|zh) ;; *) die "--locale must be en or zh (got: $LOCALE_MODE)" ;; esac
+        ;;
+      --wallpaper)
+        shift; WALLPAPER="${1:?--wallpaper needs a value}"; WALLPAPER_FORCE=1
+        if [ ! -f "$ASSET_DIR/wallpapers/$WALLPAPER" ] && [ ! -f "$ASSET_DIR/wallpapers/$WALLPAPER.png" ]; then
+          die "--wallpaper: not found in $ASSET_DIR/wallpapers: $WALLPAPER"
+        fi
+        ;;
       --no-sddm-theme) NO_SDDM_THEME=1 ;;
       --no-aur) NO_AUR=1 ;;
       --no-mirrors) NO_MIRRORS=1 ;;
@@ -135,7 +146,10 @@ parse_args() {
       --no-gpu-amd) HW_GPU_AMD=0 ;;
       --no-gpu-nvidia) HW_GPU_NVIDIA=0 ;;
       --nvidia-legacy|--nvidia-closed) HW_NVIDIA_DRIVER=legacy ;;
-      --power) shift; HW_POWER="${1:?--power needs ppd|tlp|none}" ;;
+      --power)
+        shift; HW_POWER="${1:?--power needs ppd|tlp|none}"
+        case "$HW_POWER" in ppd|tlp|none) ;; *) die "--power must be ppd, tlp or none (got: $HW_POWER)" ;; esac
+        ;;
       --asus) HW_ASUS=1 ;;
       --no-asus) HW_ASUS=0 ;;
       -h|--help) usage; exit 0 ;;
