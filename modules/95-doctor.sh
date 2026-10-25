@@ -136,6 +136,11 @@ run_doctor() {
     done
     test -x "$HOME/.local/bin/kos-wallpaper-preview" && echo "  [OK]   kos-wallpaper-preview" || echo "  [MISS] kos-wallpaper-preview"
     pkg_installed gpu-screen-recorder && echo "  [OK]   gpu-screen-recorder" || echo "  [MISS] gpu-screen-recorder"
+    # 外观三件套（AUR）：图标 / 光标 / GTK 主题。GTK 主题的 PKGBUILD 需要 sassc 才能构建，
+    # 构建失败只会 warn，所以这里单独报出来，免得"装完了但 GTK 主题其实是 Adwaita"。
+    for p in whitesur-icon-theme whitesur-cursor-theme-git whitesur-gtk-theme; do
+      pkg_installed "$p" && echo "  [OK]   $p" || echo "  [MISS] $p（AUR 构建失败？GTK 外观会退回默认）"
+    done
     pkg_installed yt-dlp && echo "  [OK]   yt-dlp（b23 用它解析 B 站链接）" || echo "  [MISS] yt-dlp（b23 需要）"
     echo
     echo "== 快照 =="
