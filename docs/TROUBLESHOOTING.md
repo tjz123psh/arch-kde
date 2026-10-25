@@ -11,6 +11,7 @@ bash install.sh --dry-run    # 只打印
 - 安装器要求 TTY；图形会话里运行会提示，但不是硬失败。
 - 日志：`~/.local/state/kos-installer/log/install-*.log`
 - doctor 报告：`~/.local/state/kos-installer/doctor-*.txt`
+- 这两样只保留最近 20 份（每次运行自动清理；要改数量就 `KOS_STATE_KEEP=50 bash install.sh ...`）
 - 所有被改过的配置：`~/.local/state/kos-installer/backup/<时间>/`
   - `manifest.txt` 记录原路径、sha256、备份路径
 
