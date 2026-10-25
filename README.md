@@ -20,24 +20,17 @@ bash install.sh --yes       # 全装
 默认壁纸用仓库自带的图（默认 `樱吹雪.png`），不会再露出 KDE 的默认壁纸；
 想换一张：`bash install.sh --yes --wallpaper 落霞.png`（名字取自 `assets/wallpapers/`）。
 
-## 装坏了 / 后悔了
+## 装坏了怎么办
 
-一条命令**清回装 KOS 之前**（archinstall 刚装完、能登录 TTY 的样子）：
+安装器**没有**自动卸载/回滚命令（上游桌面本体也不归这里管）。三条现成的路：
 
-```bash
-kos-undo            # 列计划 → 问一次 y/N → 全清
-kos-undo --dry-run  # 只看计划，什么都不动
-```
-
-它把安装器加的东西全删掉：卸掉安装期间新增的所有软件包（安装开始时记了 `pacman -Qq`
-基线，做差集）、还原被改过的文件、删掉安装器新建的文件、删掉 `~/.cache/kos-src` /
-`~/.local/share/kos` / `~/scripts` / SDDM 与 GRUB 主题副本等目录，最后连安装器自己的
-账本一起删。默认连**干净的仓库检出**也删（有本地改动或未推送提交时会保留）。
-
-这是"清空"，不是"撤销最近一次改动"：装完之后你自己装的包、改过的配置也会一起没。
-请在 TTY（Ctrl+Alt+F3）里跑——它会把桌面自己卸掉；跑完重启就是干净起点。
-
-装好之后 `kos-undo` 就在 `~/bin`；还没装完时用 `bash rollback.sh`，效果相同。
+- **重跑就是修复**：`bash install.sh --yes` 是幂等的，配置会重新部署、缺的包会补上；
+  被覆盖的文件在 `~/.local/state/kos-installer/backup/<时间>/` 有备份，
+  `manifest.txt` 里记了原路径 + sha256，要哪个手动拷回去。
+- **整机回档**：安装器在装桌面前会落一个 Snapper 快照 `kos-installer: before desktop`，
+  用 `sudo snapper -c root list` 看序号，`sudo snapper -c root rollback <序号>` 回档
+  （图形界面等价操作是 btrfs-assistant）。
+- **彻底重来**：重装系统最快——安装器不碰分区/引导器，重装完再跑一遍即可。
 
 ## 要求
 

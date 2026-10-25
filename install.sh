@@ -99,9 +99,6 @@ Environment:
   KOS_SRC_REF        Source branch or tag (default: newest stable release; use main for development)
 
 Undo:
-  --undo [--dry-run] Wipe everything the installer added (packages, files, dirs,
-                     then the installer's own ledger) and exit. See --undo --help.
-                     Snapshot rollback: kos-undo snapshot <N> (Snapper).
 
   -h, --help         Show this help
 USAGE
@@ -123,7 +120,6 @@ parse_args() {
         shift; IME="${1:?--ime needs a value}"
         case "$IME" in fcitx5|rime|none) ;; *) die "--ime must be fcitx5, rime or none (got: $IME)" ;; esac
         ;;
-      --undo) shift; exec bash "$ASSET_DIR/scripts/maintenance/kos-undo" "$@" ;;
       --locale)
         shift; LOCALE_MODE="${1:?--locale needs a value}"
         case "$LOCALE_MODE" in en|zh) ;; *) die "--locale must be en or zh (got: $LOCALE_MODE)" ;; esac

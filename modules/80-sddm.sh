@@ -217,8 +217,8 @@ setup_sddm_theme() {
     sudo rm -f /etc/sddm.conf.d/90-silent.conf
     log "已移除旧的 90-silent.conf（改名成 zz-kos-silent.conf）"
   fi
-  # 走 sudo_write_file：它会先备份再写，并记进 manifest，kos-undo 才能把它删掉。
-  # 以前这里是 sudo tee，文件绕过了备份/台账，回滚时会留下一个没人认领的 drop-in。
+  # 走 sudo_write_file：它会先备份再写并记进 manifest，以后要手工恢复有据可查。
+  # 以前这里是 sudo tee，文件绕过了备份/台账。
   # DisplayServer=wayland：sddm 0.21 的包默认是 x11（/usr/lib/sddm/sddm.conf.d/default.conf），
   # 验收机上是手工加的 10-wayland.conf 让登录页跑 kwin_wayland。安装器不写的话，
   # 干净装完登录页是 X11 greeter，和验收状态不是一回事（不会黑屏，sddm 依赖 xorg-server）。

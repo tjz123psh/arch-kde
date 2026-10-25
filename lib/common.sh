@@ -17,7 +17,7 @@ init_state() {
   mkdir -p "$LOG_DIR"
   if [ "$DRY_RUN" -eq 1 ] || [ "${CHECK_ONLY:-0}" -eq 1 ]; then
     # 演练 / 只预检都不产生备份：否则 ~/.local/state/kos-installer/backup 会被
-    # 空目录塞满，回滚工具（kos-undo）里全是 “0 个文件” 的噪音。
+    # 空目录塞满，翻备份时全是 “0 个文件” 的噪音。
     MANIFEST=/dev/null
     log "Log: $LOG_FILE"
     log "Backup: skipped (dry-run / --check)"

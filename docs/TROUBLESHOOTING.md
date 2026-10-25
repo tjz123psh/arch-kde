@@ -278,28 +278,21 @@ grep -A2 'org.kde.image' ~/.config/plasma-org.kde.plasma.desktop-appletsrc | hea
 改完配置要重启 SDDM 才生效（会中断当前图形会话）：`systemctl restart sddm`，或者直接重启。
 看日志：`journalctl -u sddm -b --no-pager | tail -50`。
 
-## 完全回退
+## 装坏了怎么退
 
-一条命令**清回装 KOS 之前**（装好后在 `~/bin`；还没装完就用仓库里的 `bash rollback.sh`）：
+安装器**没有**自动回滚命令（上游桌面本体也不归这里管）。现成的三条路：
 
 ~~~bash
-kos-undo            # 列计划 → 问一次 y/N → 全清
-kos-undo --dry-run  # 只打印计划
+bash install.sh --yes      # 幂等：重跑一遍就能修好大部分问题
+sudo snapper -c root list  # 看快照序号
+sudo snapper -c root rollback <序号>   # 整机回档（或 btrfs-assistant 图形操作）
 ~~~
 
-它会：卸掉安装期间新增的所有软件包、还原被覆盖的文件、删掉安装器新建的文件、
-删除 `~/.cache/kos-src` / `~/.local/share/kos` / `~/scripts` / SDDM 与 GRUB 主题副本
-等目录，最后删掉安装器自己的账本。默认还会删掉干净的仓库检出（`--keep-repo` 可保留）。
-
-包清单来自安装开始时记的 `~/.local/state/kos-installer/baseline/<时间>-pacman-Qq.txt`；
-旧版本安装器装的没有这份基线，会退回解析 `/var/log/pacman.log`。
-
-⚠️ 这是"清空"，不是"撤销最近一次改动"：装完之后你自己装的包、改过的配置也会一起没。
-请在 TTY 里跑（它会把桌面卸掉），跑完重启。
-
-整机回档是另一条路，用 Snapper / btrfs-assistant（`sudo snapper -c root list` 看序号，
-`sudo snapper -c root rollback <序号>`）。
-
+- 被覆盖的文件都在 `~/.local/state/kos-installer/backup/<时间>/`，`manifest.txt` 每行是
+  `<原路径> <sha256> <备份路径>`，要恢复就手动 `sudo cp -a` 回去；`created <原路径>` 表示
+  这个文件是安装器新建的（想删就删）。
+- 安装器在装桌面前会落一个 Snapper 快照 `kos-installer: before desktop`，
+  比文件级恢复更彻底（连包一起退）。
 - 清单在 `~/.local/state/kos-installer/backup/<时间>/manifest.txt`：`<原路径> <sha256> <备份路径>`
   的行会被拷回去，`created <原路径>` 的行是安装器新建的文件、会被删掉。
 - 安装器在装桌面前会落一个 Snapper 快照 `kos-installer: before desktop`，
