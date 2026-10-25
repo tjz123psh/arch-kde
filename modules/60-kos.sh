@@ -194,7 +194,10 @@ build_install_kos() {
   fi
 
   log "Registering global shortcuts"
-  run "$repo/tools/kosctl" shortcuts install || warn "快捷键注册失败（登录后可手动重跑）"
+  # 安装阶段没有图形会话（TTY），KGlobalAccel 不在，kosctl 注册快捷键会失败；
+  # 真正的注册发生在登录后 KOS shell 启动时（kglobalshortcutsrc 的 kos-platform 组），
+  # 这里失败只提示、不中断（2026-10-25 干净 VM 上确认过：登录后快捷键是好的）。
+  run "$repo/tools/kosctl" shortcuts install || warn "快捷键注册失败（安装阶段没有图形会话，属预期；登录后由 KOS shell 注册）"
 
   if [ "$KOS_START" -eq 1 ]; then
     log "启动 KOS shell"
