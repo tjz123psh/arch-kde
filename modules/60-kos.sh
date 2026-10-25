@@ -46,7 +46,9 @@ kos_dep_list() {
     vulkan-headers
 
   # 独立应用（日历/待办）构建依赖；缺了 kcalendarcore，kosctl install apps 会直接失败。
-  if [ "${KOS_WITH_APPS:-0}" -eq 1 ]; then
+  # 默认值与 install.sh 保持一致（install.sh 里 KOS_WITH_APPS 默认 1），
+  # 否则单独 source 这个模块跑测试时会悄悄少列 kcalendarcore。
+  if [ "${KOS_WITH_APPS:-1}" -eq 1 ]; then
     printf '%s\n' kcalendarcore
   fi
 
