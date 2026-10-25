@@ -109,6 +109,9 @@ run_doctor() {
         echo "  [MISS] GRUB 主题（grub.cfg 里没有主题路径）"
       fi
     fi
+    if grep -qE '^GRUB_PRELOAD_MODULES=.*usb_keyboard' /etc/default/grub 2>/dev/null; then
+      echo "  [WARN] GRUB_PRELOAD_MODULES 含 usb_keyboard：笔记本内置键盘会被抢，菜单上下键失效"
+    fi
     echo
     echo "== 快捷键 =="
     for f in term-menu kitty-terminal btop fuzzel-launcher kos-wallpaper-preview kos-record; do
