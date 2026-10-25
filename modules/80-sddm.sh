@@ -199,7 +199,9 @@ setup_sddm_theme() {
     sudo rm -f /etc/sddm.conf.d/90-silent.conf
     log "已移除旧的 90-silent.conf（改名成 zz-kos-silent.conf）"
   fi
-  sudo tee /etc/sddm.conf.d/zz-kos-silent.conf >/dev/null <<'CONF'
+  # 走 sudo_write_file：它会先备份再写，并记进 manifest，kos-undo 才能把它删掉。
+  # 以前这里是 sudo tee，文件绕过了备份/台账，回滚时会留下一个没人认领的 drop-in。
+  sudo_write_file /etc/sddm.conf.d/zz-kos-silent.conf <<'CONF'
 [General]
 InputMethod=qtvirtualkeyboard
 GreeterEnvironment=QML2_IMPORT_PATH=/usr/share/sddm/themes/silent/components/,QT_IM_MODULE=qtvirtualkeyboard
