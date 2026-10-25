@@ -97,6 +97,15 @@ run_doctor() {
     else
       echo "  [MISS] Silent 主题包/目录（sddm-silent-theme、/usr/share/sddm/themes/silent）"
     fi
+    if [ -f /etc/sddm.conf.d/zz-kos-silent.conf ]; then
+      if grep -q '^DisplayServer=wayland' /etc/sddm.conf.d/zz-kos-silent.conf; then
+        echo "  [OK]   SDDM 登录页平台（wayland / kwin_wayland）"
+      else
+        echo "  [MISS] SDDM 登录页不是 Wayland greeter：/etc/sddm.conf.d/zz-kos-silent.conf 缺 DisplayServer=wayland"
+      fi
+    else
+      echo "  [--]   /etc/sddm.conf.d/zz-kos-silent.conf 不存在（--no-sddm-theme，或还没重跑安装器）"
+    fi
     sddm_theme_effective=$(sddm_effective_theme 2>/dev/null || true)
     if [ "${sddm_theme_effective:-}" = silent ]; then
       echo "  [OK]   SDDM 生效主题（silent）"
