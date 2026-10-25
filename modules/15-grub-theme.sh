@@ -31,8 +31,9 @@ setup_grub_theme() {
   backup_file "$grub_cfg"
 
   log "安装 GRUB 主题：$theme_name"
-  # /boot 可能是 vfat，不能放符号链接：用 -L 跟随链接复制
-  sudo rm -rf "$theme_dir"
+  # /boot 可能是 vfat，不能放符号链接：用 -L 跟随链接复制。
+  # 不再 rm -rf 整个目录：用户可能把 background.jpg 换成了自己的图，删了没有备份能救。
+  # 原地覆盖仓库里的文件即可，主题用不到的旧文件留着也无害。
   sudo mkdir -p "$theme_dir"
   if ! sudo cp -rL "$theme_src/." "$theme_dir/"; then
     warn "复制 GRUB 主题文件失败"
@@ -57,13 +58,18 @@ setup_grub_theme() {
   # AT/PS2（不是 USB），UEFI 下再加载 usb_keyboard 会把输入抢掉，表现就是菜单里
   # 上下键完全没反应、只能等超时。这里把它换成 at_keyboard（对内置键盘有效），
   # 用户自己改过的其它模块保持不动。
-  local preload new_preload
+  local preload value new_preload
   preload=$(sudo grep -E '^GRUB_PRELOAD_MODULES=' "$grub_default" 2>/dev/null | head -n1 || true)
   case "$preload" in
     *usb_keyboard*)
-      new_preload="at_keyboard"
-      case "$preload" in
-        *part_gpt*) new_preload="part_gpt part_msdos at_keyboard" ;;
+      # 只摘掉 usb_keyboard，其余模块原样保留（part_gpt / part_msdos / lvm / cryptodisk /
+      # 用户自己加的）。以前是整串重写成固定值 "at_keyboard"，加密根分区那种机器
+      # 重跑一次就可能少掉 cryptodisk、进不了系统，所以这里按"词"处理。
+      value=$(printf '%s' "$preload" | sed -E 's/^[^=]*=//; s/^"//; s/"$//')
+      new_preload=$(printf '%s\n' "$value" | tr -s ' ' '\n' | grep -vx 'usb_keyboard' | paste -sd' ' - || true)
+      case " $new_preload " in
+        *" at_keyboard "*) ;;
+        *) new_preload="${new_preload:+$new_preload }at_keyboard" ;;
       esac
       log "GRUB_PRELOAD_MODULES 含 usb_keyboard（会抢走内置键盘），改成：$new_preload"
       grub_set_kv GRUB_PRELOAD_MODULES "\"$new_preload\""
