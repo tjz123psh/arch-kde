@@ -52,7 +52,23 @@ setup_grub_theme() {
   grub_set_kv GRUB_TIMEOUT "5"
   grub_set_kv GRUB_TIMEOUT_STYLE "menu"
   grub_set_kv GRUB_GFXMODE "1920x1080,auto"
-  grub_set_kv GRUB_PRELOAD_MODULES "\"usb usb_keyboard\""
+
+  # 键盘：旧版本往 GRUB_PRELOAD_MODULES 里塞了 "usb usb_keyboard"。笔记本内置键盘是
+  # AT/PS2（不是 USB），UEFI 下再加载 usb_keyboard 会把输入抢掉，表现就是菜单里
+  # 上下键完全没反应、只能等超时。这里把它换成 at_keyboard（对内置键盘有效），
+  # 用户自己改过的其它模块保持不动。
+  local preload new_preload
+  preload=$(sudo grep -E '^GRUB_PRELOAD_MODULES=' "$grub_default" 2>/dev/null | head -n1 || true)
+  case "$preload" in
+    *usb_keyboard*)
+      new_preload="at_keyboard"
+      case "$preload" in
+        *part_gpt*) new_preload="part_gpt part_msdos at_keyboard" ;;
+      esac
+      log "GRUB_PRELOAD_MODULES 含 usb_keyboard（会抢走内置键盘），改成：$new_preload"
+      grub_set_kv GRUB_PRELOAD_MODULES "\"$new_preload\""
+      ;;
+  esac
 
   log "重新生成 grub.cfg ..."
   if ! sudo grub-mkconfig -o "$grub_cfg"; then
