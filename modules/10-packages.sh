@@ -357,7 +357,7 @@ fcitx5-pinyin-zhwiki fcitx5-material-color fcitx5-nord fcitx5-lua
 kitty fish starship fzf eza bat fd ripgrep zoxide fastfetch imagemagick
 mpv tesseract-data-eng yt-dlp
 networkmanager bluez bluez-utils bluedevil bluez-obex linux-firmware
-base-devel git curl jq unzip xdg-utils xdg-user-dirs man-db cmake extra-cmake-modules python
+base-devel git curl jq unzip xdg-utils xdg-user-dirs man-db cmake extra-cmake-modules python go
 "
 
   # KOS 运行时集成（2026-10-22 用户反馈）：
@@ -394,6 +394,8 @@ base-devel git curl jq unzip xdg-utils xdg-user-dirs man-db cmake extra-cmake-mo
   # JDK 25：用户指定的 JDK；不再装 JDK 21（2026-10-22 用户要求）
   pkgs="$pkgs jdk25-openjdk"
 
+  # go：AUR 阶段构建 mpv-uosc 需要（makedepends=go）。它本来也在 kos_dep_list 里，
+  # 但那份清单要等到 build 阶段才装，AUR 阶段比它早——干净系统上 mpv-uosc 会直接构建失败。
   # 开发工具（2026-10-22 用户指定）：GitHub CLI、Docker / Compose、Kate、npm
   # github-cli 提供 /usr/bin/gh；docker 组和 docker.service 在 40-system.sh 配置。
   # npm 是 Node.js 包管理器。kate 之前只在注释里出现过、实际没进清单（2026-10-25 审查发现）。
