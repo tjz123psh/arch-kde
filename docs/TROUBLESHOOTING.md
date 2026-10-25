@@ -293,10 +293,6 @@ sudo snapper -c root rollback <序号>   # 整机回档（或 btrfs-assistant �
   这个文件是安装器新建的（想删就删）。
 - 安装器在装桌面前会落一个 Snapper 快照 `kos-installer: before desktop`，
   比文件级恢复更彻底（连包一起退）。
-- 清单在 `~/.local/state/kos-installer/backup/<时间>/manifest.txt`：`<原路径> <sha256> <备份路径>`
-  的行会被拷回去，`created <原路径>` 的行是安装器新建的文件、会被删掉。
-- 安装器在装桌面前会落一个 Snapper 快照 `kos-installer: before desktop`，
-  比文件级回滚更彻底（连包一起退）。
 - 只想重来一遍：直接 `bash install.sh --yes`，不用回滚。
 - 镜像：见上面。
 - KOS 桌面：用上游 `kosctl uninstall`（本仓库不接管桌面本体卸载）。
