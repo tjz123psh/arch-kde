@@ -60,7 +60,7 @@ run_doctor() {
     fi
     echo
     echo "== 常驻脚本 =="
-    for cmd in term-menu pac pacr pacd gsudo shortcuts record-menu hotspot; do
+    for cmd in term-menu pac pacr pacd gsudo shortcuts record-menu hotspot b23; do
       if test -x "$HOME/bin/$cmd"; then echo "  [OK]   $cmd"; else echo "  [MISS] $cmd"; fi
     done
     test -d "$HOME/scripts" && echo "  脚本目录: yes" || echo "  脚本目录: no"
@@ -125,6 +125,7 @@ run_doctor() {
     done
     test -x "$HOME/.local/bin/kos-wallpaper-preview" && echo "  [OK]   kos-wallpaper-preview" || echo "  [MISS] kos-wallpaper-preview"
     pkg_installed gpu-screen-recorder && echo "  [OK]   gpu-screen-recorder" || echo "  [MISS] gpu-screen-recorder"
+    pkg_installed yt-dlp && echo "  [OK]   yt-dlp（b23 用它解析 B 站链接）" || echo "  [MISS] yt-dlp（b23 需要）"
     echo
     echo "== 快照 =="
     snapper list-configs 2>&1 || true

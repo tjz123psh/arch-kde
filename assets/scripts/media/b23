@@ -1,0 +1,416 @@
+#!/usr/bin/env bash
+# b23 —— 从剪贴板（或命令行参数）取 B 站 / b23.tv 链接，交给 mpv 播放。
+# 支持多 P / 合集连播、最高 1080P、浏览器 cookie 鉴权、链接参数清洗。
+#
+# 设计要点（改代码前请先读）：
+#   1. 全程不出现“管道 + 提前退出的消费者”（例如 x | head），否则 set -o pipefail 下
+#      上游会收到 SIGPIPE，赋值语句失败会让脚本在 set -e 下静默退出（退出码 141）。
+#   2. 探测合集时只用 yt-dlp 的输出做“条目数”判断，不依赖 NA 之类的占位符文本。
+#   3. 任何降级都必须对用户可见（notify + stderr），不允许静默失败。
+set -euo pipefail
+
+B23_PROFILE="${B23_PROFILE:-b23}"
+B23_COOKIES_FROM_BROWSER="${B23_COOKIES_FROM_BROWSER-chrome}"   # 留空 / none / off = 不读浏览器 cookie
+B23_IMPERSONATE="${B23_IMPERSONATE-}"                          # 默认关闭：curl_cffi 不可用时 yt-dlp 会直接失败
+B23_PLAYLIST_LIMIT="${B23_PLAYLIST_LIMIT:-110}"                # 合集最多探测/播放多少集
+B23_LOG="${B23_LOG:-${XDG_STATE_HOME:-$HOME/.local/state}/b23/mpv.log}"
+B23_MPV_ARGS="${B23_MPV_ARGS-}"                                   # 追加给 mpv 的参数（空格分隔），如 --no-resume-playback
+
+B23_TMPDIR=""   # 探测用临时目录，交给 cleanup_tmp 或播放子 shell 清理
+
+usage() {
+  cat <<'EOF'
+Usage: b23 [URL]
+
+从剪贴板读取 B 站 / b23.tv 链接并交给 mpv 播放；也可以直接传入链接。
+
+Examples:
+  b23
+  b23 'https://www.bilibili.com/video/BV...'
+  b23 'https://b23.tv/...'
+
+环境变量:
+  B23_COOKIES_FROM_BROWSER  浏览器 cookie 来源，默认 chrome；留空 / none / off 表示不读 cookie
+  B23_IMPERSONATE           yt-dlp 的 impersonate 目标（需要 curl_cffi），默认关闭
+  B23_PLAYLIST_LIMIT        合集最多取多少集，默认 110
+  B23_PROFILE               mpv 使用的 profile 名，默认 b23
+  B23_LOG                   mpv 日志路径，默认 ~/.local/state/b23/mpv.log（每次运行覆盖）
+  B23_MPV_ARGS              追加给 mpv 的参数（空格分隔），例如 B23_MPV_ARGS="--no-resume-playback"
+EOF
+}
+
+notify() {
+  local msg="$1"
+
+  # 没有图形会话（DISPLAY / WAYLAND_DISPLAY 都没设）时不必白调 notify-send，直接写 stderr；
+  # 有图形会话但 notify-send 仍然失败（无 D-Bus 等）时也要回落到 stderr，不能反过来把脚本干掉。
+  if command -v notify-send >/dev/null 2>&1 && [[ -n "${WAYLAND_DISPLAY:-}${DISPLAY:-}" ]]; then
+    notify-send "b23" "$msg" >/dev/null 2>&1 || printf 'b23: %s\n' "$msg" >&2
+  else
+    printf 'b23: %s\n' "$msg" >&2
+  fi
+  return 0
+}
+
+cleanup_tmp() {
+  if [[ -n "$B23_TMPDIR" ]]; then
+    rm -rf -- "$B23_TMPDIR"
+    B23_TMPDIR=""
+  fi
+  return 0
+}
+
+die() {
+  cleanup_tmp
+  notify "$1"
+  exit "${2:-1}"
+}
+
+# 在任意文本里找出第一个 B 站链接：允许链接前后有中文说明、括号、引号、markdown 语法。
+# 输出单行 URL（不含尾部标点），找不到输出空行。
+extract_url() {
+  local input="$1" hits="" hit="" scheme_re bare_re
+
+  local chars='A-Za-z0-9._~:/?#@!$&*+=%-'
+  scheme_re="https?://([a-z0-9_-]+\.)*(bilibili\.com|b23\.tv)/[${chars}]*"
+  hits="$(grep -oiE "$scheme_re" <<<"$input" || true)"
+  hit="${hits%%$'\n'*}"
+
+  if [[ -z "$hit" ]]; then
+    # 裸链接（没有 scheme）：要求域名左边不是 URL 允许的字符，
+    # 否则 evilbilibili.com/video/xxx 会被误当成 bilibili.com/video/xxx。
+    bare_re="(^|[^a-z0-9_.:/?&=#%-])((www|m)\\.bilibili\\.com/(video|bangumi|medialist|space|watchlater|list|festival)/[${chars}]*|bilibili\\.com/(video|bangumi|medialist|space|watchlater|list|festival)/[${chars}]*|space\\.bilibili\\.com/[${chars}]*|b23\\.tv/[${chars}]*)"
+    hits="$(grep -oiE "$bare_re" <<<"$input" || true)"
+    hit="${hits%%$'\n'*}"
+    if [[ -n "$hit" ]]; then
+      # grep 是忽略大小写匹配的，所以“这段是不是以域名开头”的判定也必须忽略大小写，
+      # 否则 WWW.BILIBILI.COM 左边的哨兵字符会被留下，拼出一个坏 URL。
+      if [[ ! "${hit,,}" =~ ^((www|m)\.bilibili\.com/|bilibili\.com/|space\.bilibili\.com/|b23\.tv/) ]]; then
+        hit="${hit:1}"
+      fi
+      # 主机名归一为小写；路径与参数原样保留（BV 号大小写敏感）
+      local bare_host="${hit%%/*}"
+      hit="${bare_host,,}${hit#"$bare_host"}"
+    fi
+  fi
+
+  [[ -n "$hit" ]] || return 0
+  # 去掉链接尾部的标点；CJK 标点显式列出，这样在 C locale 下也成立（类里的引号是字面量）
+  # shellcheck disable=SC1112
+  printf '%s\n' "$hit" | sed -E 's/[[:space:][:punct:]，。、；：？！）】》」』“”‘’…—～·]+$//'
+}
+
+# 清洗查询参数：只保留真正影响播放的参数，丢掉 spm_id_from / vd_source 这类分享跟踪参数。
+# 分 P 参数对合集类链接同样有意义（以前只有 /video/ 会保留，其余整段丢光）。
+sanitize_url() {
+  local input="$1" base query out sep param key keep
+
+  if [[ "$input" != *\?* ]]; then
+    printf '%s\n' "$input"
+    return 0
+  fi
+
+  base="${input%%\?*}"
+  query="${input#*\?}"
+  case "${base,,}" in
+    *bilibili.com/*) keep='p|page|t|start_progress|aid|bvid|cid|oid' ;;
+    *)
+      # b23.tv 短链：分享参数一律丢，短码本身就能解析到目标
+      printf '%s\n' "$base"
+      return 0
+      ;;
+  esac
+
+  out="$base"
+  sep="?"
+  local -a params=()
+  IFS='&' read -ra params <<< "$query" || true
+  for param in "${params[@]}"; do
+    [[ -n "$param" ]] || continue
+    key="${param%%=*}"
+    if [[ "$key" =~ ^($keep)$ ]]; then
+      out+="${sep}${param}"
+      sep="&"
+    fi
+  done
+  printf '%s\n' "$out"
+}
+
+# 是否“用户已经点名了具体分 P”。只认 /video/ 与 /bangumi/ 这类单集页面：
+# 空间页 / 合集页也常带 page=，但对它们必须走探测，否则会只播第一集。
+url_is_single_part() {
+  local u="$1" base q
+
+  [[ "$u" == *\?* ]] || return 1
+  base="${u%%\?*}"
+  q="${u#*\?}"
+  case "${base,,}" in
+    */video/*|*/bangumi/*) ;;
+    *) return 1 ;;
+  esac
+  [[ "$q" =~ (^|&)(p|page)= ]] || return 1
+  return 0
+}
+
+# 用户点名的分 P 序号（没有就输出空）。用数字形式，便于“从第 N 集起连播”。
+url_part_number() {
+  local u="$1" base q
+
+  [[ "$u" == *\?* ]] || return 0
+  base="${u%%\?*}"
+  q="${u#*\?}"
+  case "${base,,}" in
+    */video/*|*/bangumi/*) ;;
+    *) return 0 ;;
+  esac
+  if [[ "$q" =~ (^|&)(p|page)=([0-9]+) ]]; then
+    printf '%s' "${BASH_REMATCH[3]}"
+  fi
+  return 0
+}
+
+# 去掉分 P 参数（p= / page=），得到“整条视频”的地址，用来枚举全部分 P。
+# 只在确认是分 P 链接（/video/ 或 /bangumi/）时才会被调用。
+url_without_part() {
+  local u="$1" base q out="" sep="?" param key
+
+  [[ "$u" == *\?* ]] || { printf '%s' "$u"; return 0; }
+  base="${u%%\?*}"
+  q="${u#*\?}"
+  local -a params=()
+  IFS='&' read -ra params <<< "$q" || true
+  for param in "${params[@]}"; do
+    [[ -n "$param" ]] || continue
+    key="${param%%=*}"
+    case "${key,,}" in
+      p|page) continue ;;
+    esac
+    out+="${sep}${param}"
+    sep="&"
+  done
+  printf '%s%s' "$base" "$out"
+}
+
+# 把探测出的条目列表截成“第 N 集及之后”。
+# 返回 0=已截好；1=列表里没有分 P 信息（无法排序，保持原样）；2=截完为空（超出范围）。
+trim_playlist_from_part() {
+  local src="$1" dst="$2" start="$3" have=0
+
+  have="$(grep -cE '[?&]p=[0-9]+' "$src" 2>/dev/null || true)"
+  if [[ "${have:-0}" == "0" ]]; then
+    return 1
+  fi
+  awk -v start="$start" \
+    'match($0, /[?&]p=[0-9]+/) { v = substr($0, RSTART + 3, RLENGTH - 3) + 0; if (v >= start) print }' \
+    "$src" > "$dst"
+  [[ -s "$dst" ]] || return 2
+  return 0
+}
+
+# 组装传给 mpv（进而传给 yt-dlp）的 raw options（key=value 逗号分隔）
+ytdl_raw_options() {
+  local cookies="$B23_COOKIES_FROM_BROWSER"
+  local -a opts=("format=bestvideo[height<=1080][vcodec!=none]+bestaudio[acodec!=none]/best[height<=1080]/best")
+
+  case "${cookies,,}" in
+    ''|none|off|no) cookies="" ;;
+  esac
+  if [[ -n "$cookies" ]]; then
+    opts+=("cookies-from-browser=$cookies")
+  fi
+  if [[ -n "$B23_IMPERSONATE" ]]; then
+    opts+=("impersonate=$B23_IMPERSONATE")
+  fi
+
+  local IFS=,
+  printf '%s' "${opts[*]}"
+}
+
+# 探测合集条目。成功与否都用返回值告诉调用方，错误文本留在日志里。
+# 只保留真正的 URL：yt-dlp 拿不到条目时会打印 NA 之类的占位符，不能当 URL 用。
+probe_entries() {
+  local url="$1" raw="$2" entries="$3" log="$4" rc=0
+
+  yt-dlp --flat-playlist --yes-playlist --playlist-end "$B23_PLAYLIST_LIMIT" \
+    --print url "$url" >"$raw" 2>"$log" || rc=$?
+  grep -E '^https?://' "$raw" >"$entries" 2>/dev/null || true
+  return "$rc"
+}
+
+# 后台启动 mpv：父脚本立刻返回，子 shell 留在前台等 mpv 退出，
+# 于是“播放失败”不再是静默的（退出码非 0 时补一条通知），临时目录也在此时清理。
+start_player() {
+  local cleanup_dir="$1"
+  shift
+
+  (
+    local rc=0
+    local -a log_opt=() extra=()
+
+    # 日志目录不可写时退回 /dev/null：exec 失败会让 mpv 根本起不来
+    if [[ -n "$B23_LOG" ]] && mkdir -p -- "$(dirname -- "$B23_LOG")" 2>/dev/null && : >>"$B23_LOG" 2>/dev/null; then
+      # --no-terminal 会把 mpv 的控制台输出全部吞掉，只有 --log-file 能留下播放细节
+      log_opt=(--log-file="$B23_LOG")
+      if [[ ! -t 1 ]]; then
+        exec >>"$B23_LOG" 2>&1   # 兜住 mpv 解析参数之前就报错的情况（如 XDG_RUNTIME_DIR）
+      fi
+    elif [[ ! -t 1 ]]; then
+      exec >/dev/null 2>&1
+    fi
+
+    if [[ -n "$B23_MPV_ARGS" ]]; then
+      read -r -a extra <<< "$B23_MPV_ARGS" || true
+    fi
+
+    mpv --profile="$B23_PROFILE" \
+      --ytdl-raw-options="$1" \
+      --no-terminal \
+      --network-timeout=20 \
+      --stream-lavf-o=reconnect=1,reconnect_streamed=1,reconnect_delay_max=5,timeout=20000000 \
+      "${log_opt[@]}" \
+      "${extra[@]}" \
+      "${@:2}" || rc=$?
+    if [[ -n "$cleanup_dir" ]]; then
+      rm -rf -- "$cleanup_dir"
+    fi
+    if (( rc != 0 )); then
+      notify "mpv 异常退出（exit $rc），日志：$B23_LOG"
+    fi
+  ) &
+  player_pid=$!
+  disown "$player_pid" 2>/dev/null || true
+  return 0
+}
+
+main() {
+  case "${1:-}" in
+    -h|--help)
+      usage
+      exit 0
+      ;;
+  esac
+
+  local -a missing=()
+  local cmd
+  for cmd in yt-dlp mpv; do
+    command -v "$cmd" >/dev/null 2>&1 || missing+=("$cmd")
+  done
+  if [[ $# -eq 0 ]]; then
+    command -v wl-paste >/dev/null 2>&1 || missing+=("wl-paste")
+  fi
+  if (( ${#missing[@]} > 0 )); then
+    die "缺少依赖: ${missing[*]}" 127
+  fi
+
+  # 上限必须是正整数：写成 abc 的话 (( )) 会把变量名当算术表达式，set -u 下直接报 unbound variable
+  if [[ ! "$B23_PLAYLIST_LIMIT" =~ ^[1-9][0-9]*$ ]]; then
+    notify "B23_PLAYLIST_LIMIT 不是正整数（当前: ${B23_PLAYLIST_LIMIT}），改用默认 110"
+    B23_PLAYLIST_LIMIT=110
+  fi
+
+  local raw="" url="" entries_file="" probe_raw="" probe_log=""
+  local raw_opts="" probe_rc=0 count=0 why="" part_start=""
+
+  local clip_types=""
+  if [[ $# -gt 0 ]]; then
+    raw="$*"
+  else
+    # 剪贴板里可能是截图（image/png）：先看类型列表再取，避免把二进制塞进解析器。
+    # 注意别写成 `wl-paste --list-types | grep -q`——grep 提前退出会让上游收到 SIGPIPE，
+    # 在 set -o pipefail 下反而把“有文本”误判成“没文本”。
+    clip_types="$(wl-paste --list-types 2>/dev/null || true)"
+    if [[ "$clip_types" == *text/* || "$clip_types" == *STRING* || "$clip_types" == *TEXT* ]]; then
+      raw="$(wl-paste --no-newline 2>/dev/null || wl-paste 2>/dev/null || true)"
+    fi
+  fi
+
+  url="$(extract_url "$raw")"
+  if [[ -z "$url" ]]; then
+    die "未找到 B 站可播放链接" 1
+  fi
+
+  case "${url,,}" in
+    http://*|https://*) ;;
+    *) url="https://$url" ;;
+  esac
+  url="$(sanitize_url "$url")"
+
+  raw_opts="$(ytdl_raw_options)"
+  if [[ -n "$B23_LOG" ]] && mkdir -p -- "$(dirname -- "$B23_LOG")" 2>/dev/null; then
+    # 每次运行把旧日志清空：只增不减会越来越占地方，历史内容对排查也没用
+    : >"$B23_LOG" 2>/dev/null || true
+  fi
+
+  # 链接里点名了某一分 P 时也照样探测：探测到多 P / 合集就从这一 P 往后连播（方案 A）。
+  part_start="$(url_part_number "$url")"
+
+  if ! B23_TMPDIR="$(mktemp -d "${TMPDIR:-/tmp}/b23-XXXXXX" 2>/dev/null)"; then
+    # TMPDIR 不可写时退回 /tmp，再不行就明确报错（否则 set -e 会静默退出）
+    if ! B23_TMPDIR="$(mktemp -d /tmp/b23-XXXXXX 2>/dev/null)"; then
+      die "无法创建临时目录（TMPDIR=${TMPDIR:-/tmp}），无法探测合集" 1
+    fi
+  fi
+  probe_raw="$B23_TMPDIR/probe.raw"
+  entries_file="$B23_TMPDIR/entries.txt"
+  probe_log="$B23_TMPDIR/probe.log"
+
+  # 链接点名了某一分 P 时，要用“去掉分 P 参数”的地址去枚举全部分 P：
+  # yt-dlp 对 ?p=N 这种地址只返回单个条目（NA），看不到后面的分 P。
+  local probe_url="$url"
+  if [[ -n "$part_start" ]]; then
+    probe_url="$(url_without_part "$url")"
+  fi
+
+  probe_entries "$probe_url" "$probe_raw" "$entries_file" "$probe_log" || probe_rc=$?
+  count="$(wc -l < "$entries_file" 2>/dev/null || printf 0)"
+  count="${count//[[:space:]]/}"
+
+  local play_list="" remaining="$count" trim_rc=0
+  if (( count >= 2 )); then
+    play_list="$entries_file"
+    if [[ -n "$part_start" ]]; then
+      # 从第 part_start 集起连播；列表里没有分 P 信息、或超出范围时，退回“只播这一 P”
+      trim_playlist_from_part "$entries_file" "$B23_TMPDIR/from-part.txt" "$part_start" || trim_rc=$?
+      if (( trim_rc == 0 )); then
+        play_list="$B23_TMPDIR/from-part.txt"
+        remaining="$(wc -l < "$play_list" 2>/dev/null || printf 0)"
+        remaining="${remaining//[[:space:]]/}"
+      else
+        play_list=""
+      fi
+    fi
+  fi
+
+  if [[ -n "$play_list" ]]; then
+    # 合集：mpv 直接读条目文件连播，播完由播放子 shell 删掉
+    if [[ -n "$part_start" ]]; then
+      notify "播放中（从第 ${part_start} 集起连播，共 ${remaining} 集）"
+    elif (( count >= B23_PLAYLIST_LIMIT )); then
+      notify "播放中（合集 ${count} 集，已达上限 ${B23_PLAYLIST_LIMIT}，可能被截断）"
+    else
+      notify "播放中（合集 ${count} 集）"
+    fi
+    local playlist_file="$play_list" playlist_dir="$B23_TMPDIR"
+    B23_TMPDIR=""
+    start_player "$playlist_dir" "$raw_opts" "--playlist=$playlist_file"
+    exit 0
+  fi
+
+  # 单视频（0 或 1 条）：一律直接播原始链接，避免把 yt-dlp 的直链当播放列表用。
+  if (( probe_rc != 0 )); then
+    # 必须在 cleanup_tmp 之前读日志：否则临时目录已被删，why 取到空串，用户只看到退出码
+    why="$(head -n1 "$probe_log" 2>/dev/null || true)"
+    notify "合集探测失败（${why:-yt-dlp 退出码 $probe_rc}），按单个视频播放"
+  elif url_is_single_part "$url"; then
+    notify "播放中（指定分 P）"
+  else
+    notify "播放中"
+  fi
+  cleanup_tmp
+  start_player "" "$raw_opts" "$url"
+  exit 0
+}
+
+if [[ "${BASH_SOURCE[0]}" == "$0" ]]; then
+  main "$@"
+fi

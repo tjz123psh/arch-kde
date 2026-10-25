@@ -20,7 +20,7 @@ install_user_scripts() {
   log "安装维护 / 包管理脚本..."
   if [ "$DRY_RUN" -eq 1 ]; then
     log "[dry-run] 复制 $src -> $dest"
-    log "[dry-run] 链接 term-menu / pac / pacr / pacd / gsudo 及维护工具到 $bin"
+    log "[dry-run] 链接 term-menu / pac / pacr / pacd / gsudo / b23 及维护工具到 $bin"
     return 0
   fi
 
@@ -64,5 +64,12 @@ install_user_scripts() {
     link_user_script "$name" "$f"
   done
 
-  log "常驻脚本已安装：maintenance 工具、pac/pacr/pacd、gsudo/shortcuts/record-menu（desktop 下的可执行脚本都会链到 ~/bin）"
+  # media：b23（B 站链接 -> mpv）。规则同 desktop：目录里的可执行脚本都链到 ~/bin。
+  for f in "$dest"/media/*; do
+    if [ ! -f "$f" ] || [ ! -x "$f" ]; then continue; fi
+    name=$(basename "$f")
+    link_user_script "$name" "$f"
+  done
+
+  log "常驻脚本已安装：maintenance 工具、pac/pacr/pacd、gsudo/shortcuts/record-menu、b23（desktop / media 下的可执行脚本都会链到 ~/bin）"
 }
