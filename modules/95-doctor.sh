@@ -172,7 +172,9 @@ run_doctor() {
       [ -f "$ml" ] || continue
       ml_n=$(grep -c '^Server = ' "$ml" 2>/dev/null || true)
       ml_first=$(grep -m1 '^Server = ' "$ml" 2>/dev/null | sed 's/^Server = //' || true)
-      ml_skip=$(grep -c '^# 降级跳过' "$ml" 2>/dev/null || true)
+      # 标记由 10-packages.sh 的 _mirror_demote_first 写入，格式是 "# downgraded: Server = "；
+      # 这里原来找的是 "# 降级跳过"，永远匹配不到，降级计数恒为 0。
+      ml_skip=$(grep -c '^# downgraded: Server = ' "$ml" 2>/dev/null || true)
       echo "  $ml: ${ml_n:-0} 个 Server，首个: ${ml_first:-无}"
       if [ "${ml_skip:-0}" -gt 0 ]; then
         echo "    已降级跳过 ${ml_skip} 个（重跑安装器会重写并复原）"
