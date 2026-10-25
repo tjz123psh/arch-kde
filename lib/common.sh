@@ -143,11 +143,18 @@ backup_file() {
   echo "$src $sum $dst" >> "$MANIFEST"
 }
 
+# --keep-user-configs 时，目标已存在就不动它（只跳过配置文件，不动安装出来的可执行脚本）。
+KEEP_USER_CONFIGS="${KEEP_USER_CONFIGS:-0}"
+
 install_file() {
   local src="$1" dest="$2" mode=644
   if [ "$#" -ge 3 ]; then mode="$3"; fi
   if [ ! -f "$src" ]; then die "Missing file: $src"; fi
   if [ "$DRY_RUN" -eq 1 ]; then log "[dry-run] install $src -> $dest"; return 0; fi
+  if [ "${KEEP_USER_CONFIGS:-0}" -eq 1 ] && [ -e "$dest" ]; then
+    log "keep (--keep-user-configs): $dest"
+    return 0
+  fi
   record_created "$dest"
   backup_file "$dest"
   mkdir -p "$(dirname "$dest")"

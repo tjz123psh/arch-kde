@@ -32,6 +32,7 @@ NO_AUR=0
 NO_MIRRORS=0
 NO_ARCHLINUXCN=0
 NO_SDDM_THEME=0
+KEEP_USER_CONFIGS=0
 NO_BROWSER=0
 NO_VSCODE=0
 KOS_WITH_APPS=1
@@ -83,6 +84,7 @@ Skip:
   --no-vscode        Do not install VS Code
   --skip-update      Do not update the KOS source (offline install)
   --clean-old-desktop  Remove packages left over from the old linux-macos desktop (off by default)
+  --keep-user-configs  Do not overwrite config files that already exist (yazi/mpv/fish/kitty/...)
 
 Hardware and drivers (fixed for the target machine, ASUS TUF A15; list lives in modules/10-packages.sh):
   --no-gpu-amd --no-gpu-nvidia   Drop one vendor's driver
@@ -129,6 +131,7 @@ parse_args() {
       --no-vscode) NO_VSCODE=1 ;;
       --skip-update) SKIP_UPDATE=1 ;;
       --clean-old-desktop) CLEAN_OLD=1 ;;
+      --keep-user-configs) KEEP_USER_CONFIGS=1 ;;
       --no-gpu-amd) HW_GPU_AMD=0 ;;
       --no-gpu-nvidia) HW_GPU_NVIDIA=0 ;;
       --nvidia-legacy|--nvidia-closed) HW_NVIDIA_DRIVER=legacy ;;
@@ -152,6 +155,7 @@ print_plan() {
   log " SDDM theme: $([ "$NO_SDDM_THEME" -eq 1 ] && echo keep-current || echo SilentSDDM)"
   log " Spatial depth: $([ "$KOS_SPATIAL" -eq 1 ] && echo build || echo skip)"
   log " Old-desktop cleanup: $([ "$CLEAN_OLD" -eq 1 ] && echo remove-old-packages || echo none)"
+  log " Existing user config: $([ "$KEEP_USER_CONFIGS" -eq 1 ] && echo keep || echo overwrite)"
   log " Effects: KOS window animation (genie) + glass + KDE wobbly windows"
   if declare -F hw_report >/dev/null 2>&1; then hw_report; fi
   if declare -F hw_policy_summary >/dev/null 2>&1; then hw_policy_summary; fi
