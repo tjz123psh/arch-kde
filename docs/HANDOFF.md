@@ -84,10 +84,17 @@ bash install.sh --dry-run --yes
    AUR 21/21 一个不缺；`sassc` 构建后即卸；doctor 复跑 0 MISS；29 份配置文件里
    27 份与仓库逐字节一致（2 份 GTK `settings.ini` 被 kde-gtk-config 重写，内容正确：
    `gtk-font-name=Noto Sans CJK SC`）。
-   该轮发现并修掉两处：默认壁纸预置被"只有 themeAnimated 的 wallpaper.ini"挡住而跳过
-   （`57f816c`）、doctor 声卡与装饰行误报（`6407f2e`）。之后用 `110fb40` 在同一台 VM
-   上复跑确认：`wallpaper.ini` 有 `image=` 且 `takeoverEnabled=true`、doctor 0 MISS、
-   包数与快捷键均无重复。
+   前后三轮（首次安装 + 两次在运行中的桌面里重跑）一共发现并修掉四处：
+   - 默认壁纸预置被"只有 themeAnimated 的 wallpaper.ini"挡住而跳过（`57f816c`）；
+   - doctor 声卡与装饰行误报（`6407f2e`）；
+   - 重跑时先写 `none,none` 再让 KGlobalAccel 解除绑定，导致这个键被整条抹掉、
+     KDE 回落到默认 Meta（`554cba0`，改成先解绑再写）；
+   - Plasma 桌面配置写到 `plasma-org.kde.plasma.desktop-appletsrc`，而 KOS 的 shell 包
+     是 `org.kos.desktop`，plasmashell 实际读的是 `plasma-org.kos.desktop-appletsrc`
+     （`8f78364`，改成按存在的文件解析，doctor 同时接受 KOS 生成的 KOS-Backdrop 壁纸）。
+   第三轮（`8f78364`）在 VM 上确认：appletsrc 的 `Image` 落到
+   `file:///…/kos/gallery/樱吹雪.png`、`activate application launcher` 保持
+   `none,none,…`、doctor 0 MISS、包数与快捷键无重复。
    仍未覆盖：真实锁屏画面（只验证了 `plasmashellrc ShellPackage=org.kos.desktop` 与
    QML 补丁在位）、多显示器、Wi-Fi/蓝牙/摄像头/独显（VM 无硬件）、实际出声
    （`wpctl` 有 sink、`paplay` 返回 0）。判据表见 `docs/VM-CHECKLIST.md`。
