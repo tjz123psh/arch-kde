@@ -21,12 +21,16 @@ init_state() {
     MANIFEST=/dev/null
     log "Log: $LOG_FILE"
     log "Backup: skipped (dry-run / --check)"
+    prune_state_artifacts "$LOG_DIR" "install"
+    prune_state_artifacts "$STATE_DIR" "doctor"
     return 0
   fi
   mkdir -p "$BACKUP_DIR"
   : > "$MANIFEST"
   log "Log: $LOG_FILE"
   log "Backup: $BACKUP_DIR"
+  prune_state_artifacts "$LOG_DIR" "install"
+  prune_state_artifacts "$STATE_DIR" "doctor"
 }
 
 log() {
@@ -82,6 +86,26 @@ cleanup() {
   if [ -n "$SUDO_KEEPALIVE_PID" ]; then
     kill "$SUDO_KEEPALIVE_PID" 2>/dev/null || true
   fi
+}
+
+# 每次 --check / --dry-run 都会留一份日志和 doctor 报告，长期会把状态目录撑满。
+# 只保留最近 STATE_KEEP 份（默认 20，可用 KOS_STATE_KEEP 覆盖），按修改时间排序。
+STATE_KEEP="${KOS_STATE_KEEP:-20}"
+
+prune_state_artifacts() {
+  local dir="$1" prefix="$2" f
+  [ -d "$dir" ] || return 0
+  local -a old=()
+  while IFS= read -r f; do
+    [ -n "$f" ] && old+=("$f")
+  done < <(
+    find "$dir" -maxdepth 1 -type f -name "${prefix}-[0-9]*" -printf '%T@ %p\n' 2>/dev/null |
+      sort -rn | tail -n "+$((STATE_KEEP + 1))" | cut -d' ' -f2-
+  )
+  [ "${#old[@]}" -eq 0 ] && return 0
+  for f in "${old[@]}"; do
+    rm -f -- "$f"
+  done
 }
 
 # 安装真正开始前，把现有包清单留一份。回滚时拿它和当前 pacman -Qq 做差集，
