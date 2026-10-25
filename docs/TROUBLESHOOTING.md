@@ -209,12 +209,15 @@ grep '^Exec' ~/.local/share/applications/google-chrome.desktop   # 应该带 --p
 （`~/.local/share/kwalletd/` 是空的，`kwallet-query -l kdewallet` 会报 not found），
 Electron 就认定“KDE 环境下该有 keyring”，去取的时候拿不到，于是弹这句。
 
-安装器会给 VS Code 写启动参数文件（`visual-studio-code-bin` 的 `/usr/bin/code`
-是个包装脚本，启动时会读它）：
+安装器给 VS Code 写两处（都在用户目录，不动 kwallet 本身）：
 
 ```bash
-cat ~/.config/code-flags.conf      # 应该有一行 --password-store=basic
+cat ~/.config/code-flags.conf              # /usr/bin/code 包装脚本启动时读
+cat ~/.config/Code/User/argv.json          # VS Code 自己读的运行时参数
 ```
+
+两处都应该出现 `password-store` = `basic`；前者管菜单/终端启动，后者管直接跑
+`/usr/share/code/code` 的情况。
 
 想改成用钱包加密：删掉那一行里的 `--password-store=basic`，装 `kwalletmanager`、
 建一个 kdewallet 钱包，然后重启 VS Code。
