@@ -396,8 +396,8 @@ base-devel git curl jq unzip xdg-utils xdg-user-dirs man-db cmake extra-cmake-mo
 
   # 开发工具（2026-10-22 用户指定）：GitHub CLI、Docker / Compose、Kate、npm
   # github-cli 提供 /usr/bin/gh；docker 组和 docker.service 在 40-system.sh 配置。
-  # npm 是 Node.js 包管理器。
-  pkgs="$pkgs github-cli docker docker-compose npm"
+  # npm 是 Node.js 包管理器。kate 之前只在注释里出现过、实际没进清单（2026-10-25 审查发现）。
+  pkgs="$pkgs github-cli docker docker-compose npm kate"
 
   # 维护 / 包管理脚本依赖（assets/scripts）：
   # maintenance 需要 snapper/reflector/rsync/zstd/upower/pacman-contrib/strace 等；
@@ -462,7 +462,9 @@ base-devel git curl jq unzip xdg-utils xdg-user-dirs man-db cmake extra-cmake-mo
   # exfatprogs/ntfs-3g/btrfs-progs：U 盘、Windows 盘、btrfs 根（archinstall 可能已装）
   # smartmontools/nvme-cli：真机硬盘健康检查（装完 doctor 会提示怎么用）
   # 注意：不装 udiskie（KDE 自己有设备通知器，两个自动挂载会重复弹窗/抢挂载点）
-  pkgs="$pkgs udisks2 dosfstools exfatprogs ntfs-3g btrfs-progs smartmontools nvme-cli"
+  # 7zip：yazi 的"解压到当前目录/同名文件夹/指定位置"对非 tar 包调用 7z（见
+  # assets/config/yazi/yazi.toml），只装 unzip 时这几条动作会直接失败。
+  pkgs="$pkgs udisks2 dosfstools exfatprogs ntfs-3g btrfs-progs smartmontools nvme-cli 7zip"
 
   # ---- 电源/传感器 ----
   # lm_sensors：sensors 命令（温度、风扇）
@@ -620,6 +622,10 @@ install_aur_packages() {
   # 外观三件套要和 assets/config/gtk/settings.ini、environment/90-kos.conf 里的
   # 名字对得上：图标 WhiteSur、光标 WhiteSur-cursors、GTK 主题 WhiteSur-Light。
   list="whitesur-icon-theme whitesur-cursor-theme-git whitesur-gtk-theme"
+  # mpv 的界面：assets/config/mpv/mpv.conf 里 script=/usr/share/mpv/scripts/uosc，
+  # input.conf 里 14 条绑定都是 uosc/*，thumbfast 提供时间轴缩略图。装上这两个包之前
+  # mpv 的右键菜单、? 键位表、字幕/音轨面板全是哑的（2026-10-25 审查发现）。
+  list="$list mpv-uosc mpv-thumbfast-git"
   list="$list wps-office-cn wps-office-mime-cn wps-office-mui-zh-cn ttf-wps-fonts"
   list="$list maplemono-nf-cn"
   list="$list fcitx5-pinyin-moegirl fcitx5-pinyin-custom-pinyin-dictionary"
