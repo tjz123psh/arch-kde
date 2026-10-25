@@ -19,7 +19,7 @@ run_doctor() {
     echo
     echo "== KOS 外观 =="
     if have kreadconfig6; then
-      echo -n "Decoration:  "; kreadconfig6 --file kwinrc --group org.kde.kdecoration2 --key theme
+      echo -n "Decoration:  "; kreadconfig6 --file kwinrc --group org.kde.kdecoration2 --key library; echo -n "  theme="; kreadconfig6 --file kwinrc --group org.kde.kdecoration2 --key theme; echo
       echo -n "InputMethod: "; kreadconfig6 --file kwinrc --group Wayland --key InputMethod
       echo -n "KOS 动画:    "; kreadconfig6 --file kwinrc --group Plugins --key kos_dock_window_animationEnabled
       echo -n "键盘重复:    "; kreadconfig6 --file kcminputrc --group Keyboard --key RepeatDelay; echo -n "ms / "; kreadconfig6 --file kcminputrc --group Keyboard --key RepeatRate; echo " 次/秒"

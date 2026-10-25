@@ -571,7 +571,9 @@ hw_doctor_check() {
   ok=0
   if _hw_have systemctl && systemctl --user is-active --quiet wireplumber 2>/dev/null; then
     ok=1
-  elif [ -d /sys/module/snd_hda_intel ] || [ -d /sys/module/snd_sof ] || [ -d /sys/module/snd_usb_audio ]; then
+  elif [ -d /sys/module/snd_hda_intel ] || [ -d /sys/module/snd_sof ] || [ -d /sys/module/snd_usb_audio ] || [ -e /proc/asound/card0 ]; then
+    # /proc/asound/card0：虚拟机（ES1371 之类）和少见声卡走这条，避免刚装完时因为模块名
+    # 不在名单里就误报"没看到声卡驱动"（2026-10-25 干净 VM 上出现过一次）。
     ok=1
   fi
   if [ "$ok" -eq 1 ]; then
