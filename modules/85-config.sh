@@ -671,6 +671,38 @@ install_chrome_password_store_override() {
   fi
   log "Chrome launcher updated (takes effect on next start)"
 }
+# VS Code 是另一个 Electron 应用，它自己也会去找 KDE keyring：钱包不存在时
+# 每次启动都弹“OS keyring 不可用于加密”。和 Chrome 一样钉到 basic 存储，
+# 免得每装一个新 Electron 应用就再弹一次。想用钱包加密就把这个文件删掉。
+install_vscode_password_store_override() {
+  local dst="$HOME/.config/code-flags.conf"
+  log "Keeping VS Code off the KDE wallet (stops the keyring warning)..."
+  if [ "$DRY_RUN" -eq 1 ]; then
+    log "[dry-run] ensure $dst contains --password-store=basic"
+    return 0
+  fi
+  if [ ! -e /usr/bin/code ] && ! have code; then
+    log "VS Code not installed; skipping the keyring override"
+    return 0
+  fi
+  if [ -f "$dst" ] && grep -qxF -- "--password-store=basic" "$dst"; then
+    log "VS Code already pinned to the basic password store"
+    return 0
+  fi
+  backup_file "$dst"
+  if [ -f "$dst" ]; then
+    printf '%s\n' "--password-store=basic" >> "$dst"
+  else
+    mkdir -p "$(dirname "$dst")"
+    write_file "$dst" <<'EOF'
+# KDE 下没有可用的 keyring 时，Electron/VS Code 会反复弹
+# “OS keyring 不可用于加密”。basic 存储不依赖钱包；想改用钱包加密就删掉这一行。
+--password-store=basic
+EOF
+  fi
+  log "VS Code launcher flags updated (takes effect on next start)"
+}
+
 install_desktop_config() {
   log "Writing desktop environment config (env / GTK / fonts)..."
   install_file "$CONFIG_DIR/environment/90-kos.conf" "$HOME/.config/environment.d/90-kos.conf"
@@ -687,6 +719,7 @@ install_desktop_config() {
   enable_frosted_kde_windows
   enable_kos_frosted_settings
   install_chrome_password_store_override
+  install_vscode_password_store_override
   install_default_apps
   configure_kde_global_appearance
   configure_kos_motion
