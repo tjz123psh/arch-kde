@@ -599,7 +599,10 @@ configure_kos_motion() {
   kwriteconfig6 --file kwinrc --group Effect-wobblywindows --key ResizeWobble true --notify
 
   if have qdbus6; then
-    qdbus6 org.kde.KWin /Effects org.kde.kwin.Effects.reconfigureEffect kos_dock_window_animation >/dev/null 2>&1 || true
+    # KWin 6.8 起 /org/kde/KWin 上不再导出 org.kde.kwin.Effects（见 60-kos.sh 里
+    # Settings 集成探针的说明），旧的 reconfigureEffect 调用必然失败；改成让 KWin
+    # 重读 kwinrc，效果自己会按新配置重载。
+    qdbus6 org.kde.KWin /KWin reconfigure >/dev/null 2>&1 || true
   fi
 
   local config="${XDG_STATE_HOME:-$HOME/.local/state}/quickshell/kos/appearance/config.json"
