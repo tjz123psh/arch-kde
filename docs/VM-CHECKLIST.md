@@ -80,5 +80,5 @@ bash install.sh --wallpaper 不存在.png --dry-run; echo rc=$?   # 期望 rc=1
 ## 6. 已知会出现的非问题
 
 - `--no-archlinuxcn` 且 `--nvidia-legacy` 时，安装器会跳过 NVIDIA 驱动并提示（archlinuxcn 才有 580xx）。
-- `whitesur-gtk-theme` 在 AUR 被标记 out-of-date，构建失败只会 warn，图标/光标/GTK 主题可能回退默认。
+- `whitesur-gtk-theme` 用 `sassc` 构建：安装器会临时装上 `sassc`，主题装好后再卸掉，所以装完 `pacman -Qq sassc` 应该是空的（不空也不算失败，只是没卸干净）。该包在 AUR 被标记 out-of-date，若构建仍失败只 warn，GTK 主题会回退默认，doctor 里会出现 `[MISS] whitesur-gtk-theme`。
 - VM 里没有独显/蓝牙/摄像头时，doctor 对应项按“硬件没有”处理，不算 MISS。
