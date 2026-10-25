@@ -1,6 +1,6 @@
 # 交接状态（新会话先读）
 
-最后更新：2026-10-24
+最后更新：2026-10-25
 
 ## 一句话
 
@@ -78,11 +78,19 @@ bash install.sh --dry-run --yes
 
 ## 未完成 / 风险
 
-1. **干净 Arch VM 全量复跑**（最高优先级）
-   当前实机是在多轮迭代中安装出来的；最新代码没有在干净 VM 上重新跑过
-   `install.sh --yes`。按项目约定，改主流程 / 包清单 / 镜像逻辑后必须在干净 VM
-   验证，不能只靠宿主 dry-run。
-   操作步骤、要留的证据、装完的逐项核对表：见 `docs/VM-CHECKLIST.md`。
+1. **干净 Arch VM 全量复跑**（2026-10-25 完成，结论留档）
+   干净 VM（VMware，archinstall 后 TTY）跑 `install.sh --yes`，commit `e893ac1`：
+   耗时 29 分 52 秒、日志 0 ERROR、装 985 个包；按 VM 硬件算的官方清单 152/152、
+   AUR 21/21 一个不缺；`sassc` 构建后即卸；doctor 复跑 0 MISS；29 份配置文件里
+   27 份与仓库逐字节一致（2 份 GTK `settings.ini` 被 kde-gtk-config 重写，内容正确：
+   `gtk-font-name=Noto Sans CJK SC`）。
+   该轮发现并修掉两处：默认壁纸预置被"只有 themeAnimated 的 wallpaper.ini"挡住而跳过
+   （`57f816c`）、doctor 声卡与装饰行误报（`6407f2e`）。之后用 `110fb40` 在同一台 VM
+   上复跑确认：`wallpaper.ini` 有 `image=` 且 `takeoverEnabled=true`、doctor 0 MISS、
+   包数与快捷键均无重复。
+   仍未覆盖：真实锁屏画面（只验证了 `plasmashellrc ShellPackage=org.kos.desktop` 与
+   QML 补丁在位）、多显示器、Wi-Fi/蓝牙/摄像头/独显（VM 无硬件）、实际出声
+   （`wpctl` 有 sink、`paplay` 返回 0）。判据表见 `docs/VM-CHECKLIST.md`。
 
 2. **KDE 原生音量/亮度键的验证**
    当前系统已恢复 KDE 原生快捷键。若下次登录后按键失效，先重启
