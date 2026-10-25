@@ -221,6 +221,30 @@ cat ~/.config/Code/User/argv.json          # VS Code 自己读的运行时参数
 
 想改成用钱包加密：删掉那一行里的 `--password-store=basic`，装 `kwalletmanager`、
 建一个 kdewallet 钱包，然后重启 VS Code。
+## 桌面壁纸还是 KDE 默认的那张
+
+壁纸有两个来源，先分清是哪一个：
+
+- **KOS 自己的壁纸**：`~/.local/state/quickshell/kos/wallpaper.ini` 里的 `image=`（shell 盖住桌面时看到的就是它）
+- **Plasma 桌面壁纸**：`~/.config/plasma-org.kde.plasma.desktop-appletsrc` 里的 `[Containments][1][Wallpaper][org.kde.image][General] Image=`
+  （KOS shell 启动前那几秒、以及没有 KOS 的时候看到的就是它）
+
+全新机器装完第一次登录前，appletsrc 还不存在，安装器不会去伪造它（Plasma 会当成无主配置丢掉），
+而是装一个首登自启动：`~/.config/autostart/kos-wallpaper-first-login.desktop` →
+`~/.local/bin/kos-wallpaper-first-login`，进桌面后调 `plasma-apply-wallpaperimage` 设置一次。
+成功与否记在 `~/.local/state/kos-installer/log/wallpaper-first-login.log`。
+
+排查：
+
+```bash
+ls ~/.local/share/kos/gallery                     # 图集在不在
+cat ~/.local/state/kos-installer/log/wallpaper-first-login.log
+grep -A2 'org.kde.image' ~/.config/plasma-org.kde.plasma.desktop-appletsrc | head
+```
+
+手动设一次：`plasma-apply-wallpaperimage ~/.local/share/kos/gallery/落霞.png`。
+想换默认图：`bash install.sh --yes --wallpaper 落霞.png`。
+
 ## 登录页还是 SDDM 默认主题（silent 没生效）
 
 按可能性从高到低查：
