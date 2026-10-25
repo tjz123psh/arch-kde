@@ -187,7 +187,7 @@ sudo iptables -S FORWARD | head -4
 
 另外热点还依赖 `dnsmasq`（shared 模式的 DHCP/DNS）；缺了它会在开启时报
 `IP 配置无法保留（无可用地址、超时等）`。
-## 打开 Chrome 弹「KDE 密码库服务 - 请求新建 kwallet」
+## Electron 应用弹「KDE 密码库 / OS keyring 不可用」
 
 Chrome 启动时要通过 KDE 密钥服务（`ksecretd`，属于 `kwallet` 包）取 cookie 加密密钥；
 系统里没建过钱包时，它会请求新建一个叫 `kwallet` 的钱包，**点取消才能继续使用浏览器**。
@@ -202,6 +202,22 @@ grep '^Exec' ~/.local/share/applications/google-chrome.desktop   # 应该带 --p
 想恢复默认：删掉 `~/.local/share/applications/google-chrome.desktop` 再 `kbuildsycoca6 --noincremental`。
 
 换成 basic 存储后，Chrome 会重新生成 cookie 加密密钥，个别站点可能要重新登录一次。
+
+### VS Code 弹「你正在 KDE 环境中运行，但 OS keyring 不可用于加密」
+
+同一个根因，但不是同一个应用：`kwallet` 进程在跑，而**钱包从来没建过**
+（`~/.local/share/kwalletd/` 是空的，`kwallet-query -l kdewallet` 会报 not found），
+Electron 就认定“KDE 环境下该有 keyring”，去取的时候拿不到，于是弹这句。
+
+安装器会给 VS Code 写启动参数文件（`visual-studio-code-bin` 的 `/usr/bin/code`
+是个包装脚本，启动时会读它）：
+
+```bash
+cat ~/.config/code-flags.conf      # 应该有一行 --password-store=basic
+```
+
+想改成用钱包加密：删掉那一行里的 `--password-store=basic`，装 `kwalletmanager`、
+建一个 kdewallet 钱包，然后重启 VS Code。
 ## 完全回退
 
 一条命令退回安装前（装好后在 `~/bin`；还没装完就用仓库里的 `bash rollback.sh`）：
