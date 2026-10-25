@@ -210,13 +210,14 @@ configure_launcher_shortcuts() {
   if have kwriteconfig6; then
     backup_file "$HOME/.config/kglobalshortcutsrc"
     # KDE 的 Meta 单键会抢在 KOS 启动器之前打开 Plasma 应用菜单，先释放它。
-    # 这个键的值是三个字段：当前快捷键,默认快捷键,显示名。只写 "none" 时默认字段是空的，
-    # KGlobalAccel 下次登录会按内置默认（Alt+F1 / Meta）补回去——2026-10-25 在这台机器上
-    # 实测就是这样被抢回去的（kglobalshortcutsrc 里又变回 Meta）。所以默认字段也要写 none。
-    kwriteconfig6 --file kglobalshortcutsrc --group plasmashell --key "activate application launcher" "none,none,激活应用程序启动器" --notify
-    # 立即让 KGlobalAccel 释放已被 KDE 占用的 Meta 单键；下次登录会从配置恢复。
+    # 顺序要紧：**先**让运行中的 KGlobalAccel 解除绑定（它会把当前状态写回配置），
+    # **再**写配置文件。反过来的话，unregister 触发的那次保存会把刚写进去的 none 抹掉，
+    # 键会整个消失（缺键 = 回落到内置默认 Meta）——2026-10-25 在干净 VM 上重跑安装器时实测。
     qdbus6 org.kde.kglobalaccel /kglobalaccel org.kde.KGlobalAccel.unregister plasmashell "activate application launcher" >/dev/null 2>&1 || true
     qdbus6 org.kde.KWin /KWin reconfigure >/dev/null 2>&1 || true
+    # 值有三个字段：当前快捷键,默认快捷键,显示名。只写 "none" 时默认字段为空，KGlobalAccel
+    # 下次登录会按内置默认（Alt+F1 / Meta）补回去，所以默认字段也要写 none。
+    kwriteconfig6 --file kglobalshortcutsrc --group plasmashell --key "activate application launcher" "none,none,激活应用程序启动器" --notify
   fi
 
   local state_dir="${XDG_STATE_HOME:-$HOME/.local/state}/quickshell/kos/shortcuts"
