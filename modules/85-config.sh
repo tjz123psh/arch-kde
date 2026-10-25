@@ -144,9 +144,12 @@ seed_default_wallpaper() {
 
   install_wallpaper_first_login "$dest"
 
-  # KOS 自己的壁纸配置：只在还没生成时预置，免得覆盖用户已经在设置里选好的壁纸。
+  # KOS 自己的壁纸配置：只在用户还没选过壁纸时预置。
+  # 注意判据是"文件里有没有 image="，不是"文件在不在"：enable_kos_theme_animation
+  # 会先建出只有 themeAnimated 的 wallpaper.ini，按"文件存在"判就会把默认壁纸跳过
+  #（2026-10-25 干净 VM 实测：装完 image= 为空，KOS 首次启动才自己补上，takeover 也变成默认关）。
   ini="${XDG_STATE_HOME:-$HOME/.local/state}/quickshell/kos/wallpaper.ini"
-  if [ -e "$ini" ] && [ "${WALLPAPER_FORCE:-0}" -ne 1 ]; then
+  if [ -e "$ini" ] && [ "${WALLPAPER_FORCE:-0}" -ne 1 ] && grep -q '^image=' "$ini" 2>/dev/null; then
     log "Existing KOS wallpaper config found; keeping it: $ini"
     return 0
   fi
