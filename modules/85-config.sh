@@ -672,35 +672,58 @@ install_chrome_password_store_override() {
   log "Chrome launcher updated (takes effect on next start)"
 }
 # VS Code 是另一个 Electron 应用，它自己也会去找 KDE keyring：钱包不存在时
-# 每次启动都弹“OS keyring 不可用于加密”。和 Chrome 一样钉到 basic 存储，
-# 免得每装一个新 Electron 应用就再弹一次。想用钱包加密就把这个文件删掉。
+# 每次启动都弹“OS keyring 不可用于加密”。和 Chrome 一样钉到 basic 存储，两层保险：
+#   1. ~/.config/code-flags.conf —— /usr/bin/code 包装脚本启动时读
+#   2. ~/.config/Code/User/argv.json —— VS Code 自己读的运行时参数（直接跑二进制也生效）
+# 想改用钱包加密就把这两处删掉。
 install_vscode_password_store_override() {
-  local dst="$HOME/.config/code-flags.conf"
+  local flags="$HOME/.config/code-flags.conf"
+  local argv="$HOME/.config/Code/User/argv.json"
   log "Keeping VS Code off the KDE wallet (stops the keyring warning)..."
   if [ "$DRY_RUN" -eq 1 ]; then
-    log "[dry-run] ensure $dst contains --password-store=basic"
+    log "[dry-run] ensure $flags and $argv carry --password-store=basic"
     return 0
   fi
   if [ ! -e /usr/bin/code ] && ! have code; then
     log "VS Code not installed; skipping the keyring override"
     return 0
   fi
-  if [ -f "$dst" ] && grep -qxF -- "--password-store=basic" "$dst"; then
-    log "VS Code already pinned to the basic password store"
-    return 0
-  fi
-  backup_file "$dst"
-  if [ -f "$dst" ]; then
-    printf '%s\n' "--password-store=basic" >> "$dst"
+
+  if [ -f "$flags" ] && grep -qxF -- "--password-store=basic" "$flags"; then
+    log "VS Code launcher flags already pinned"
   else
-    mkdir -p "$(dirname "$dst")"
-    write_file "$dst" <<'EOF'
+    backup_file "$flags"
+    if [ -f "$flags" ]; then
+      printf '%s\n' "--password-store=basic" >> "$flags"
+    else
+      mkdir -p "$(dirname "$flags")"
+      write_file "$flags" <<'EOF'
 # KDE 下没有可用的 keyring 时，Electron/VS Code 会反复弹
 # “OS keyring 不可用于加密”。basic 存储不依赖钱包；想改用钱包加密就删掉这一行。
 --password-store=basic
 EOF
+    fi
+    log "VS Code launcher flags updated (takes effect on next start)"
   fi
-  log "VS Code launcher flags updated (takes effect on next start)"
+
+  if [ -f "$argv" ]; then
+    if grep -q '"password-store"' "$argv"; then
+      log "VS Code argv.json already sets password-store"
+    else
+      warn "Please add \"password-store\": \"basic\" to $argv by hand (left untouched)"
+    fi
+    return 0
+  fi
+  mkdir -p "$(dirname "$argv")"
+  write_file "$argv" <<'EOF'
+// 由 KOS 安装器添加：KDE 环境下没有可用的 keyring，VS Code 会提示
+// “你正在 KDE 环境中运行，但 OS keyring 不可用于加密”。
+// 这里固定用 basic 存储；想改用钱包加密就删掉下面这一行。
+{
+	"password-store": "basic"
+}
+EOF
+  log "VS Code argv.json written (takes effect on next start)"
 }
 
 install_desktop_config() {
