@@ -1,56 +1,79 @@
 #!/usr/bin/env bash
 # SPDX-License-Identifier: GPL-3.0-or-later
 #
-# kos-undo —— 把 KOS 安装器改过的东西退回去（装坏了 / 后悔了就用它）
+# kos-undo —— 把机器清回"装 KOS 之前"：archinstall 刚装完、能登录 TTY 的状态。
 #
-#   kos-undo                   回到安装前：卸掉这次新装的包、还原文件、清掉残留目录
-#   kos-undo --dry-run         只打印计划，什么都不动
-#   kos-undo list              列出可回滚的时间点（安装记录 + Snapper 快照）
-#   kos-undo files [ID]        只还原文件，不卸包（一般用不到）
-#   kos-undo snapshot <序号>   用 Snapper 整机回档（另一条路，需要 root，回档后重启）
-#   kos-undo prune             清掉空备份目录（--dry-run / --check 的历史遗留）
+# 只有一件事：全清。按顺序做四步——
+#   1) 卸掉安装期间新增的全部软件包（安装开始时记了 pacman -Qq 基线，做差集）
+#   2) 还原被安装器覆盖过的文件（/etc/pacman.conf、/etc/default/grub、kdeglobals…）
+#   3) 删掉安装器新建的文件（账本里 "created" 的那些）
+#   4) 删掉安装器留下的目录和账本外的残留（KOS 源码/应用/配置、常驻脚本、
+#      SDDM 与 GRUB 主题副本、安装器自己的状态目录…）
 #
-# 安装器的账本在 ~/.local/state/kos-installer/backup/<时间>/manifest.txt，
-# 一行一个文件：
-#   "<原路径> <sha256> <备份路径>"   安装前就存在、被覆盖的文件 → 还原时拷回去
-#   "created <原路径>"               安装器新建的文件            → 还原时删掉
-# 只按账本处理，不会去删账本里没有的东西。
+# 账本：~/.local/state/kos-installer/backup/<时间>/manifest.txt
+#   "<原路径> <sha256> <备份路径>"  安装前就存在、被覆盖 → 还原
+#   "created <原路径>"            安装器新建 → 删除
 #
-# 为什么不复用 maintenance/lib/ui.sh：这条命令要能在“装到一半失败、~/scripts
-# 还没装”的 TTY 里直接跑，所以只依赖 bash 和 coreutils。
+# 用法：
+#   kos-undo            列计划 → 问一次 y/N → 执行
+#   kos-undo --dry-run  只打印计划，什么都不动
+#   kos-undo --yes      不确认（给脚本用）
+#   kos-undo --with-repo / --keep-repo
+#                       连/不连安装器仓库检出（默认：仓库是干净的 git 检出就一起删）
+#
+# 只依赖 bash + coreutils：装到一半失败、~/scripts 还没装好时也能跑。
+# 跑之前请在 TTY（Ctrl+Alt+F3）里，它会把这个桌面自己卸掉。
 set -uo pipefail
 
 STATE_DIR="${XDG_STATE_HOME:-$HOME/.local/state}/kos-installer"
 BACKUP_ROOT="$STATE_DIR/backup"
-ASSUME_YES=0
 DRY_RUN=0
-SHOW_ALL=0
-BRIEF=0
-SILENT_TAIL=0
+ASSUME_YES=0
+REPO_MODE=auto          # auto | yes | no
+REPO_DIR=""                 # 由 detect_repo 决定（见下）
+GRUB_THEME_NAME="Elegant-mojave-window-left-dark"
 
-say() { printf '%s\n' "$*"; }
+say()  { printf '%s\n' "$*"; }
+say2() { printf '  %s\n' "$*"; }
 warn() { printf 'warning: %s\n' "$*" >&2; }
 have() { command -v "$1" >/dev/null 2>&1; }
 
 usage() {
   cat <<'USAGE'
-kos-undo —— 把 KOS 安装器的改动退回去
+kos-undo —— 清回"装 KOS 之前"（archinstall 刚装完的状态）
 
-最常用（就这一条）：
-  kos-undo                回到安装前 —— 卸掉这次安装新装的包、还原被改过的文件、
-                          删掉安装器新建的文件和目录；会先列清单再问你
-  kos-undo --dry-run      只打印计划，什么都不动
+  kos-undo              列计划，问一次 y/N，然后把安装器加的东西全部清掉
+  kos-undo --dry-run    只打印计划，什么都不动
+  kos-undo --yes        不确认
+  kos-undo --with-repo  连 ~/arch-kde 这个仓库检出一起删
+  kos-undo --keep-repo  保留仓库检出（默认只在它是干净 git 检出时才删）
 
-其它（一般用不到）：
-  kos-undo list           列出可回滚的时间点
-  kos-undo files <时间点>  只还原文件，不卸包
-  kos-undo snapshot <序号> 用 Snapper 整机回档（另一种做法）
-  kos-undo prune          清掉空备份目录
+会做的事：卸掉安装期间新增的所有软件包 → 还原被覆盖的文件 → 删掉安装器新建的文件
+→ 删除安装器留下的目录（KOS 源码/应用/配置、~/scripts、缓存、SDDM/GRUB 主题副本）
+→ 最后删掉安装器自己的状态目录（含账本）。
 
-只想重来一遍、不要回滚：直接再跑一次 bash install.sh
+注意：这是"清空"，不是"撤销最近一次改动"。装完之后你自己又装的包、你自己改过的
+配置，也会一起没。跑完重启一次就是干净的起点。
 USAGE
 }
 
+# 找安装器仓库：显式变量 > 脚本自己所在的仓库 > ~/arch-kde
+detect_repo() {
+  local cand="${KOS_INSTALLER_REPO:-}" here
+  if [ -z "$cand" ]; then
+    here=$(cd "$(dirname "${BASH_SOURCE[0]}")" 2>/dev/null && pwd || true)
+    case "$here" in
+      */assets/scripts/maintenance) cand="${here%/assets/scripts/maintenance}" ;;
+    esac
+  fi
+  if [ -z "$cand" ] || [ ! -d "$cand/.git" ]; then
+    cand=""
+    [ -d "$HOME/arch-kde/.git" ] && cand="$HOME/arch-kde"
+  fi
+  printf '%s' "$cand"
+}
+
+# 路径在 $HOME 之外就需要 sudo
 needs_root() { case "$1" in "$HOME"/*) return 1 ;; *) return 0 ;; esac; }
 
 fmt_run() {
@@ -62,115 +85,22 @@ fmt_run() {
   fi
 }
 
-list_runs() {
-  local -a runs=()
-  shopt -s nullglob
-  runs=("$BACKUP_ROOT"/*/)
-  shopt -u nullglob
-
-  if [ "${#runs[@]}" -eq 0 ]; then
-    say "  （没有备份：这个用户还没跑过 install.sh）"
-    return 0
-  fi
-
-  local d m total created shown=0 hidden=0
-  for d in "${runs[@]}"; do
-    d="${d%/}"
-    m="$d/manifest.txt"
-    total=0
-    created=0
-    if [ -f "$m" ]; then
-      total=$(grep -c . "$m" 2>/dev/null || true)
-      created=$(grep -c '^created ' "$m" 2>/dev/null || true)
-    fi
-    if [ "${total:-0}" -eq 0 ] && [ "${SHOW_ALL:-0}" -ne 1 ]; then
-      hidden=$((hidden + 1))
-      continue
-    fi
-    printf '  %-24s %s 个文件（其中 %s 个是安装器新建的）\n' \
-      "$(basename "$d")" "${total:-0}" "${created:-0}"
-    printf '  %-24s %s\n' "" "$(fmt_run "$(basename "$d")")"
-    shown=$((shown + 1))
-  done
-  if [ "$shown" -eq 0 ]; then
-    say "  （没有可回滚的备份）"
-  fi
-  if [ "$hidden" -gt 0 ]; then
-    say "  （另有 $hidden 个空时间点，是 --dry-run / --check 留下的，没有东西可还原；-a 可列出）"
-  fi
-}
-
-list_snapshots() {
-  local cfg
-  if ! have snapper; then
-    say "  （没装 snapper，跳过）"
-    return 0
-  fi
-  for cfg in root home; do
-    say "  [$cfg]"
-    if ! snapper -c "$cfg" list 2>/dev/null | sed 's/^/    /'; then
-      warn "读不到 $cfg 的快照（可能需要 root：sudo snapper -c $cfg list）"
-    fi
-  done
-}
-
-cmd_list() {
-  say "== 安装器备份时间点（用 kos-undo files <ID> 还原）=="
-  list_runs
-  say ""
-  say "== Snapper 快照（用 kos-undo snapshot <序号> 回档）=="
-  list_snapshots
-}
-
+# 取最早一份有内容的账本（= 这台机器第一次装 KOS 的那次）
 resolve_run() {
-  local want="${1:-}" d id
-  if [ -n "$want" ]; then
-    [ -d "$want" ] && { printf '%s\n' "$want"; return 0; }
-    [ -d "$BACKUP_ROOT/$want" ] && { printf '%s\n' "$BACKUP_ROOT/$want"; return 0; }
-    warn "没有这个时间点：$want"
-    return 1
-  fi
-  if [ ! -d "$BACKUP_ROOT" ]; then
-    warn "还没有任何备份：$BACKUP_ROOT"
-    return 1
-  fi
-  local -a runs=()
-  shopt -s nullglob
-  runs=("$BACKUP_ROOT"/*/)
-  shopt -u nullglob
-  if [ "${#runs[@]}" -eq 0 ]; then
-    warn "还没有任何备份：$BACKUP_ROOT"
-    return 1
-  fi
-  # 默认取“最早一次安装记录”（= 这台机器的起点）；同一台机器重跑几次安装器时，
-  # 回到最早那次才是“回到装之前”，回到最近一次只是“回到上一次重跑之前”。
-  # 只认有内容的清单；<日期>-<时间> 形态优先于人工命名的目录。
-  local best_id="" fallback="" empty_id=""
-  for d in "${runs[@]}"; do
-    d="${d%/}"
+  local d id best=""
+  [ -d "$BACKUP_ROOT" ] || return 1
+  for d in "$BACKUP_ROOT"/*/; do
+    [ -d "$d" ] || continue
     id=$(basename "$d")
-    if [ -s "$d/manifest.txt" ]; then
-      if [[ "$id" =~ ^[0-9]{8}-[0-9]{6}$ ]]; then
-        if [ -z "$best_id" ] || [[ "$id" < "$best_id" ]]; then best_id="$id"; fi
-      elif [ -z "$fallback" ] || [[ "$id" < "$fallback" ]]; then
-        fallback="$id"
-      fi
-    elif [ -f "$d/manifest.txt" ] && [ -z "$empty_id" ]; then
-      empty_id="$id"
-    fi
+    [ -s "$d/manifest.txt" ] || continue
+    [[ "$id" =~ ^[0-9]{8}-[0-9]{6}$ ]] || continue
+    if [ -z "$best" ] || [[ "$id" < "$best" ]]; then best="$id"; fi
   done
-  local pick="${best_id:-${fallback:-${empty_id:-}}}"
-  if [ -z "$pick" ]; then
-    warn "备份目录里没有可用时间点：$BACKUP_ROOT"
-    return 1
-  fi
-  printf '%s\n' "$BACKUP_ROOT/$pick"
+  [ -n "$best" ] || return 1
+  printf '%s\n' "$BACKUP_ROOT/$best"
 }
 
-# 不带参数时的默认动作：一条命令回到最近一次安装之前（就它一个，别的都是高级用法）
-# 安装期间新增了哪些包：
-#   有基线（安装开始时 pacman -Qq 的清单）就做差集，精确；
-#   没有基线（旧版本安装器装的）就退回解析 /var/log/pacman.log —— RUN_ID 就是安装开始的时刻。
+# 安装期间新增的包：有基线就做差集，没有就退回解析 pacman.log
 added_packages() {
   local run_id="$1" base since
   base="$STATE_DIR/baseline/$run_id-pacman-Qq.txt"
@@ -192,272 +122,294 @@ added_packages() {
   ' /var/log/pacman.log | sort -u
 }
 
-# 默认动作：一条命令回到安装前 —— 退包、退文件、清残留
-cmd_undo() {
-  local dir run_id arg d p
-  local -a added=() residue=()
+# 账本之外、安装器留下的东西（kosctl / kwriteconfig6 / sudo cp 写的，没走记账助手）
+extra_dirs() {
+  printf '%s\n' \
+    "$HOME/.cache/kos-src" \
+    "$HOME/.cache/kos-installer" \
+    "$HOME/.local/share/kos" \
+    "$HOME/.local/share/wallpapers" \
+    "$HOME/.local/share/plasma/shells/org.kos.desktop" \
+    "$HOME/.local/share/plasma/look-and-feel/org.kos.desktop" \
+    "$HOME/.config/quickshell" \
+    "$HOME/.local/state/quickshell" \
+    "$HOME/.local/state/b23" \
+    "$HOME/scripts" \
+    "/etc/sddm/themes/silent" \
+    "/boot/grub/themes/$GRUB_THEME_NAME"
+}
 
+extra_files() {
+  local user; user=$(id -un)
+  printf '%s\n' \
+    "$HOME/.face" \
+    "$HOME/.face.icon" \
+    "$HOME/.config/plasmashellrc" \
+    "$HOME/.config/kwinrulesrc" \
+    "$HOME/.config/dolphinrc" \
+    "$HOME/.config/kscreenlockerrc" \
+    "$HOME/.config/plasma-localerc" \
+    "$HOME/.config/plasma-org.kos.desktop-appletsrc" \
+    "$HOME/.config/plasma-org.kde.plasma.desktop-appletsrc" \
+    "/usr/share/sddm/faces/$user.face.icon" \
+    "/var/lib/AccountsService/icons/$user"
+  # KOS 的用户级 unit（kosctl 装的，没进账本）
+  local u
+  for u in "$HOME"/.config/systemd/user/kos-*.service "$HOME"/.config/systemd/user/kos-*.timer; do
+    [ -e "$u" ] && printf '%s\n' "$u"
+  done
+}
+
+# 仓库检出：只有干净、且没有未推送提交时才默认删
+repo_is_safe() {
+  local dir="$1"
+  [ -d "$dir/.git" ] || return 1
+  have git || return 1
+  [ -z "$(git -C "$dir" status --porcelain 2>/dev/null)" ] || return 1
+  local ahead
+  ahead=$(git -C "$dir" rev-list --count '@{u}..HEAD' 2>/dev/null || echo 0)
+  [ "${ahead:-0}" -eq 0 ] || return 1
+  return 0
+}
+
+main() {
+  local arg
   for arg in "$@"; do
     case "$arg" in
       --dry-run|-n) DRY_RUN=1 ;;
       --yes|-y) ASSUME_YES=1 ;;
+      --with-repo) REPO_MODE=yes ;;
+      --keep-repo) REPO_MODE=no ;;
       -h|--help) usage; return 0 ;;
+      *) warn "不认识的参数：$arg"; usage; return 2 ;;
     esac
   done
 
-  dir=$(resolve_run "") || return 1
-  run_id=$(basename "$dir")
-
-  while IFS= read -r p; do
-    [ -n "$p" ] && added+=("$p")
-  done < <(added_packages "$run_id" 2>/dev/null || true)
-
-  for d in "$HOME/.cache/kos-src" "$HOME/.local/share/kos" \
-           "$HOME/.config/quickshell/kos" "$HOME/.local/state/quickshell"; do
-    [ -e "$d" ] && residue+=("$d")
-  done
-
-  say "回到安装前：最早一次安装记录 $run_id（$(fmt_run "$run_id")）"
-  if [ "${#added[@]}" -gt 0 ]; then
-    say "  1) 卸载 ${#added[@]} 个安装期间新增的软件包："
-    local n=0
-    for p in "${added[@]}"; do
-      say "       $p"
-      n=$((n + 1))
-      if [ "$n" -ge 8 ]; then say "       …（共 ${#added[@]} 个）"; break; fi
-    done
+  local dir="" run_id="" manifest=""
+  if dir=$(resolve_run); then
+    run_id=$(basename "$dir")
+    manifest="$dir/manifest.txt"
   else
-    say "  1) 没找到包清单，跳过卸载（只还原文件）"
+    warn "没找到安装账本（$BACKUP_ROOT），只能按已知路径清理，包差集也退回到 pacman.log"
   fi
-  say "  2) 还原安装前被覆盖的文件，删掉安装器新建的文件"
-  if [ "${#residue[@]}" -gt 0 ]; then
-    say "  3) 清理安装器留下的目录："
-    for d in "${residue[@]}"; do say "       $d"; done
+
+  local -a added=() restore_src=() restore_bak=() del_files=() del_dirs=()
+  local line src bak p
+
+  if [ -n "$run_id" ]; then
+    while IFS= read -r p; do [ -n "$p" ] && added+=("$p"); done < <(added_packages "$run_id" 2>/dev/null || true)
   fi
-  say "  注意：会卸掉桌面本身，请在 TTY（Ctrl+Alt+F3 登录）里跑，别在桌面会话里跑。"
+
+  while IFS= read -r p; do [ -n "$p" ] && del_dirs+=("$p"); done < <(extra_dirs)
+  while IFS= read -r p; do [ -n "$p" ] && del_files+=("$p"); done < <(extra_files)
+
+  if [ -d "$BACKUP_ROOT" ]; then
+    # 账本可能有好几份（每次装/重跑一份）。这里取并集：
+    #   还原项 = 每个文件"最早一次被备份"的那份（= 装之前的样子）
+    #   删除项 = 任何一份账本里出现过的 created
+    local -A seen_restore=() seen_created=()
+    local d m
+    while IFS= read -r d; do
+      m="$d/manifest.txt"
+      [ -s "$m" ] || continue
+      while IFS= read -r line; do
+        [ -n "$line" ] || continue
+        case "$line" in
+          "created "*)
+            p="${line#created }"
+            [ -n "${seen_created[$p]:-}" ] && continue
+            # 早先被当成"已存在"记过备份的，说明它装之前就有 → 不删
+            [ -n "${seen_restore[$p]:-}" ] && continue
+            seen_created[$p]=1
+            del_files+=("$p")
+            ;;
+          *)
+            read -r src _ bak <<< "$line"
+            if [ -z "${bak:-}" ]; then warn "账本行看不懂，跳过：$line"; continue; fi
+            [ -n "${seen_restore[$src]:-}" ] && continue
+            # 最早一次提到它就是"安装器新建"的 → 它本来就是我们的文件，删掉而不是还原
+            [ -n "${seen_created[$src]:-}" ] && continue
+            seen_restore[$src]=1
+            restore_src+=("$src"); restore_bak+=("$bak")
+            ;;
+        esac
+      done < "$m"
+    done < <(find "$BACKUP_ROOT" -mindepth 1 -maxdepth 1 -type d | sort)
+  fi
+
+  # 目录已经整删的，不再逐个删文件；还原过的文件不再删
+  local -a del_keep=()
+  for p in "${del_files[@]:-}"; do
+    [ -n "$p" ] || continue
+    case " ${del_dirs[*]:-} " in *" $p "*) continue ;; esac
+    local skip=0 i
+    for i in "${!restore_src[@]}"; do
+      [ "${restore_src[$i]:-}" = "$p" ] && { skip=1; break; }
+    done
+    [ "$skip" -eq 1 ] || del_keep+=("$p")
+  done
+  del_files=("${del_keep[@]:-}")
+
+  local -a existing_dirs=() existing_files=()
+  for p in "${del_dirs[@]:-}"; do [ -n "$p" ] && [ -e "$p" ] && existing_dirs+=("$p"); done
+  for p in "${del_files[@]:-}"; do [ -n "$p" ] && [ -e "$p" ] && existing_files+=("$p"); done
+
+  # 仓库
+  REPO_DIR=$(detect_repo)
+  local del_repo=0
+  case "$REPO_MODE" in
+    yes) del_repo=1 ;;
+    no) del_repo=0 ;;
+    auto)
+      if [ -n "$REPO_DIR" ] && repo_is_safe "$REPO_DIR"; then del_repo=1; else del_repo=0; fi
+      ;;
+  esac
+
+  say "== 回到装 KOS 之前 =="
+  if [ -n "$run_id" ]; then
+    say "账本：$run_id（$(fmt_run "$run_id")）"
+  else
+    say "账本：无"
+  fi
   say ""
+  say "1) 卸载 ${#added[@]} 个安装期间新增的软件包"
+  local n=0
+  for p in "${added[@]:-}"; do
+    [ -n "$p" ] || continue
+    n=$((n + 1)); [ "$n" -le 6 ] && say2 "$p"
+  done
+  [ "$n" -gt 6 ] && say2 "…（共 $n 个）"
+  [ "$n" -eq 0 ] && say2 "（没有）"
+  say ""
+  say "2) 还原 ${#restore_src[@]} 个被覆盖的文件，删除 ${#existing_files[@]} 个新建文件"
+  for p in "${restore_src[@]:-}"; do [ -n "$p" ] && say2 "还原 $p"; done
+  for p in "${existing_files[@]:-}"; do say2 "删除 $p"; done
+  say ""
+  say "3) 删除 ${#existing_dirs[@]} 个安装器留下的目录"
+  for p in "${existing_dirs[@]:-}"; do
+    say2 "$p  ($(du -sh "$p" 2>/dev/null | cut -f1))"
+  done
+  say ""
+  say "4) 删除安装器自己的状态目录（含账本与备份）"
+  for p in "$STATE_DIR" "$HOME/.cache/kos-installer"; do
+    [ -e "$p" ] && say2 "$p"
+  done
+  if [ "$del_repo" -eq 1 ]; then
+    say ""
+    say "5) 删除安装器仓库检出：$REPO_DIR"
+  elif [ -n "$REPO_DIR" ] && [ -e "$REPO_DIR" ]; then
+    say ""
+    say "5) 保留仓库检出：$REPO_DIR（有本地改动/未推送提交，或用了 --keep-repo）"
+  fi
+  say ""
+  say "注意：跑完这个桌面就被卸掉了，请在 TTY 里跑；之后重启一次就是干净起点。"
 
   if [ "$DRY_RUN" -eq 1 ]; then
-    say "[dry-run] 以上是计划。下面是要还原的文件清单："
     say ""
-    cmd_files "$dir" --dry-run
+    say "[dry-run] 只打印计划，什么都没动。"
     return 0
   fi
 
   if [ "$ASSUME_YES" -ne 1 ]; then
-    printf '确认回到安装前？[y/N] '
+    printf '确认清空？输入 yes 继续：'
     read -r arg
     case "$arg" in
       y|Y|yes|YES) ;;
-      *) say "已取消，什么都没改"; return 1 ;;
+      *) say "已取消，什么都没改。"; return 1 ;;
     esac
   fi
 
   local failed=0
+
   if [ "${#added[@]}" -gt 0 ]; then
     say ""
     say "卸载软件包…"
     if ! sudo pacman -Rns --noconfirm "${added[@]}"; then
-      warn "卸载没有全部成功（通常是依赖冲突），见上面的 pacman 输出"
+      warn "卸载没有全部成功（依赖冲突之类），剩下的看上面 pacman 输出"
       failed=1
     fi
   fi
 
   say ""
-  SILENT_TAIL=1
-  cmd_files "$dir" --yes || failed=1
+  say "还原文件…"
+  local i
+  for i in "${!restore_src[@]}"; do
+    [ -n "${restore_src[$i]:-}" ] || continue
+    if [ ! -f "${restore_bak[$i]}" ]; then
+      warn "备份丢了，跳过：${restore_src[$i]}"; failed=1; continue
+    fi
+    if needs_root "${restore_src[$i]}"; then
+      sudo cp -a "${restore_bak[$i]}" "${restore_src[$i]}" || { warn "还原失败：${restore_src[$i]}"; failed=1; }
+    else
+      cp -a "${restore_bak[$i]}" "${restore_src[$i]}" || { warn "还原失败：${restore_src[$i]}"; failed=1; }
+    fi
+  done
 
-  if [ "${#residue[@]}" -gt 0 ]; then
-    say ""
-    say "清理残留目录…"
-    for d in "${residue[@]}"; do
-      rm -rf -- "$d" || { warn "删除失败：$d"; failed=1; }
+  say "删除文件…"
+  for p in "${del_files[@]:-}"; do
+    [ -n "$p" ] || continue
+    [ -e "$p" ] || continue
+    if needs_root "$p"; then
+      sudo rm -f -- "$p" || { warn "删除失败：$p"; failed=1; }
+    else
+      rm -f -- "$p" || { warn "删除失败：$p"; failed=1; }
+    fi
+  done
+
+  say "删除目录…"
+  for p in "${del_dirs[@]:-}"; do
+    [ -n "$p" ] || continue
+    [ -e "$p" ] || continue
+    if needs_root "$p"; then
+      sudo rm -rf -- "$p" || { warn "删除失败：$p"; failed=1; }
+    else
+      rm -rf -- "$p" || { warn "删除失败：$p"; failed=1; }
+    fi
+  done
+
+  # ~/bin 里指向 ~/scripts 的软链（~/scripts 已删）
+  if [ -d "$HOME/bin" ]; then
+    local link
+    for link in "$HOME"/bin/*; do
+      [ -L "$link" ] || continue
+      case "$(readlink "$link" 2>/dev/null || true)" in
+        "$HOME/scripts/"*) rm -f -- "$link" ;;
+      esac
     done
+    rmdir "$HOME/bin" 2>/dev/null || true
+  fi
+
+  # AccountsService 里的头像行
+  if [ -f "/var/lib/AccountsService/users/$(id -un)" ]; then
+    sudo sed -i '/^Icon=\/var\/lib\/AccountsService\/icons\//d' "/var/lib/AccountsService/users/$(id -un)" 2>/dev/null || true
+  fi
+
+  # 安装器把默认 target 改成了 graphical.target；桌面卸掉后回多用户，免得开机卡在
+  # "graphical target 但没有显示管理器"的状态。
+  sudo systemctl set-default multi-user.target >/dev/null 2>&1 || true
+  sudo systemctl daemon-reload 2>/dev/null || true
+
+  if [ "$del_repo" -eq 1 ] && [ -d "$REPO_DIR" ]; then
+    say "删除仓库检出：$REPO_DIR"
+    rm -rf -- "$REPO_DIR" || { warn "删除失败：$REPO_DIR"; failed=1; }
+  fi
+
+  # 账本最后删：前面任何一步失败都还能再跑一次
+  if [ "$failed" -eq 0 ]; then
+    say "删除安装器状态目录…"
+    rm -rf -- "$STATE_DIR" 2>/dev/null || warn "删除失败：$STATE_DIR"
+    rm -rf -- "$HOME/.cache/kos-installer" 2>/dev/null || true
+  else
+    warn "有步骤失败，保留账本（$STATE_DIR）方便再跑一次 kos-undo"
   fi
 
   say ""
   if [ "$failed" -eq 0 ]; then
-    say "已回到安装前，重启一次就是干净的起点。"
+    say "已清空。重启一次，就是 archinstall 刚装完的样子。"
     return 0
   fi
   warn "有步骤没成功，见上面的输出；修好后再跑一次 kos-undo"
   return 1
 }
 
-cmd_files() {
-  local want="" arg dir manifest line src bak
-  local -a rsrc=() rbak=() rdel=()
-
-  for arg in "$@"; do
-    case "$arg" in
-      --yes|-y) ASSUME_YES=1 ;;
-      --dry-run|-n) DRY_RUN=1 ;;
-      -h|--help) usage; return 0 ;;
-      *) want="$arg" ;;
-    esac
-  done
-
-  dir=$(resolve_run "$want") || return 1
-  manifest="$dir/manifest.txt"
-  if [ ! -f "$manifest" ]; then
-    warn "找不到清单：$manifest"
-    return 1
-  fi
-
-  while IFS= read -r line; do
-    [ -n "$line" ] || continue
-    case "$line" in
-      "created "*) rdel+=("${line#created }") ;;
-      *)
-        read -r src _ bak <<< "$line"
-        if [ -z "${bak:-}" ]; then
-          warn "清单行看不懂，跳过：$line"
-          continue
-        fi
-        rsrc+=("$src")
-        rbak+=("$bak")
-        ;;
-    esac
-  done < "$manifest"
-
-  say "时间点：$(basename "$dir")  （$(fmt_run "$(basename "$dir")")）"
-  say "将还原 ${#rsrc[@]} 个文件，删除 ${#rdel[@]} 个安装器新建的文件："
-  local i shown
-  shown=0
-  for i in "${!rsrc[@]}"; do
-    say "  还原 ${rsrc[$i]}"
-    shown=$((shown + 1))
-    [ "$BRIEF" -eq 1 ] && [ "$shown" -ge 5 ] && { say "  …"; break; }
-  done
-  shown=0
-  for i in "${!rdel[@]}"; do
-    say "  删除 ${rdel[$i]}"
-    shown=$((shown + 1))
-    [ "$BRIEF" -eq 1 ] && [ "$shown" -ge 5 ] && { say "  …"; break; }
-  done
-  if [ "${#rsrc[@]}" -eq 0 ] && [ "${#rdel[@]}" -eq 0 ]; then
-    say "  清单是空的，没什么可还原"
-    return 0
-  fi
-
-  if [ "$DRY_RUN" -eq 1 ]; then
-    say ""
-    say "[dry-run] 只打印计划，不会改动任何文件"
-    return 0
-  fi
-
-  if [ "$ASSUME_YES" -ne 1 ]; then
-    printf '确认执行？[y/N] '
-    read -r arg
-    case "$arg" in
-      y|Y|yes|YES) ;;
-      *) say "已取消，什么都没改"; return 1 ;;
-    esac
-  fi
-
-  local failed=0
-  for i in "${!rsrc[@]}"; do
-    if needs_root "${rsrc[$i]}"; then
-      sudo cp -a "${rbak[$i]}" "${rsrc[$i]}" || { warn "还原失败：${rsrc[$i]}"; failed=1; }
-    else
-      cp -a "${rbak[$i]}" "${rsrc[$i]}" || { warn "还原失败：${rsrc[$i]}"; failed=1; }
-    fi
-  done
-  for i in "${!rdel[@]}"; do
-    if needs_root "${rdel[$i]}"; then
-      sudo rm -f -- "${rdel[$i]}" || { warn "删除失败：${rdel[$i]}"; failed=1; }
-    else
-      rm -f -- "${rdel[$i]}" || { warn "删除失败：${rdel[$i]}"; failed=1; }
-    fi
-  done
-
-  say ""
-  if [ "$failed" -eq 0 ]; then
-    if [ "$SILENT_TAIL" -eq 0 ]; then
-      say '文件已还原。'
-      say '包没有动（这里只管文件）；要连包一起退，直接跑 kos-undo。'
-    fi
-    return 0
-  fi
-  warn "有项目没处理成功，见上面的错误"
-  return 1
-}
-
-cmd_prune() {
-  local -a doomed=()
-  local d
-  shopt -s nullglob
-  for d in "$BACKUP_ROOT"/*/; do
-    d="${d%/}"
-    [ -d "$d" ] || continue
-    # 只有“清单存在但为空、而且目录里没别的东西”才算 --dry-run / --check 的残留。
-    # 没有 manifest.txt 的目录是人工备份（头像、kwinrc 等），一律不碰。
-    [ -f "$d/manifest.txt" ] || continue
-    [ -s "$d/manifest.txt" ] && continue
-    if [ -n "$(find "$d" -mindepth 1 ! -name manifest.txt -print -quit)" ]; then
-      continue
-    fi
-    doomed+=("$d")
-  done
-  shopt -u nullglob
-  if [ "${#doomed[@]}" -eq 0 ]; then
-    say "没有空备份目录，干净。"
-    return 0
-  fi
-  say "将删除 ${#doomed[@]} 个空备份目录（只有空的 manifest.txt，没有可还原的内容）："
-  local i
-  for i in "${!doomed[@]}"; do say "  ${doomed[$i]}"; done
-  if [ "$DRY_RUN" -eq 1 ]; then
-    say ""
-    say "[dry-run] 只打印，不会删任何东西"
-    return 0
-  fi
-  if [ "$ASSUME_YES" -ne 1 ]; then
-    printf '确认删除？[y/N] '
-    read -r ans
-    case "$ans" in
-      y|Y|yes|YES) ;;
-      *) say "已取消"; return 1 ;;
-    esac
-  fi
-  for i in "${!doomed[@]}"; do
-    rm -rf -- "${doomed[$i]}" || warn "删除失败：${doomed[$i]}"
-  done
-  say "已清理。"
-}
-
-cmd_snapshot() {
-  local id="${1:-}"
-  if ! have snapper; then
-    warn "没装 snapper，无法用快照回档"
-    return 1
-  fi
-  if [ -z "$id" ]; then
-    say "用法：kos-undo snapshot <Snapper 序号>"
-    say ""
-    list_snapshots
-    return 1
-  fi
-  say "把根子卷回档到快照 $id：这会创建一个新的当前快照并把默认子卷指向它，回档后需要重启。"
-  say "（图形界面等价操作：btrfs-assistant）"
-  if [ "$ASSUME_YES" -ne 1 ]; then
-    printf '确认回档？[y/N] '
-    read -r ans
-    case "$ans" in
-      y|Y|yes|YES) ;;
-      *) say "已取消"; return 1 ;;
-    esac
-  fi
-  sudo snapper -c root rollback "$id"
-}
-
-case "${1:-undo}" in
-  undo|"") shift || true; cmd_undo "$@" ;;
-  list|ls) shift || true; for a in "$@"; do [ "$a" = "-a" ] || [ "$a" = "--all" ] && SHOW_ALL=1; done; cmd_list ;;
-  files|restore) shift || true; cmd_files "$@" ;;
-  prune|clean) shift || true; for a in "$@"; do case "$a" in --yes|-y) ASSUME_YES=1 ;; --dry-run|-n) DRY_RUN=1 ;; esac; done; cmd_prune ;;
-  snapshot|rollback) shift || true; cmd_snapshot "$@" ;;
-  -h|--help|help) usage ;;
-  -*) cmd_undo "$@" ;;
-  *) usage; exit 2 ;;
-esac
+main "$@"

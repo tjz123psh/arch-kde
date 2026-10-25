@@ -99,8 +99,8 @@ Environment:
   KOS_SRC_REF        Source branch or tag (default: newest stable release; use main for development)
 
 Undo:
-  --undo [args...]   Restore what the installer changed, then exit. Without args
-                     it lists the backup runs; see `bash install.sh --undo --help`.
+  --undo [--dry-run] Wipe everything the installer added (packages, files, dirs,
+                     then the installer's own ledger) and exit. See --undo --help.
                      Snapshot rollback: kos-undo snapshot <N> (Snapper).
 
   -h, --help         Show this help

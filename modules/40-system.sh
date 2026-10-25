@@ -268,7 +268,7 @@ setup_snapshots() {
   done
 
   # 落一个“装桌面前”的回滚点：桌面/KOS 的配置都在这一步之后写，装坏了可以
-  # 用 kos-undo snapshot <序号> 退回来。描述相同就不再重复建，避免重跑堆快照。
+  # 用 kos-undo 清回去（或用 Snapper / btrfs-assistant 回档）。描述相同就不再重复建，避免重跑堆快照。
   local snap_desc="kos-installer: before desktop"
   for spec in root home; do
     [ -e "/etc/snapper/configs/$spec" ] || continue

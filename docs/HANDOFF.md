@@ -28,10 +28,10 @@
 - 窗口动效：KOS 动画走 genie（最小化吸进 Dock），叠加 KDE 自带的摆动窗口（拖动/缩放形变）
 - 默认壁纸：安装器把 Plasma 桌面和 KOS 都指到图集里的一张（默认 `樱吹雪.png`，`--wallpaper` 可改），
   不再出现 KDE 默认壁纸；用户自己在图集里选过的图不会被重跑覆盖
-- 回滚：`kos-undo`（`assets/scripts/maintenance/kos-undo`，链到 `~/bin`；仓库里是 `rollback.sh`）。
+- 回滚：`kos-undo`（`assets/scripts/maintenance/kos-undo`，链到 `~/bin`；仓库里是 `rollback.sh`）——一条命令清回装 KOS 之前，`--dry-run` 可先看计划。
   不带参数就是“回到安装前”：卸掉这次新装的包（`record_baseline` 记的 `pacman -Qq` 基线做差集，
   旧安装没有基线时退回解析 `/var/log/pacman.log`）、按 manifest 还原文件、删掉新建的文件和
-  `~/.cache/kos-src` 等目录；`kos-undo snapshot <序号>` 是另一条路（Snapper 整机回档）
+  `~/.cache/kos-src`、`~/scripts`、SDDM/GRUB 主题副本等目录，最后连账本一起删；整机快照仍可用 Snapper / btrfs-assistant 回档
 
 ## 仓库结构
 
