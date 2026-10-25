@@ -4,7 +4,7 @@
 
 run_doctor() {
   local mode="$1" gallery kos_dir="" ml ml_n ml_first ml_skip
-  local wallpaper_ini kos_wp plasma_wp
+  local wallpaper_ini kos_wp plasma_wp sddm_theme_effective
   local report="$STATE_DIR/doctor-$RUN_ID.txt"
   mkdir -p "$STATE_DIR"
   {
@@ -86,13 +86,16 @@ run_doctor() {
 
     echo
     echo "== 登录/外观 =="
-    if test -f /etc/sddm.conf.d/90-silent.conf && grep -q '^Current=silent' /etc/sddm.conf.d/90-silent.conf; then
-      echo "  [OK]   SDDM 主题配置（silent）"
+    if pkg_installed sddm-silent-theme && test -f /usr/share/sddm/themes/silent/Main.qml; then
+      echo "  [OK]   Silent 主题包与主题目录"
     else
-      echo "  [MISS] SDDM 主题配置（/etc/sddm.conf.d/90-silent.conf）"
+      echo "  [MISS] Silent 主题包/目录（sddm-silent-theme、/usr/share/sddm/themes/silent）"
     fi
-    if test -f /etc/sddm.conf && grep -qE '^Current=' /etc/sddm.conf; then
-      echo "  [WARN] /etc/sddm.conf 里有 Current=，会覆盖 conf.d（安装器应已备份并改成 silent）"
+    sddm_theme_effective=$(sddm_effective_theme 2>/dev/null || true)
+    if [ "${sddm_theme_effective:-}" = silent ]; then
+      echo "  [OK]   SDDM 生效主题（silent）"
+    else
+      echo "  [MISS] SDDM 生效主题（当前：${sddm_theme_effective:-空}）"
     fi
     if test -f "/usr/share/sddm/faces/${USER:-$(id -un)}.face.icon"; then
       echo "  [OK]   SDDM 登录头像"
