@@ -21,6 +21,65 @@ install_wallpapers() {
 
 # 默认壁纸：把 Plasma 桌面和 KOS 都指到图集里的一张，别让新系统先露出 KDE 的默认壁纸。
 # 只写“还没配过”的情况；重跑安装器时，用户自己在图集里选过的图不会被换掉。
+# 首次登录再设一次 Plasma 壁纸：安装器在 TTY 里跑，碰不到运行中的 plasmashell；
+# 全新机器的 appletsrc 也不存在，硬写进去 Plasma 不认。这里用自启动 + 标记文件兜底。
+install_wallpaper_first_login() {
+  local dest="$1"
+  local script="$HOME/.local/bin/kos-wallpaper-first-login"
+  local entry="$HOME/.config/autostart/kos-wallpaper-first-login.desktop"
+
+  mkdir -p "$HOME/.local/bin" "$HOME/.config/autostart"
+  write_file "$script" <<EOF
+#!/usr/bin/env bash
+# 由 KOS 安装器生成：首次登录把 Plasma 壁纸设成图集里的图，成功一次后不再动。
+set -u
+STATE="\${XDG_STATE_HOME:-\$HOME/.local/state}/kos-installer"
+MARKER="\$STATE/wallpaper-applied.done"
+LOG="\$STATE/log/wallpaper-first-login.log"
+note() { mkdir -p "\$(dirname "\$LOG")"; printf '%s %s\\n' "\$(date '+%F %T')" "\$*" >> "\$LOG"; }
+[ -e "\$MARKER" ] && exit 0
+WANT="$dest"
+[ -f "\$WANT" ] || { note "skip: wallpaper missing"; exit 0; }
+command -v plasma-apply-wallpaperimage >/dev/null 2>&1 || { note "skip: plasma-apply-wallpaperimage missing"; exit 0; }
+for _ in \$(seq 1 60); do
+  pgrep -x plasmashell >/dev/null 2>&1 && break
+  sleep 1
+done
+sleep 2
+cur=\$(kreadconfig6 --file plasma-org.kde.plasma.desktop-appletsrc \
+  --group Containments --group 1 --group Wallpaper --group org.kde.image --group General \
+  --key Image 2>/dev/null || true)
+case "\$cur" in
+  */kos/gallery/*)
+    mkdir -p "\$(dirname "\$MARKER")"; : > "\$MARKER"
+    note "keep: already \$cur"
+    exit 0
+    ;;
+esac
+if plasma-apply-wallpaperimage "\$WANT" >/dev/null 2>&1; then
+  mkdir -p "\$(dirname "\$MARKER")"
+  : > "\$MARKER"
+  note "applied: \$WANT"
+else
+  note "failed: plasma-apply-wallpaperimage \$WANT"
+fi
+exit 0
+EOF
+  chmod 755 "$script"
+
+  write_file "$entry" <<'EOF'
+[Desktop Entry]
+Type=Application
+Name=KOS Wallpaper
+Comment=Apply the bundled wallpaper on first login
+Exec=/bin/sh -c "exec ~/.local/bin/kos-wallpaper-first-login"
+Terminal=false
+X-KDE-autostart-after=panel
+OnlyShowIn=KDE;
+EOF
+  log "First-login wallpaper autostart installed"
+}
+
 seed_default_wallpaper() {
   local gallery="${XDG_DATA_HOME:-$HOME/.local/share}/kos/gallery"
   local pick="${WALLPAPER:-樱吹雪.png}"
@@ -45,9 +104,13 @@ seed_default_wallpaper() {
   fi
   dest="$gallery/$pick"
 
-  # Plasma 桌面：KOS shell 起来之前看到的就是这张，否则会先闪一下 KDE 的默认壁纸。
-  if have kwriteconfig6; then
-    applets="$HOME/.config/plasma-org.kde.plasma.desktop-appletsrc"
+  # Plasma 桌面壁纸分两种情况：
+  #   a) 已经有 Plasma 配置（重装 / 二次运行）→ 直接改 appletsrc，登录后立刻是这张
+  #   b) 全新系统还没有 appletsrc → **不要**伪造 [Containments][1]：Plasma 第一次启动时
+  #      会自己建一个带 activityId/plugin 的 containment，我们写的那个没人认领，结果
+  #      还是 KDE 默认壁纸。这种情况改为装一个“首次登录自启动”，进桌面后再设置。
+  applets="$HOME/.config/plasma-org.kde.plasma.desktop-appletsrc"
+  if [ -f "$applets" ] && have kwriteconfig6; then
     if have kreadconfig6; then
       current=$(kreadconfig6 --file plasma-org.kde.plasma.desktop-appletsrc \
         --group Containments --group 1 --group Wallpaper --group org.kde.image --group General \
@@ -76,8 +139,10 @@ seed_default_wallpaper() {
       log "Plasma desktop wallpaper -> $dest"
     fi
   else
-    warn "kwriteconfig6 missing; skipping the Plasma wallpaper"
+    log "No Plasma config yet (first login ahead); wallpaper will be applied by autostart"
   fi
+
+  install_wallpaper_first_login "$dest"
 
   # KOS 自己的壁纸配置：只在还没生成时预置，免得覆盖用户已经在设置里选好的壁纸。
   ini="${XDG_STATE_HOME:-$HOME/.local/state}/quickshell/kos/wallpaper.ini"
