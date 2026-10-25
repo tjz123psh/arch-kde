@@ -108,8 +108,8 @@ prune_state_artifacts() {
   done
 }
 
-# 安装真正开始前，把现有包清单留一份。回滚时拿它和当前 pacman -Qq 做差集，
-# 就能知道“这次到底新装了哪些包”，进而把它们卸掉——光靠文件备份退不干净。
+# 安装真正开始前，把现有包清单留一份。以后要查“这次到底新装了哪些包”，
+# 拿它和当前 pacman -Qq 做差集就行（安装器不再提供自动卸载/回滚命令，这份清单留着备查）。
 record_baseline() {
   [ "${DRY_RUN:-0}" -eq 1 ] && return 0
   [ "${CHECK_ONLY:-0}" -eq 1 ] && return 0
@@ -119,8 +119,8 @@ record_baseline() {
   log "Baseline: $STATE_DIR/baseline/$RUN_ID-pacman-Qq.txt ($(wc -l < "$STATE_DIR/baseline/$RUN_ID-pacman-Qq.txt") packages)"
 }
 
-# 记下“本来就存在、被我们覆盖”的文件（还原时拷回）之外，还要记下“安装器新建”
-# 的文件（还原时删掉），否则回滚只能恢复旧文件、留下半套新配置。
+# 除了记“本来就存在、被我们覆盖”的文件（备份路径写进 manifest），还要记下
+# “安装器新建”的文件：手工恢复时知道哪些是安装器带来的，免得只拷回旧文件、留下半套新配置。
 record_created() {
   local dest="$1"
   [ -n "${MANIFEST:-}" ] || return 0

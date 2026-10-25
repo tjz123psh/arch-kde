@@ -98,8 +98,6 @@ Environment:
   KOS_SRC_URL        Source repository URL (default: upstream)
   KOS_SRC_REF        Source branch or tag (default: newest stable release; use main for development)
 
-Undo:
-
   -h, --help         Show this help
 USAGE
 }

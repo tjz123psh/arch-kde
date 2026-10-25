@@ -179,6 +179,7 @@ KOS 壳自己的快捷键存在 `~/.local/state/quickshell/kos/shortcuts/config.
 
 以 `git log` 为准（本节只是最近一次的写作锚点，别当成 HEAD）：
 
-- `29fe747` docs: document the final shortcut set
-- `163a72a` feat(shortcuts): switch workspaces left/right with Alt+Shift+H/L
-- `338cfe8` feat(shortcuts): remap window switching to Alt+HJKL and kill window to Alt+F4
+- `0753869` docs: drop the duplicated bullets left by the rollback rewrite
+- `a55e25d` chore: drop the kos-undo rollback feature
+- `8f78364` fix(wallpaper): use the Plasma config file KOS actually reads
+- `554cba0` fix(shortcuts): write the Meta release after unregistering the action

@@ -50,7 +50,8 @@ bash install.sh --yes       # 全装
 ## 文档
 
 - [交接状态](docs/HANDOFF.md) — 当前进度、未完成项、本机系统级改动
-- [排障手册](docs/TROUBLESHOOTING.md) — 镜像、锁屏、快捷键、热点、回退
+- [排障手册](docs/TROUBLESHOOTING.md) — 镜像、锁屏、快捷键、热点、装坏了怎么退
+- [VM 验收清单](docs/VM-CHECKLIST.md) — 干净 VM 全装要留的证据、装完逐项核对表
 - bash install.sh --help — 全部参数与环境变量
 
 ## 许可
