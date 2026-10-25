@@ -509,6 +509,22 @@ configure_kde_global_appearance() {
   kwriteconfig6 --file kdeglobals --group General --key ColorScheme BreezeDark --notify
   kwriteconfig6 --file kdeglobals --group Icons --key Theme WhiteSur-dark --notify
   kwriteconfig6 --file kdeglobals --group General --key cursorTheme WhiteSur-cursors --notify
+  # KDE 全局字体必须显式设成 CJK 字体：不设时 KDE 用内置默认 Noto Sans（非 CJK），
+  # 而 kde-gtk-config 会把这个字体原样写进 ~/.config/gtk-{3,4}.0/settings.ini，
+  # 把安装器写的 gtk-font-name 覆盖掉（2026-10-25 实测：gtk-font-name 从
+  # "Noto Sans CJK SC 10" 变成 "Noto Sans,  10"）。设在这里，KDE 界面和 GTK 应用
+  # 才会用同一套中文字形，也不会再被 kded 改回去。
+  # 格式是 QFont::toString：字体,字号,像素大小,styleHint,字重,斜体,下划线,删除线,等宽,rawMode
+  local cjk_font="Noto Sans CJK SC,10,-1,5,50,0,0,0,0,0"
+  local mono_font="Maple Mono NF CN,10,-1,5,50,0,0,0,0,0"
+  local small_font="Noto Sans CJK SC,8,-1,5,50,0,0,0,0,0"
+  kwriteconfig6 --file kdeglobals --group General --key font "$cjk_font" --notify
+  kwriteconfig6 --file kdeglobals --group General --key fixed "$mono_font" --notify
+  kwriteconfig6 --file kdeglobals --group General --key smallestReadableFont "$small_font" --notify
+  kwriteconfig6 --file kdeglobals --group General --key menuFont "$cjk_font" --notify
+  kwriteconfig6 --file kdeglobals --group General --key toolBarFont "$cjk_font" --notify
+  kwriteconfig6 --file kdeglobals --group General --key taskbarFont "$cjk_font" --notify
+  kwriteconfig6 --file kdeglobals --group General --key activeFont "$cjk_font" --notify
   kwriteconfig6 --file kcminputrc --group Mouse --key cursorTheme WhiteSur-cursors --notify
 
   if have plasma-apply-colorscheme; then
