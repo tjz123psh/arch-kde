@@ -614,7 +614,7 @@ setup_aur_helper() {
 
 install_aur_packages() {
   if [ "$NO_AUR" -eq 1 ]; then return 0; fi
-  local list pkg failed
+  local list pkg failed sassc_temp=0
   # 每次安装先把已装的 AUR 包升到最新；官方包已经由 system_update 的
   # pacman -Syu 更新过。--needed 只装缺失，不会升级已有包。
   if [ "$DRY_RUN" -eq 1 ]; then
@@ -655,6 +655,22 @@ install_aur_packages() {
   if [ "$IME" = rime ]; then
     list="$list rime-ice-git"
   fi
+  # whitesur-gtk-theme 的 PKGBUILD 用 sassc 编译。sassc 平时不在官方清单里（AGENTS §四.6
+  # 把它算作旧桌面遗留），所以这里按"构建依赖"处理：主题没装、系统也没 sassc 时先装上，
+  # 构建完立刻卸掉；主题已经装好的机器不会来回装卸。
+  if ! pkg_installed whitesur-gtk-theme; then
+    if [ "$DRY_RUN" -eq 1 ]; then
+      log "[dry-run] install sassc (build dep) before whitesur-gtk-theme, remove it afterwards"
+    elif ! pkg_installed sassc; then
+      log "Installing the build dependency sassc (for whitesur-gtk-theme)..."
+      if sudo_run pacman -S --needed --noconfirm sassc; then
+        sassc_temp=1
+      else
+        warn "Could not install sassc; whitesur-gtk-theme may fail to build and the GTK theme stays default"
+      fi
+    fi
+  fi
+
   failed=
   log "Installing AUR packages..."
   for pkg in $list; do
@@ -667,6 +683,10 @@ install_aur_packages() {
       failed="$failed $pkg"
     fi
   done
+  if [ "$sassc_temp" -eq 1 ] && pkg_installed whitesur-gtk-theme; then
+    log "Removing the temporary build dependency sassc..."
+    sudo_run pacman -Rns --noconfirm sassc || warn "Could not remove sassc; it is harmless, remove it manually if you like"
+  fi
   if [ -n "$failed" ]; then
     warn "These AUR packages failed; retry manually later:$failed"
   fi
