@@ -76,7 +76,9 @@ PY
 # 登录页外观：Silent 主题的 configs/default.conf；登录/锁屏共用当前壁纸，
 # 头像同步到 SDDM，登录框改为圆角半透明。认证逻辑完全不动。
 customize_sddm_theme() {
-  local theme=/usr/share/sddm/themes/silent
+  # 定制写在 /etc 下的自管副本里（setup_sddm_theme 负责从 /usr/share 复制过来）：
+  # /usr/share 那份归 sddm-silent-theme 包，升级时会被 pacman 直接覆盖。
+  local theme=/etc/sddm/themes/silent
   local cfg="$theme/configs/default.conf"
   local tmp
   if [ ! -f "$cfg" ]; then
@@ -190,9 +192,25 @@ setup_sddm_theme() {
   # Current 盖回去——那正是“装了主题却还是默认登录页”的常见原因。
   log "写入 /etc/sddm.conf.d/zz-kos-silent.conf"
   if [ "$DRY_RUN" -eq 1 ]; then
-    log "[dry-run] 写 sddm 配置（Current=silent）"
+    log "[dry-run] 复制 /usr/share/sddm/themes/silent -> /etc/sddm/themes/silent 并写 sddm 配置"
     return 0
   fi
+
+  # 把主题整份复制到 /etc/sddm/themes/silent，让登录页定制活过包升级：
+  # /usr/share/sddm/themes/silent 归 sddm-silent-theme 包所有，而定制写在主题目录里的
+  # configs/default.conf。复制一份我们自己的、把 ThemeDir 指到 /etc 后，包升级只动
+  # /usr/share 那份，背景/圆角/头像设置就不会被 pacman 悄悄抹掉。
+  local src_theme=/usr/share/sddm/themes/silent
+  if [ ! -f "$src_theme/Main.qml" ]; then
+    warn "找不到 $src_theme/Main.qml，跳过登录页定制"
+    return 0
+  fi
+  log "复制登录主题到 /etc/sddm/themes/silent（自管副本）..."
+  sudo mkdir -p /etc/sddm/themes/silent
+  if ! sudo cp -a "$src_theme/." /etc/sddm/themes/silent/; then
+    warn "复制主题到 /etc/sddm/themes/silent 失败，登录页可能仍用包自带的默认配置"
+  fi
+
   sudo mkdir -p /etc/sddm.conf.d
   if [ -f /etc/sddm.conf.d/90-silent.conf ]; then
     backup_file /etc/sddm.conf.d/90-silent.conf
@@ -208,12 +226,13 @@ setup_sddm_theme() {
 [General]
 DisplayServer=wayland
 InputMethod=qtvirtualkeyboard
-GreeterEnvironment=QML2_IMPORT_PATH=/usr/share/sddm/themes/silent/components/,QT_IM_MODULE=qtvirtualkeyboard
+GreeterEnvironment=QML2_IMPORT_PATH=/etc/sddm/themes/silent/components/,QT_IM_MODULE=qtvirtualkeyboard
 
 [Wayland]
 CompositorCommand=kwin_wayland --drm --no-lockscreen --no-global-shortcuts
 
 [Theme]
+ThemeDir=/etc/sddm/themes
 Current=silent
 CONF
   # /etc/sddm.conf 的优先级比 /etc/sddm.conf.d/*.conf 高：如果它存在并且设了 Theme，
@@ -238,8 +257,8 @@ CONF
   effective=$(sddm_effective_theme)
   if ! pkg_installed sddm-silent-theme; then
     warn "sddm-silent-theme 没装上（AUR 构建失败？），登录页会退回 SDDM 默认主题；装好后重跑 install.sh 即可"
-  elif [ ! -f /usr/share/sddm/themes/silent/Main.qml ]; then
-    warn "主题包在，但 /usr/share/sddm/themes/silent/Main.qml 不存在，SDDM 会退回默认主题"
+  elif [ ! -f /etc/sddm/themes/silent/Main.qml ]; then
+    warn "主题包在，但自管副本 /etc/sddm/themes/silent/Main.qml 不存在，SDDM 会退回默认主题（重跑安装器重建）"
   elif [ "$effective" != "silent" ]; then
     warn "SDDM 实际生效的主题是 '${effective:-未配置}'，不是 silent —— 检查 /etc/sddm.conf.d/*.conf 有没有更靠后的文件设了 Current="
   else

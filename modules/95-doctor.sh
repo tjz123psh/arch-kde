@@ -87,12 +87,14 @@ run_doctor() {
     echo
     echo "== 登录/外观 =="
     if pkg_installed sddm-silent-theme && test -f /usr/share/sddm/themes/silent/Main.qml; then
-      # 登录页的定制写在主题包自己的 configs/default.conf 里，sddm-silent-theme 一升级
-      # 就会被覆盖（该文件不在 pacman 的 backup 数组里，不会留 .pacnew），只能靠这里报出来。
-      if grep -q 'kos-wallpaper.png' /usr/share/sddm/themes/silent/configs/default.conf 2>/dev/null; then
-        echo "  [OK]   Silent 主题包与主题目录（登录页定制在位）"
+      # 登录页用 /etc/sddm/themes/silent 这份自管副本（安装器从 /usr/share 复制过来），
+      # 定制写在副本的 configs/default.conf 里，包升级不会碰它。
+      if [ ! -f /etc/sddm/themes/silent/Main.qml ]; then
+        echo "  [MISS] 登录主题自管副本缺失（/etc/sddm/themes/silent）：重跑 install.sh 重建"
+      elif grep -q 'kos-wallpaper.png' /etc/sddm/themes/silent/configs/default.conf 2>/dev/null; then
+        echo "  [OK]   Silent 主题（自管副本 + 登录页定制在位）"
       else
-        echo "  [MISS] Silent 主题配置被包升级覆盖（背景/圆角/头像设置丢失）：重跑 install.sh 恢复"
+        echo "  [MISS] 登录页定制丢失（/etc/sddm/themes/silent/configs/default.conf 没有 kos-wallpaper.png）：重跑 install.sh"
       fi
     else
       echo "  [MISS] Silent 主题包/目录（sddm-silent-theme、/usr/share/sddm/themes/silent）"
