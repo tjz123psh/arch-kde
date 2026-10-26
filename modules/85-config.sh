@@ -33,6 +33,43 @@ plasma_appletsrc() {
   fi
 }
 
+# 触摸板滚动方向：KDE/libinput 的默认是"传统"方向（双指上推 = 看上面的内容），
+# 和 Windows 触摸板、macOS 的"自然滚动"相反。这里对检测到的每块触摸板写
+# NaturalScroll=true，装完就是"内容跟着手指走"。
+# 设备分组名要和 KDE 一致：[Libinput][<vendor 十进制>][<product 十进制>][<设备名>]，
+# 三个值都能从 sysfs 读出来（vendor/product 是十六进制，要转成十进制）。
+configure_touchpad() {
+  log "Configuring touchpad scrolling (natural direction)..."
+  if [ "$DRY_RUN" -eq 1 ]; then
+    log "[dry-run] write NaturalScroll=true for every touchpad into kcminputrc"
+    return 0
+  fi
+  if ! have kwriteconfig6 || ! have udevadm; then
+    warn "kwriteconfig6/udevadm missing; skipping the touchpad settings"
+    return 0
+  fi
+  local dev name vendor product found=0
+  for dev in /dev/input/event*; do
+    [ -e "$dev" ] || continue
+    udevadm info -q property -n "$dev" 2>/dev/null | grep -q '^ID_INPUT_TOUCHPAD=1' || continue
+    name=$(cat "/sys/class/input/$(basename "$dev")/device/name" 2>/dev/null || true)
+    vendor=$(cat "/sys/class/input/$(basename "$dev")/device/id/vendor" 2>/dev/null || true)
+    product=$(cat "/sys/class/input/$(basename "$dev")/device/id/product" 2>/dev/null || true)
+    if [ -z "$name" ] || [ -z "$vendor" ] || [ -z "$product" ]; then continue; fi
+    if kwriteconfig6 --file kcminputrc --notify \
+      --group Libinput --group "$((16#$vendor))" --group "$((16#$product))" --group "$name" \
+      --key NaturalScroll true; then
+      log "Touchpad natural scrolling enabled: $name"
+      found=1
+    else
+      warn "Failed to write the touchpad settings for $name"
+    fi
+  done
+  if [ "$found" -eq 0 ]; then
+    log "No touchpad detected; skipping the touchpad settings"
+  fi
+}
+
 # 默认壁纸：把 Plasma 桌面和 KOS 都指到图集里的一张，别让新系统先露出 KDE 的默认壁纸。
 # 只写“还没配过”的情况；重跑安装器时，用户自己在图集里选过的图不会被换掉。
 # 首次登录再设一次 Plasma 壁纸：安装器在 TTY 里跑，碰不到运行中的 plasmashell；
@@ -840,6 +877,7 @@ install_desktop_config() {
   # 首次登录把主屏设成 1920x1080（安装器在 TTY 里改不了 Wayland 输出）
   install_file "$CONFIG_DIR/display/kos-display-1920x1080.sh" "$HOME/.local/bin/kos-display-1920x1080" 755
   install_file "$CONFIG_DIR/display/kos-display-1920x1080.desktop" "$HOME/.config/autostart/kos-display-1920x1080.desktop"
+  configure_touchpad
   enable_kos_theme_animation
   remove_kitty_no_decorations
   enable_kos_subtle_dock_reveal

@@ -23,6 +23,7 @@
   - Vellum 自己的 `Meta+Print` / `Meta+Shift+Print` / `Meta+Ctrl+Print`，以及 KOS platform 里重复的 Vellum 动作，都已关闭
 - 默认应用、Dolphin 布局、窗口动效、控制中心玻璃、KOS 设置玻璃等已在当前机调过
 - 终端（kitty）保留 KOS 窗口装饰：鼠标贴边即可缩放；旧版“无边框”规则会在重装时被自动清理
+- 触摸板：滚动方向改成“内容跟手指走”（和 Windows 一致，`NaturalScroll=true`）；`Fn+F10` 是真正的开关——安装器把 KDE 的“切换触摸板”绑到 `Touchpad On/Off/Toggle` 三个键，并把“只开/只关”解绑
 - `Win+/` 快捷键查看器：KOS + KDE 快捷键按分类列出，媒体键显示成中文键名，Meta 显示为 Win
 - `rclone` 随安装器一起装（云盘同步 / 异地备份用；不写任何远端配置）
 - 窗口动效：KOS 动画走 genie（最小化吸进 Dock），叠加 KDE 自带的摆动窗口（拖动/缩放形变）

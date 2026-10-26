@@ -343,8 +343,31 @@ configure_keyboard_repeat() {
   log "Keyboard repeat: delay 250ms, rate 50/s"
 }
 
+# Fn+F10（触摸板开关）：不少笔记本只发 XF86TouchpadOn，而 KDE 默认把它绑在
+# "启用触摸板"上——表现就是"只能开、不能关"。把"切换"绑到 On/Off/Toggle 三个键，
+# 并把"启用/禁用"解绑，按一次就是一次真正的开关。
+# 组名和键格式沿用 KGlobalAccel 自己落盘时的样子（[services][组件名] + 制表符分隔的按键）。
+configure_touchpad_shortcuts() {
+  log "Making the touchpad hotkey a real toggle (Fn+F10)..."
+  if [ "$DRY_RUN" -eq 1 ]; then
+    log "[dry-run] rebind org.kde.touchpadshortcuts.desktop: toggle on Touchpad On/Off/Toggle"
+    return 0
+  fi
+  if ! have kwriteconfig6; then
+    warn "kwriteconfig6 missing; skipping the touchpad hotkey rebind"
+    return 0
+  fi
+  backup_file "$HOME/.config/kglobalshortcutsrc"
+  local grp=org.kde.touchpadshortcuts.desktop
+  kwriteconfig6 --file kglobalshortcutsrc --group services --group "$grp" --key ToggleTouchpad $'Touchpad Toggle\tTouchpad On\tTouchpad Off' --notify
+  kwriteconfig6 --file kglobalshortcutsrc --group services --group "$grp" --key EnableTouchpad none --notify
+  kwriteconfig6 --file kglobalshortcutsrc --group services --group "$grp" --key DisableTouchpad none --notify
+  log "Touchpad hotkey: Touchpad On/Off/Toggle -> toggle"
+}
+
 install_kde_shortcuts() {
   log "Setting up KDE shortcuts (term-menu / terminal / btop / fuzzel / close window)..."
+  configure_touchpad_shortcuts
 
   if [ "$DRY_RUN" -eq 1 ]; then
     log "[dry-run] write term-menu / kitty-terminal / btop / fuzzel-launcher desktops and set KGlobalAccel"

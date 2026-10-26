@@ -278,6 +278,30 @@ grep -A2 'org.kde.image' ~/.config/plasma-org.kde.plasma.desktop-appletsrc | hea
 改完配置要重启 SDDM 才生效（会中断当前图形会话）：`systemctl restart sddm`，或者直接重启。
 看日志：`journalctl -u sddm -b --no-pager | tail -50`。
 
+## 触摸板：滚动方向反了 / Fn+F10 只能开不能关
+
+**滚动方向**：KDE/libinput 默认是“传统”方向（双指上推 = 看上面、内容往下走），Windows 触摸板是
+“自然滚动”（内容跟着手指走）。安装器会给检测到的每块触摸板写 `NaturalScroll=true`：
+
+~~~bash
+grep -A3 'Touchpad]' ~/.config/kcminputrc    # 组名是 [Libinput][vendor][product][设备名]
+~~~
+
+想改回传统方向：系统设置 → 输入设备 → 触摸板 → 滚动，取消“反转滚动方向”。
+
+**Fn+F10 只能开不能关**：不少笔记本（这台 ASUS 也是）只发 `XF86TouchpadOn`，而 KDE 默认把它
+绑在“启用触摸板”上——所以按一次只是“再启用一次”。安装器会把“切换触摸板”绑到
+`Touchpad On / Off / Toggle` 三个键，并把“启用/禁用”解绑：
+
+~~~bash
+grep -A4 'touchpadshortcuts' ~/.config/kglobalshortcutsrc
+# 期望：ToggleTouchpad=Touchpad Toggle\tTouchpad On\tTouchpad Off
+#       EnableTouchpad=none、DisableTouchpad=none
+~~~
+
+改完要**注销重登**才生效（KGlobalAccel 在会话启动时读这几项）。换机器/换键盘后按键不同，
+到 系统设置 → 快捷键 → 触摸板 手动绑一次即可。
+
 ## 装坏了怎么退
 
 安装器**没有**自动回滚命令（上游桌面本体也不归这里管）。现成的三条路：
