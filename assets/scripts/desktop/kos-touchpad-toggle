@@ -1,0 +1,26 @@
+#!/usr/bin/env bash
+# SPDX-License-Identifier: GPL-3.0-or-later
+#
+# Fn+F10 触摸板开关（KDE 触摸板快捷键的 Exec）。
+#
+# 为什么需要它：这颗键盘按一次会被 KDE 的 KGlobalAccel 触发两次（实测两次
+# org.kde.touchpad.toggle 间隔 1-5ms），两次切换互相抵消，表现就是"只能开、关不掉"。
+# 这里做 400ms 防抖：400ms 内的重复调用直接忽略，一次按键只切一次。
+set -u
+
+state_dir="${XDG_STATE_HOME:-$HOME/.local/state}/kos-touchpad"
+mkdir -p "$state_dir" 2>/dev/null || true
+last_file="$state_dir/last-toggle"
+
+now=$(date +%s%N)
+if [ -r "$last_file" ]; then
+  last=$(cat "$last_file" 2>/dev/null || echo 0)
+  case "$last" in ''|*[!0-9]*) last=0 ;; esac
+  if [ "$last" -gt 0 ] && [ $(( (now - last) / 1000000 )) -lt 400 ]; then
+    exit 0
+  fi
+fi
+printf '%s' "$now" > "$last_file" 2>/dev/null || true
+
+exec dbus-send --type=method_call \
+  --dest=org.kde.touchpad /modules/kded_touchpad org.kde.touchpad.toggle

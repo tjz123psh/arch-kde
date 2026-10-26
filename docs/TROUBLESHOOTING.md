@@ -289,18 +289,19 @@ grep -A3 'Touchpad]' ~/.config/kcminputrc    # 组名是 [Libinput][vendor][prod
 
 想改回传统方向：系统设置 → 输入设备 → 触摸板 → 滚动，取消“反转滚动方向”。
 
-**Fn+F10 只能开不能关**：不少笔记本（这台 ASUS 也是）只发 `XF86TouchpadOn`，而 KDE 默认把它
-绑在“启用触摸板”上——所以按一次只是“再启用一次”。安装器会把“切换触摸板”绑到
-`Touchpad On / Off / Toggle` 三个键，并把“启用/禁用”解绑：
+**Fn+F10 只能开不能关**：这颗键盘按一次会被 KDE 的 KGlobalAccel 触发两次（实测两次
+`org.kde.touchpad.toggle` 间隔 1–5ms），两次切换互相抵消，所以看起来“怎么按都是开/都是关”。
+安装器的做法是：用用户级组件 `~/.local/share/kglobalaccel/org.kde.touchpadshortcuts.desktop`
+覆盖系统那份，把“切换”动作的 Exec 换成 `~/.local/bin/kos-touchpad-toggle`（400ms 防抖，
+一次按键只切一次），并去掉“只开/只关”两个动作。
 
 ~~~bash
-grep -A4 'touchpadshortcuts' ~/.config/kglobalshortcutsrc
-# 期望：ToggleTouchpad=Touchpad Toggle\tTouchpad On\tTouchpad Off
-#       EnableTouchpad=none、DisableTouchpad=none
+cat ~/.local/share/kglobalaccel/org.kde.touchpadshortcuts.desktop   # Exec 指向防抖包装脚本
+grep -A3 touchpadshortcuts ~/.config/kglobalshortcutsrc              # Toggle 绑三个键，Enable/Disable = none
 ~~~
 
-改完要**注销重登**才生效（KGlobalAccel 在会话启动时读这几项）。换机器/换键盘后按键不同，
-到 系统设置 → 快捷键 → 触摸板 手动绑一次即可。
+**改完必须注销重登**（KGlobalAccel 在会话启动时读组件与绑定）。重登后一次按键就是一次开关。
+换机器/换键盘后按键不同，到 系统设置 → 快捷键 → 触摸板 手动绑一次即可。
 
 ## 装坏了怎么退
 

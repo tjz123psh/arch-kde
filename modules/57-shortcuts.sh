@@ -343,26 +343,44 @@ configure_keyboard_repeat() {
   log "Keyboard repeat: delay 250ms, rate 50/s"
 }
 
-# Fn+F10（触摸板开关）：不少笔记本只发 XF86TouchpadOn，而 KDE 默认把它绑在
-# "启用触摸板"上——表现就是"只能开、不能关"。把"切换"绑到 On/Off/Toggle 三个键，
-# 并把"启用/禁用"解绑，按一次就是一次真正的开关。
-# 组名和键格式沿用 KGlobalAccel 自己落盘时的样子（[services][组件名] + 制表符分隔的按键）。
+# Fn+F10（触摸板开关）：这台机器按一次会被 KDE 的 KGlobalAccel 触发两次
+# （实测两次 org.kde.touchpad.toggle 间隔 1-5ms），两次切换互相抵消——表现就是
+# "只能开、关不掉"。做法：用用户级组件覆盖 /usr/share/kglobalaccel 里的那份，
+# 把"切换"动作的 Exec 换成带 400ms 防抖的 kos-touchpad-toggle（assets/scripts/desktop），
+# 并把"只开/只关"两个动作去掉。KGlobalAccel 在会话启动时读这个文件。
 configure_touchpad_shortcuts() {
   log "Making the touchpad hotkey a real toggle (Fn+F10)..."
   if [ "$DRY_RUN" -eq 1 ]; then
-    log "[dry-run] rebind org.kde.touchpadshortcuts.desktop: toggle on Touchpad On/Off/Toggle"
+    log "[dry-run] install kos-touchpad-toggle and override the touchpad shortcuts component"
     return 0
   fi
   if ! have kwriteconfig6; then
     warn "kwriteconfig6 missing; skipping the touchpad hotkey rebind"
     return 0
   fi
+  install_file "$ASSET_DIR/scripts/desktop/kos-touchpad-toggle" "$HOME/.local/bin/kos-touchpad-toggle" 755
+  write_file "$HOME/.local/share/kglobalaccel/org.kde.touchpadshortcuts.desktop" <<EOF
+[Desktop Entry]
+Type=Application
+Name=Touchpad
+Name[zh_CN]=触摸板
+Icon=preferences-desktop-touchpad
+Actions=ToggleTouchpad;
+StartupNotify=false
+X-KDE-GlobalShortcutType=Service
+
+[Desktop Action ToggleTouchpad]
+Name=Toggle Touchpad
+Name[zh_CN]=切换触摸板
+Exec=$HOME/.local/bin/kos-touchpad-toggle
+X-KDE-Shortcuts=Touchpad Toggle\tTouchpad On\tTouchpad Off
+EOF
   backup_file "$HOME/.config/kglobalshortcutsrc"
   local grp=org.kde.touchpadshortcuts.desktop
   kwriteconfig6 --file kglobalshortcutsrc --group services --group "$grp" --key ToggleTouchpad $'Touchpad Toggle\tTouchpad On\tTouchpad Off' --notify
   kwriteconfig6 --file kglobalshortcutsrc --group services --group "$grp" --key EnableTouchpad none --notify
   kwriteconfig6 --file kglobalshortcutsrc --group services --group "$grp" --key DisableTouchpad none --notify
-  log "Touchpad hotkey: Touchpad On/Off/Toggle -> toggle"
+  log "Touchpad hotkey: Touchpad On/Off/Toggle -> debounced toggle"
 }
 
 install_kde_shortcuts() {
