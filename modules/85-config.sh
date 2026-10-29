@@ -460,12 +460,10 @@ enable_frosted_kde_windows() {
 # 普通窗口默认开成 $WINDOW_SIZE（install.sh 的 --window-size，默认 1304x770）。
 # 策略用 Apply（3：只在窗口初次映射时给一次尺寸），之后拖拽、缩放、最大化、贴边都不受影响；
 # Force（2）会一直把尺寸压回去，装完就拉不动了。
-# 匹配条件用结构，不列 app 名单：
+# 匹配条件用结构，不列 app 名单、也不给单个软件开口子：
 # - types=1：只认普通窗口，对话框/工具窗不参与；
 # - title 非空：KOS/Plasma 的桌面与面板层（quickshell / plasmashell）标题都是空的，天然排除；
-# - wmclass 非空，唯一显式例外是 Win+/ 的快捷键查看器（kitty --class kos-shortcuts，
-#   自己按 90x26 字符排版，见 57-shortcuts）——它没有同名 .desktop，但 KWin 仍会把 class
-#   当 desktopFileName 报出来，所以只能用 class 做这个例外。
+# - wmclass 非空：app_id 为空的窗口（如锁屏 greeter）不套。
 configure_default_window_size() {
   local size="${WINDOW_SIZE:-1304x770}" group=kos_default_window_size order w h
   case "$size" in
@@ -511,7 +509,7 @@ configure_default_window_size() {
   kwriteconfig6 --file kwinrulesrc --group "$group" --key types 1
   kwriteconfig6 --file kwinrulesrc --group "$group" --key title '^.+$'
   kwriteconfig6 --file kwinrulesrc --group "$group" --key titlematch 3
-  kwriteconfig6 --file kwinrulesrc --group "$group" --key wmclass '^(?!kos-shortcuts$).+$'
+  kwriteconfig6 --file kwinrulesrc --group "$group" --key wmclass '^.+$'
   kwriteconfig6 --file kwinrulesrc --group "$group" --key wmclassmatch 3
   kwriteconfig6 --file kwinrulesrc --group "$group" --key wmclasscomplete false
 
@@ -525,7 +523,7 @@ configure_default_window_size() {
   if have qdbus6; then
     qdbus6 org.kde.KWin /KWin reconfigure >/dev/null 2>&1 || true
   fi
-  log "Window rule written: new windows open at ${w}x${h} (dialogs and the shortcut viewer keep their own size)"
+  log "Window rule written: new windows open at ${w}x${h} (dialogs and the desktop/panel layers keep their own size)"
 }
 
 # KOS 设置是自绘 QML 窗口；让 ApplicationWindow 底色透明，交给 KWin Glass 模糊。

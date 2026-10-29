@@ -275,8 +275,8 @@ grep -A2 'org.kde.image' ~/.config/plasma-org.kde.plasma.desktop-appletsrc | hea
 
 安装器写一条 KWin 窗口规则（`~/.config/kwinrulesrc` 的 `kos_default_window_size`）：普通窗口
 第一次出现时套一次 `--window-size` 的尺寸（默认 1304x770）。策略是 **Apply（3）**，只作用于
-初次映射，之后拖拽、缩放、最大化、贴边都照常；对话框（类型不是 Normal）、KOS/Plasma 的
-桌面与面板层（标题为空）、以及 Win+/ 的快捷键查看器（`kitty --class kos-shortcuts`）不受影响。
+初次映射，之后拖拽、缩放、最大化、贴边都照常；对话框（类型不是 Normal）和 KOS/Plasma 的
+桌面与面板层（标题为空）不受影响。所有普通软件窗口一视同仁，包括 Win+/ 的快捷键查看器。
 
 ~~~bash
 kreadconfig6 --file kwinrulesrc --group kos_default_window_size --key size   # 1304,770
