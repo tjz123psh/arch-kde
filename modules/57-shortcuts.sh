@@ -118,7 +118,7 @@ install_shortcut_viewer_shortcut() {
 Type=Application
 Name=KOS Shortcuts
 Comment=View current KOS and KDE shortcuts with fzf
-Exec=/usr/bin/kitty --title "KOS Shortcuts" --override remember_window_size=no --override initial_window_width=90c --override initial_window_height=26c --override tab_bar_style=hidden --override hide_window_decorations=yes -e $HOME/bin/shortcuts
+Exec=/usr/bin/kitty --class kos-shortcuts --title "KOS Shortcuts" --override remember_window_size=no --override initial_window_width=90c --override initial_window_height=26c --override tab_bar_style=hidden --override hide_window_decorations=yes -e $HOME/bin/shortcuts
 Icon=utilities-terminal
 Terminal=false
 NoDisplay=true

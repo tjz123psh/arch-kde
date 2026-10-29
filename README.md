@@ -44,6 +44,7 @@ bash install.sh --yes       # 全装
 - **终端**：kitty + fish + starship，配置随安装器部署；编辑器用 nvim
 - **输入法**：fcitx5 + 中文方案，按 KWin Wayland 方式接管
 - **外观**：BreezeDark + WhiteSur 图标/光标，SilentSDDM 登录页，13 张 KOS 壁纸（默认壁纸开箱即用，`--wallpaper` 可换）
+- **窗口**：新窗口默认 1304x770（`--window-size WxH` 可改，只在第一次出现时套一次；对话框 / 桌面面板 / Win+/ 查看器不受影响）
 - **软件**：Chrome、VS Code、Obsidian、Docker、gh、yazi 等
 - **快捷键**：Alt+Enter 终端、Alt+Q 关窗、Win+O 启动器、Win+/ 快捷键查看器、Print 区域截图、Alt+F5 录屏、Alt+F6 热点
 

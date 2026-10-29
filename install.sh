@@ -45,6 +45,8 @@ HW_ASUS=1
 # 桌面默认壁纸：assets/wallpapers 里的文件名；--wallpaper 可改，带 --wallpaper 时强制覆盖
 WALLPAPER="樱吹雪.png"
 WALLPAPER_FORCE=0
+# 新窗口默认尺寸（WxH）：--window-size 可改。只在窗口第一次出现时套一次。
+WINDOW_SIZE="1304x770"
 
 source "$INSTALLER_DIR/lib/common.sh"
 for _m in "$INSTALLER_DIR"/modules/*.sh; do
@@ -74,6 +76,11 @@ What gets installed:
   --wallpaper NAME   Default desktop wallpaper from assets/wallpapers
                      (name with or without .png; default 樱吹雪.png). Only used
                      when there is no wallpaper yet, unless you pass it again.
+
+  --window-size WxH  Size new application windows open at (default 1304x770).
+                     Applied once when the window first appears; dialogs, the
+                     desktop/panel layers and the Win+/ shortcut viewer keep
+                     their own size.
 
 Skip:
   --no-sddm-theme    Leave the SDDM login theme alone
@@ -128,6 +135,22 @@ parse_args() {
           die "--wallpaper: not found in $ASSET_DIR/wallpapers: $WALLPAPER"
         fi
         ;;
+      --window-size)
+        shift; WINDOW_SIZE="${1:?--window-size needs WIDTHxHEIGHT}"
+        case "$WINDOW_SIZE" in
+          *x*) ;;
+          *) die "--window-size: expected WIDTHxHEIGHT (e.g. 1304x770), got: $WINDOW_SIZE" ;;
+        esac
+        case "${WINDOW_SIZE%%x*}" in
+          ''|*[!0-9]*) die "--window-size: expected WIDTHxHEIGHT (e.g. 1304x770), got: $WINDOW_SIZE" ;;
+        esac
+        case "${WINDOW_SIZE#*x}" in
+          ''|*[!0-9]*) die "--window-size: expected WIDTHxHEIGHT (e.g. 1304x770), got: $WINDOW_SIZE" ;;
+        esac
+        if [ "${WINDOW_SIZE%%x*}" -le 0 ] || [ "${WINDOW_SIZE#*x}" -le 0 ]; then
+          die "--window-size: width and height must be positive, got: $WINDOW_SIZE"
+        fi
+        ;;
       --no-sddm-theme) NO_SDDM_THEME=1 ;;
       --no-aur) NO_AUR=1 ;;
       --no-mirrors) NO_MIRRORS=1 ;;
@@ -158,7 +181,7 @@ print_plan() {
   log " KOS desktop installation plan"
   log " Installer: $INSTALLER_DIR"
   log " KOS source: $(kos_repo_dir) (from $KOS_SRC_URL)"
-  log " Input method: $IME   Locale: $LOCALE_MODE   Wallpaper: $WALLPAPER"
+  log " Input method: $IME   Locale: $LOCALE_MODE   Wallpaper: $WALLPAPER   Window size: $WINDOW_SIZE"
   log " Standalone apps: $([ "$KOS_WITH_APPS" -eq 1 ] && echo yes || echo no)   Lock screen: $([ "$KOS_WITH_LOCKSCREEN" -eq 1 ] && echo yes || echo no)"
   log " SDDM theme: $([ "$NO_SDDM_THEME" -eq 1 ] && echo keep-current || echo SilentSDDM)"
   log " Spatial depth: $([ "$KOS_SPATIAL" -eq 1 ] && echo build || echo skip)"

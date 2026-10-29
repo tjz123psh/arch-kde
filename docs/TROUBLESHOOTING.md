@@ -271,6 +271,27 @@ grep -A2 'org.kde.image' ~/.config/plasma-org.kde.plasma.desktop-appletsrc | hea
 手动设一次：`plasma-apply-wallpaperimage ~/.local/share/kos/gallery/落霞.png`。
 想换默认图：`bash install.sh --yes --wallpaper 落霞.png`。
 
+## 窗口默认尺寸（1304x770）
+
+安装器写一条 KWin 窗口规则（`~/.config/kwinrulesrc` 的 `kos_default_window_size`）：普通窗口
+第一次出现时套一次 `--window-size` 的尺寸（默认 1304x770）。策略是 **Apply（3）**，只作用于
+初次映射，之后拖拽、缩放、最大化、贴边都照常；对话框（类型不是 Normal）、KOS/Plasma 的
+桌面与面板层（标题为空）、以及 Win+/ 的快捷键查看器（`kitty --class kos-shortcuts`）不受影响。
+
+~~~bash
+kreadconfig6 --file kwinrulesrc --group kos_default_window_size --key size   # 1304,770
+# 临时改尺寸（重跑安装器会改回 WINDOW_SIZE 的默认值）：
+kwriteconfig6 --file kwinrulesrc --group kos_default_window_size --key size "1400,800"
+kwriteconfig6 --file kwinrulesrc --group kos_default_window_size --key Description "Default window size: 1400x800" --notify
+~~~
+
+想长期改：用 `bash install.sh --yes --window-size 1400x800`（重装也保留）。
+
+注意：
+- 只在窗口**第一次出现**时套一次；软件自己恢复上次尺寸（浏览器、编辑器）时以它为准。
+- 刚开始标题为空的窗口不会套尺寸（规则用“标题非空”排除桌面/面板层，不列 app 名字）。
+- 想彻底关掉：系统设置 → 窗口管理 → 窗口规则，删掉那条 `Default window size: …`。
+
 ## 登录页还是 SDDM 默认主题（silent 没生效）
 
 按可能性从高到低查：

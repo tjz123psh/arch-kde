@@ -27,6 +27,9 @@
   - Vellum 自己的 `Meta+Print` / `Meta+Shift+Print` / `Meta+Ctrl+Print`，以及 KOS platform 里重复的 Vellum 动作，都已关闭
 - 默认应用、Dolphin 布局、窗口动效、控制中心玻璃、KOS 设置玻璃等已在当前机调过
 - 终端（kitty）保留 KOS 窗口装饰：鼠标贴边即可缩放；旧版“无边框”规则会在重装时被自动清理
+- 窗口默认尺寸：普通窗口第一次出现时开成 1304x770（`install.sh --window-size WxH` 可改），
+  套完就不管了——拖动、缩放、最大化、贴边都不受规则影响；对话框、KOS/Plasma 的桌面与面板层、
+  以及 Win+/ 快捷键查看器保持自己的大小（规则是 `kwinrulesrc` 的 `kos_default_window_size`，Apply 策略）
 - 触摸板：滚动方向改成“内容跟手指走”（和 Windows 一致，`NaturalScroll=true`，由 `modules/85-config.sh` 写进 `kcminputrc`）；`Fn+F10` 是真正的开关——安装器用用户级组件 `~/.local/share/kglobalaccel/org.kde.touchpadshortcuts.desktop` 覆盖系统那份，把“切换”动作的 Exec 换成 `~/.local/bin/kos-touchpad-toggle`（400ms 防抖，源码在 `assets/config/shortcuts/`），三个触摸板键都绑在这一个动作上；改完要注销重登（KGlobalAccel 在会话启动时读组件）
 - `Win+/` 快捷键查看器：KOS + KDE 快捷键按分类列出，媒体键显示成中文键名，Meta 显示为 Win
 - `rclone` 随安装器一起装（云盘同步 / 异地备份用；不写任何远端配置）
