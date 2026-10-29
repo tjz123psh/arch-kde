@@ -725,9 +725,16 @@ EOF
 }
 
 # KOS 锁屏：ds2 背景、时钟+天气+歌词、密码框圆角不再做成胶囊。
-# 只改 kscreenlocker greeter 的 QML；PAM/认证逻辑不动。
+#
+# 壁纸走 kscreenlocker 自己的配置，不放进 KOS 锁屏包：
+#   ~/.config/kscreenlockerrc [Greeter][Wallpaper][org.kde.image][General] Image=<png>
+# KOS 更新会用 `kosctl install lockscreen` 把整个包 rm -rf + cp -a 重建（2026-10-29 实测），
+# 包里的 QML 补丁和图片都会丢，包外这份不会。greeter 每次锁屏新起进程，改完下一次锁屏生效。
+# QML 只改细节（14px 密码框圆角、隐藏日历/表盘），丢了不影响登录；PAM/认证逻辑不动。
 configure_kos_lockscreen() {
   local dir="$HOME/.local/share/plasma/shells/org.kos.desktop/contents/lockscreen"
+  local lock_wallpaper="$HOME/.local/share/kos/lockscreen.png"
+  local repo=""
 
   if [ ! -f "$dir/LockScreen.qml" ]; then
     log "KOS lock screen not installed; skipping its styling"
@@ -738,37 +745,68 @@ configure_kos_lockscreen() {
     return 0
   fi
 
-  install_file "$ASSET_DIR/wallpapers/ds2.png" "$dir/ds2.png"
+  # 旧版（05685d6）把 ds2.png 放进包里、靠 customWallpaper 补丁画图。包被重建过就自动回到
+  # 上游逻辑；没被重建则补丁还在，此时换回上游 QML——两种机制同时留着，哪天图没了就是黑屏。
+  if grep -q 'customWallpaper' "$dir/LockScreen.qml" 2>/dev/null; then
+    if declare -F kos_repo_dir >/dev/null 2>&1; then repo=$(kos_repo_dir); fi
+    if [ -n "$repo" ] && [ -f "$repo/apps/lockscreen/contents/lockscreen/LockScreen.qml" ]; then
+      install_file "$repo/apps/lockscreen/contents/lockscreen/LockScreen.qml" "$dir/LockScreen.qml"
+      log "Restored the upstream lock screen QML (old ds2 patch removed; the wallpaper now comes from kscreenlockerrc)"
+    else
+      warn "旧版锁屏补丁还在（customWallpaper），但找不到 KOS 源码来还原；把图留在包里，免得变黑屏"
+      install_file "$ASSET_DIR/wallpapers/ds2.png" "$dir/ds2.png"
+    fi
+  fi
+
+  if have kwriteconfig6; then
+    install_file "$ASSET_DIR/wallpapers/ds2.png" "$lock_wallpaper"
+    backup_file "$HOME/.config/kscreenlockerrc"
+    kwriteconfig6 --file kscreenlockerrc --group Greeter --key WallpaperPlugin org.kde.image
+    kwriteconfig6 --file kscreenlockerrc --group Greeter --group Wallpaper --group org.kde.image \
+      --group General --key Image "$lock_wallpaper"
+    log "Lock screen wallpaper: $lock_wallpaper"
+  else
+    warn "kwriteconfig6 missing; skipping the lock screen wallpaper"
+  fi
+
   backup_file "$dir/LockScreen.qml"
   backup_file "$dir/LockWidgets.qml"
 
-  python3 - "$dir/LockScreen.qml" <<'PY'
+  # 锚点对不上就整份不写：KOS 更新换掉锁屏 QML 时，宁可保留上游原版，也不要写半成品。
+  local cosmetics_ok=1
+  if ! python3 - "$dir/LockScreen.qml" <<'PY'
 from pathlib import Path
 import sys
 
 path = Path(sys.argv[1])
 s = path.read_text()
-if "property bool customWallpaper" not in s:
-    s = s.replace("    property bool hasWallpaper: false",
-                  "    property bool hasWallpaper: false\n"
-                  "    // Use the KOS lock-screen wallpaper instead of the desktop wallpaper.\n"
-                  "    property bool customWallpaper: true")
-s = s.replace("    function syncWallpaperSource() {\n        if (!wallpaper)\n            return",
-              "    function syncWallpaperSource() {\n"
-              "        if (root.customWallpaper) {\n"
-              "            root.wallpaperSource = \"\"\n"
-              "            return\n"
-              "        }\n"
-              "        if (!wallpaper)\n            return")
-s = s.replace("            visible: root.wallpaperSource != \"\"\n            source: root.wallpaperSource",
-              "            visible: root.customWallpaper || root.wallpaperSource != \"\"\n"
-              "            source: root.customWallpaper ? \"ds2.png\" : root.wallpaperSource")
-s = s.replace("            wallpaper.z = -1\n        }",
-              "            wallpaper.z = -1\n            wallpaper.visible = false\n        }")
-s = s.replace("                readonly property int cornerRadius: Math.round(pane.height * 0.5)",
-              "                readonly property int cornerRadius: Math.min(14, Math.round(pane.height * 0.5))")
+
+patches = [
+    # 密码框圆角不再做成胶囊（KOS 默认 radius = 高度一半）。
+    ("Math.min(14, Math.round(pane.height * 0.5))",
+     "                readonly property int cornerRadius: Math.round(pane.height * 0.5)",
+     "                readonly property int cornerRadius: Math.min(14, Math.round(pane.height * 0.5))"),
+]
+
+# 已经打过（重跑）：不动文件。
+if all(marker in s for marker, _, _ in patches):
+    sys.exit(0)
+
+# 任何一条锚点对不上就整份放弃，不写半成品。
+for marker, old, _ in patches:
+    if marker not in s and old not in s:
+        print("missing anchor: " + old.splitlines()[0].strip(), file=sys.stderr)
+        sys.exit(3)
+
+for _, old, new in patches:
+    if old in s:
+        s = s.replace(old, new)
 path.write_text(s)
 PY
+  then
+    cosmetics_ok=0
+    warn "KOS 锁屏 QML 的圆角锚点对不上（上游改过？），14px 密码框补丁没写上；壁纸不受影响"
+  fi
 
   python3 - "$dir/LockWidgets.qml" <<'PY'
 from pathlib import Path
@@ -784,9 +822,10 @@ if "Canvas {\n            id: dial\n            visible: false" not in s:
                   "        Canvas {\n            id: dial\n            visible: false\n", 1)
 path.write_text(s)
 PY
-  log "KOS lock screen styled: ds2 background, clock+weather+lyrics, rounded password box"
+  if [ "$cosmetics_ok" -eq 1 ]; then
+    log "KOS lock screen styled: clock+weather+lyrics, rounded password box"
+  fi
 }
-
 
 # Chrome 启动时会通过 KDE 的密钥服务（ksecretd）取 cookie 加密密钥；系统里还没有钱包时，
 # 会弹「KDE 密码库服务 - 请求新建 kwallet」，点取消才能继续用。把 Chrome 换成自己的基础

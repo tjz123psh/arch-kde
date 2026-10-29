@@ -121,24 +121,33 @@ bash install.sh --yes
 如果新窗口带一个细标题栏、你能接受，就到此为止。连标题栏都不想要，那就只能放弃鼠标拖边：
 KWin 对 decorationpolicy=none 的窗口不提供任何缩放把手，最多用 Meta + 右键拖动缩放。
 
-## 锁屏不是 ds2 / 没有天气歌词
+## 锁屏是黑屏（没有壁纸）/ 不是 ds2 / 没有天气歌词
 
-KOS 锁屏文件：
+KOS 锁屏是 kscreenlocker greeter 加载的一层 QML，**不是** KOS shell：
+`~/.local/share/plasma/shells/org.kos.desktop/contents/lockscreen/`。每次锁屏都会新起一个
+greeter 进程，所以改完下一次锁屏就生效，不用注销，也不用重启 `kos-shell`。
 
-```bash
-ls ~/.local/share/plasma/shells/org.kos.desktop/contents/lockscreen
-grep -nE 'customWallpaper|ds2.png|cornerRadius' ~/.local/share/plasma/shells/org.kos.desktop/contents/lockscreen/LockScreen.qml
-```
+**壁纸从哪来**：greeter 读 `~/.config/kscreenlockerrc` 的
+`[Greeter][Wallpaper][org.kde.image][General] Image`。安装器把它指向
+`~/.local/share/kos/lockscreen.png`（ds2 的副本，故意放在 KOS 锁屏包**外面**——
+`kosctl install lockscreen` 会把整个包 `rm -rf` + `cp -a` 重建，包里的东西都会丢）。
+没设这个键时 KOS 的 QML 拿不到 still image，只剩自带的兜底底色，就是黑屏。
 
-重装锁屏配置：
+~~~bash
+cat ~/.config/kscreenlockerrc
+kreadconfig6 --file kscreenlockerrc --group Greeter --group Wallpaper \
+  --group org.kde.image --group General --key Image
+ls -l ~/.local/share/kos/lockscreen.png
+# 不用真锁屏也能预览（上游自带的测试模式）：
+/usr/lib/kscreenlocker_greet --testing
+~~~
 
-```bash
-# 重新跑安装器（会先备份 QML）
-bash install.sh --yes
-systemctl --user restart kos-shell
-```
+想换锁屏壁纸：把 `Image` 改成任一张 png 的绝对路径即可（重跑安装器会改回 ds2）。
+`doctor` 的 `== 锁屏 ==` 报 `[MISS]` = 这个键或文件不在了，重跑安装器。
 
-锁屏是 kscreenlocker greeter 加载的，改完要重新锁屏才看到；不需要注销。
+密码框圆角、隐藏日历/表盘是包内 QML 补丁，KOS 重建锁屏包后会回到上游原版（`doctor` 报
+`[WARN]`），只影响观感；重跑安装器会把它们打回去。补丁锚点对不上时安装器会 `warn` 并
+**整份不写**（不写半成品，避免锁屏 QML 直接报错），这时要按新 QML 改 `modules/85-config.sh`。
 
 ## KOS shell 起不来 / 黑屏
 

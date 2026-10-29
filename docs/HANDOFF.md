@@ -1,6 +1,6 @@
 # 交接状态（新会话先读）
 
-最后更新：2026-10-25
+最后更新：2026-10-29
 
 ## 一句话
 
@@ -15,7 +15,11 @@
 - 干净 Arch（archinstall 后、能登录 TTY）→ KDE + KOS shell
 - 中文 locale / fcitx5 / kitty / fish / starship
 - KOS 壁纸库（13 张）
-- SilentSDDM 登录主题 + KOS 锁屏（ds2 背景、时钟、天气、歌词、14px 圆角密码框）
+- SilentSDDM 登录主题 + KOS 锁屏（ds2 背景、时钟、天气、歌词、14px 圆角密码框）。KOS 的锁屏 QML
+  依赖 greeter 注入的壁纸项，而 KOS 桌面接管壁纸后那一项是空的（实测 `texture -1x-1`、walk
+  找不到 still image）；安装器因此在**锁屏包外面**写 `~/.config/kscreenlockerrc`
+  `[Greeter][Wallpaper][org.kde.image][General] Image=~/.local/share/kos/lockscreen.png`（ds2 副本），
+  `kosctl install lockscreen` 重建包也不会丢
 - 音量 / 亮度 / 静音使用 **KDE 原生快捷键**（kmix / PowerDevil）；KOS OSD 实验已回退，不再接管这些按键
 - 截图快捷键只保留两个：
   - `Print` → Vellum 区域截图
@@ -109,6 +113,16 @@ bash install.sh --dry-run --yes
 
 3. **首次登录引导**
    属于桌面仓库（NextKDE）的责任，本仓库不实现。
+
+4. **锁屏：壁纸在包外，细节补丁在包里**
+   KOS 接管壁纸后，kscreenlocker greeter 交给锁屏的壁纸项没有贴图，没配置图源的锁屏只剩 KOS 自带的罩底底色（黑屏）。
+   安装器把图源写在包外：`~/.config/kscreenlockerrc` →
+   `[Greeter][Wallpaper][org.kde.image][General] Image=~/.local/share/kos/lockscreen.png`（ds2 副本），
+   `kosctl install lockscreen` 重建 KOS 包不影响它。14px 密码框圆角、隐藏日历/表盘是包内
+   `LockScreen.qml` / `LockWidgets.qml` 的补丁，KOS 重建包后会回到上游原版（只影响观感）；
+   `doctor` 报 `[WARN]`，重跑 `bash install.sh --yes` 恢复。2026-10-29 用
+   `/usr/lib/kscreenlocker_greet --testing` 截图验证：上游 QML + 这条 kscreenlockerrc 就能正常出图
+   （本机 16:48 的 KOS 更新把旧版包内补丁冲掉，正是那次黑屏的原因）。
 
 ## 本机系统级改动（安装器不管）
 

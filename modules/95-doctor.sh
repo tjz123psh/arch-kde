@@ -4,7 +4,7 @@
 
 run_doctor() {
   local mode="$1" gallery kos_dir="" ml ml_n ml_first ml_skip
-  local wallpaper_ini kos_wp plasma_wp sddm_theme_effective
+  local wallpaper_ini kos_wp plasma_wp sddm_theme_effective kos_lock lock_wp
   local report="$STATE_DIR/doctor-$RUN_ID.txt"
   mkdir -p "$STATE_DIR"
   {
@@ -185,6 +185,28 @@ run_doctor() {
         ;;
       *)                 echo "  [MISS] Plasma 桌面壁纸仍是 $plasma_wp（不在 KOS 图集里）" ;;
     esac
+    echo
+    echo "== 锁屏 =="
+    # greeter 的壁纸来自 ~/.config/kscreenlockerrc 的 [Greeter][Wallpaper][org.kde.image][General]
+    # Image；没设它（或图不在）时 KOS 的锁屏 QML 拿不到 still image，背景是空的（黑屏）。
+    # 这个键在 KOS 锁屏包外面，kosctl install lockscreen 重建包不会动它。
+    kos_lock="$HOME/.local/share/plasma/shells/org.kos.desktop/contents/lockscreen"
+    if [ ! -f "$kos_lock/LockScreen.qml" ]; then
+      echo "  [--]   KOS 锁屏未安装（--no-lockscreen，或 kosctl install lockscreen 还没跑）"
+    else
+      lock_wp=$(kreadconfig6 --file kscreenlockerrc --group Greeter --group Wallpaper \
+        --group org.kde.image --group General --key Image 2>/dev/null || true)
+      if [ -n "$lock_wp" ] && [ -f "$lock_wp" ]; then
+        echo "  [OK]   KOS 锁屏壁纸（kscreenlockerrc → $lock_wp）"
+      else
+        echo "  [MISS] KOS 锁屏壁纸（kscreenlockerrc 的 Image 为空或文件不存在：${lock_wp:-空}）；重跑 install.sh"
+      fi
+      if grep -q 'Math.min(14, Math.round(pane.height \* 0.5))' "$kos_lock/LockScreen.qml"; then
+        echo "  [OK]   锁屏细节补丁（14px 密码框圆角、隐藏日历/表盘）"
+      else
+        echo "  [WARN] 锁屏细节补丁不在（密码框胶囊、日历/表盘回来了，壁纸不受影响）；重跑 install.sh"
+      fi
+    fi
     echo
     echo "== 字体 =="
     fc-match "Noto Sans CJK SC" 2>/dev/null | head -1 || true
