@@ -197,7 +197,7 @@ KOS 壳自己的快捷键存在 `~/.local/state/quickshell/kos/shortcuts/config.
 
 以 `git log` 为准（本节只是最近一次的写作锚点，别当成 HEAD）：
 
-- `0753869` docs: drop the duplicated bullets left by the rollback rewrite
-- `a55e25d` chore: drop the kos-undo rollback feature
-- `8f78364` fix(wallpaper): use the Plasma config file KOS actually reads
-- `554cba0` fix(shortcuts): write the Meta release after unregistering the action
+- `b0b94a1` fix(lock): take the lock screen wallpaper from kscreenlockerrc, not the KOS package
+- `ff9e7cc` refactor(input): ship the touchpad wrapper from config/ and stop shadowing shortcutsrc
+- `b552512` chore: drop a stray __pycache__ and ignore bytecode
+- `41e9a21` fix(input): debounce the Fn+F10 touchpad toggle
