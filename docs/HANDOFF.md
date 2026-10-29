@@ -23,7 +23,7 @@
   - Vellum 自己的 `Meta+Print` / `Meta+Shift+Print` / `Meta+Ctrl+Print`，以及 KOS platform 里重复的 Vellum 动作，都已关闭
 - 默认应用、Dolphin 布局、窗口动效、控制中心玻璃、KOS 设置玻璃等已在当前机调过
 - 终端（kitty）保留 KOS 窗口装饰：鼠标贴边即可缩放；旧版“无边框”规则会在重装时被自动清理
-- 触摸板：滚动方向改成“内容跟手指走”（和 Windows 一致，`NaturalScroll=true`）；`Fn+F10` 是真正的开关——安装器把 KDE 的“切换触摸板”绑到 `Touchpad On/Off/Toggle` 三个键，并把“只开/只关”解绑
+- 触摸板：滚动方向改成“内容跟手指走”（和 Windows 一致，`NaturalScroll=true`，由 `modules/85-config.sh` 写进 `kcminputrc`）；`Fn+F10` 是真正的开关——安装器用用户级组件 `~/.local/share/kglobalaccel/org.kde.touchpadshortcuts.desktop` 覆盖系统那份，把“切换”动作的 Exec 换成 `~/.local/bin/kos-touchpad-toggle`（400ms 防抖，源码在 `assets/config/shortcuts/`），三个触摸板键都绑在这一个动作上；改完要注销重登（KGlobalAccel 在会话启动时读组件）
 - `Win+/` 快捷键查看器：KOS + KDE 快捷键按分类列出，媒体键显示成中文键名，Meta 显示为 Win
 - `rclone` 随安装器一起装（云盘同步 / 异地备份用；不写任何远端配置）
 - 窗口动效：KOS 动画走 genie（最小化吸进 Dock），叠加 KDE 自带的摆动窗口（拖动/缩放形变）
@@ -42,6 +42,7 @@ install.sh               调度：参数、阶段顺序、计划与总结
 lib/common.sh            日志 / 备份 / install_file / write_file / sudo 保活
 modules/00..95           按序号 source 进同一个 shell
 assets/config/           应用配置（kitty/fish/yazi/fastfetch/mpv/fuzzel/btop 等）
+                         + display / shortcuts：被桌面配置调用的小工具
 assets/scripts/          maintenance / package / desktop 三组常驻脚本
 assets/wallpapers/       13 张壁纸
 docs/                    本文件 + 排障手册
@@ -141,6 +142,10 @@ bash install.sh --dry-run --yes --no-archlinuxcn --no-aur
 
 # 截图键位（应该只剩两个）
 grep -nE 'Print|vellum' ~/.config/kglobalshortcutsrc
+
+# 触摸板热键：组件只剩一个动作，三个触摸板键都绑在它上面
+qdbus6 --literal org.kde.kglobalaccel /component/org_kde_touchpadshortcuts_desktop \
+  org.kde.kglobalaccel.Component.allShortcutInfos
 ```
 
 ## 快捷键（2026-10-24 定稿）

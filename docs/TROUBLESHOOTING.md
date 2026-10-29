@@ -293,14 +293,24 @@ grep -A3 'Touchpad]' ~/.config/kcminputrc    # 组名是 [Libinput][vendor][prod
 `org.kde.touchpad.toggle` 间隔 1–5ms），两次切换互相抵消，所以看起来“怎么按都是开/都是关”。
 安装器的做法是：用用户级组件 `~/.local/share/kglobalaccel/org.kde.touchpadshortcuts.desktop`
 覆盖系统那份，把“切换”动作的 Exec 换成 `~/.local/bin/kos-touchpad-toggle`（400ms 防抖，
-一次按键只切一次），并去掉“只开/只关”两个动作。
+一次按键只切一次），并且只留“切换”一个动作，三个触摸板键都绑在它上面。
 
 ~~~bash
-cat ~/.local/share/kglobalaccel/org.kde.touchpadshortcuts.desktop   # Exec 指向防抖包装脚本
-grep -A3 touchpadshortcuts ~/.config/kglobalshortcutsrc              # Toggle 绑三个键，Enable/Disable = none
+# 组件只剩一个动作，Exec 指向防抖包装脚本
+cat ~/.local/share/kglobalaccel/org.kde.touchpadshortcuts.desktop
+
+# KGlobalAccel 运行时看到的样子：只有 ToggleTouchpad，键位数组非空
+qdbus6 --literal org.kde.kglobalaccel /component/org_kde_touchpadshortcuts_desktop \
+  org.kde.kglobalaccel.Component.allShortcutInfos
+
+# 防抖状态：每按一次会刷新时间戳（纳秒）
+ls -l ~/.local/state/kos-touchpad/last-toggle
 ~~~
 
-**改完必须注销重登**（KGlobalAccel 在会话启动时读组件与绑定）。重登后一次按键就是一次开关。
+`~/.config/kglobalshortcutsrc` 里**没有** `[services][org.kde.touchpadshortcuts.desktop]` 是正常的：
+键位来自组件里的 `X-KDE-Shortcuts`，KGlobalAccel 启动时会把和默认值相同的组整条剪掉。
+
+**改完必须注销重登**（KGlobalAccel 在会话启动时读组件与键位）。重登后一次按键就是一次开关。
 换机器/换键盘后按键不同，到 系统设置 → 快捷键 → 触摸板 手动绑一次即可。
 
 ## 装坏了怎么退

@@ -346,19 +346,19 @@ configure_keyboard_repeat() {
 # Fn+F10（触摸板开关）：这台机器按一次会被 KDE 的 KGlobalAccel 触发两次
 # （实测两次 org.kde.touchpad.toggle 间隔 1-5ms），两次切换互相抵消——表现就是
 # "只能开、关不掉"。做法：用用户级组件覆盖 /usr/share/kglobalaccel 里的那份，
-# 把"切换"动作的 Exec 换成带 400ms 防抖的 kos-touchpad-toggle（assets/scripts/desktop），
-# 并把"只开/只关"两个动作去掉。KGlobalAccel 在会话启动时读这个文件。
+# 把"切换"动作的 Exec 换成带 400ms 防抖的 kos-touchpad-toggle（assets/config/shortcuts），
+# 并且只留"切换"一个动作，三个触摸板键都绑到它。KGlobalAccel 在会话启动时读这个文件。
+#
+# 键位只写在组件里（X-KDE-Shortcuts），不再写 kglobalshortcutsrc：实测 KGlobalAccel
+# 启动时会把和组件默认值相同的 [services] 组整条剪掉，写了也留不住，反而让排障的人
+# 去 grep 一个永远不存在的组。
 configure_touchpad_shortcuts() {
   log "Making the touchpad hotkey a real toggle (Fn+F10)..."
   if [ "$DRY_RUN" -eq 1 ]; then
     log "[dry-run] install kos-touchpad-toggle and override the touchpad shortcuts component"
     return 0
   fi
-  if ! have kwriteconfig6; then
-    warn "kwriteconfig6 missing; skipping the touchpad hotkey rebind"
-    return 0
-  fi
-  install_file "$ASSET_DIR/scripts/desktop/kos-touchpad-toggle" "$HOME/.local/bin/kos-touchpad-toggle" 755
+  install_file "$ASSET_DIR/config/shortcuts/kos-touchpad-toggle" "$HOME/.local/bin/kos-touchpad-toggle" 755
   write_file "$HOME/.local/share/kglobalaccel/org.kde.touchpadshortcuts.desktop" <<EOF
 [Desktop Entry]
 Type=Application
@@ -375,11 +375,6 @@ Name[zh_CN]=切换触摸板
 Exec=$HOME/.local/bin/kos-touchpad-toggle
 X-KDE-Shortcuts=Touchpad Toggle\tTouchpad On\tTouchpad Off
 EOF
-  backup_file "$HOME/.config/kglobalshortcutsrc"
-  local grp=org.kde.touchpadshortcuts.desktop
-  kwriteconfig6 --file kglobalshortcutsrc --group services --group "$grp" --key ToggleTouchpad $'Touchpad Toggle\tTouchpad On\tTouchpad Off' --notify
-  kwriteconfig6 --file kglobalshortcutsrc --group services --group "$grp" --key EnableTouchpad none --notify
-  kwriteconfig6 --file kglobalshortcutsrc --group services --group "$grp" --key DisableTouchpad none --notify
   log "Touchpad hotkey: Touchpad On/Off/Toggle -> debounced toggle"
 }
 
