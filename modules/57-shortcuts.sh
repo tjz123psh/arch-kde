@@ -223,7 +223,9 @@ configure_launcher_shortcuts() {
   local state_dir="${XDG_STATE_HOME:-$HOME/.local/state}/quickshell/kos/shortcuts"
   local config="$state_dir/config.json"
   mkdir -p "$state_dir"
-  python3 - "$config" <<'PY'
+  # KOS 自己的快捷键配置之前没进备份：改坏了没有能拷回去的原件。
+  backup_file "$config"
+  if ! python3 - "$config" <<'PY'
 from pathlib import Path
 import json
 import sys
@@ -236,7 +238,9 @@ if path.exists():
         if isinstance(loaded, dict):
             data.update(loaded)
     except Exception:
-        pass
+        # 文件坏了就别拿一份只剩 launcher 的新对象覆盖它，留给用户/重跑处理。
+        print("invalid JSON: " + str(path), file=sys.stderr)
+        sys.exit(3)
 overrides = data.get("overrides")
 if not isinstance(overrides, dict):
     overrides = {}
@@ -246,6 +250,9 @@ data["version"] = 1
 data["overrides"] = overrides
 path.write_text(json.dumps(data, ensure_ascii=False, indent=2) + "\n")
 PY
+  then
+    warn "KOS shortcut overrides not written: $config is not valid JSON (left untouched)"
+  fi
   log "Win -> dock app launcher, Win+O -> KOS quick search/launcher"
 }
 

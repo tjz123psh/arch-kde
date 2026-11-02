@@ -13,9 +13,15 @@ install_wallpapers() {
     log "[dry-run] copy $ASSET_DIR/wallpapers -> $dst"
     return 0
   fi
-  mkdir -p "$dst"
-  cp -n "$ASSET_DIR"/wallpapers/* "$dst"/ 2>/dev/null || true
-  chmod 644 "$dst"/* 2>/dev/null || true
+  if ! mkdir -p "$dst"; then
+    warn "无法创建壁纸目录 $dst；壁纸库没装（重跑安装器可试）"
+    return 0
+  fi
+  # 壁纸是可降级项：失败只 warn，别用 `2>/dev/null || true` 吞掉。
+  if ! cp -n "$ASSET_DIR"/wallpapers/* "$dst"/; then
+    warn "复制壁纸到 $dst 失败，壁纸库可能不完整（重跑安装器可修）"
+  fi
+  chmod 644 "$dst"/* 2>/dev/null || warn "给壁纸设 644 失败（可能不影响显示）"
   log "Wallpapers in gallery: $(find "$dst" -maxdepth 1 -type f | wc -l)"
 }
 
@@ -48,6 +54,9 @@ configure_touchpad() {
     warn "kwriteconfig6/udevadm missing; skipping the touchpad settings"
     return 0
   fi
+  # 备份要赶在第一次写之前：kcminputrc 后面还会被 configure_kde_global_appearance 碰，
+  # 那边的 backup_file 只能存到“已经被改过”的版本。
+  backup_file "$HOME/.config/kcminputrc"
   local dev name vendor product found=0
   for dev in /dev/input/event*; do
     [ -e "$dev" ] || continue
@@ -267,6 +276,7 @@ enable_kos_theme_animation() {
     warn "ThemeWallpaperService.qml not found; skipping the animated-theme patch"
     return 0
   fi
+  backup_file "$qml"
 
   python3 - "$qml" <<'PY'
 from pathlib import Path
@@ -373,6 +383,7 @@ enable_kos_subtle_dock_reveal() {
     warn "DockRevealHandle.qml not found; skipping the dock hint tweak"
     return 0
   fi
+  backup_file "$qml"
 
   python3 - "$qml" <<'PY'
 from pathlib import Path
@@ -539,6 +550,7 @@ enable_kos_frosted_settings() {
     warn "KOS Settings main.qml not found; skipping the translucent background"
     return 0
   fi
+  backup_file "$qml"
 
   python3 - "$qml" <<'PY'
 from pathlib import Path
@@ -877,21 +889,42 @@ PY
     warn "KOS 锁屏 QML 的圆角锚点对不上（上游改过？），14px 密码框补丁没写上；壁纸不受影响"
   fi
 
-  python3 - "$dir/LockWidgets.qml" <<'PY'
+  local widgets_ok=1
+  if ! python3 - "$dir/LockWidgets.qml" <<'PY'
 from pathlib import Path
 import sys
 
 path = Path(sys.argv[1])
 s = path.read_text()
-if "Column {\n            spacing: 4\n            visible: false" not in s:
-    s = s.replace("        Column {\n            spacing: 4\n",
-                  "        Column {\n            spacing: 4\n            visible: false\n", 1)
-if "Canvas {\n            id: dial\n            visible: false" not in s:
-    s = s.replace("        Canvas {\n            id: dial\n",
-                  "        Canvas {\n            id: dial\n            visible: false\n", 1)
+
+# (已经打过的标记, 锚点, 替换)
+patches = [
+    ("Column {\n            spacing: 4\n            visible: false",
+     "        Column {\n            spacing: 4\n",
+     "        Column {\n            spacing: 4\n            visible: false\n"),
+    ("Canvas {\n            id: dial\n            visible: false",
+     "        Canvas {\n            id: dial\n",
+     "        Canvas {\n            id: dial\n            visible: false\n"),
+]
+
+if all(marker in s for marker, _, _ in patches):
+    sys.exit(0)
+
+for marker, old, _ in patches:
+    if marker not in s and old not in s:
+        print("missing anchor: " + old.splitlines()[1].strip(), file=sys.stderr)
+        sys.exit(3)
+
+for marker, old, new in patches:
+    if marker not in s:
+        s = s.replace(old, new, 1)
 path.write_text(s)
 PY
-  if [ "$cosmetics_ok" -eq 1 ]; then
+  then
+    widgets_ok=0
+    warn "KOS 锁屏的日历/表盘锚点对不上（上游改过？），隐藏补丁没写上；壁纸和登录不受影响"
+  fi
+  if [ "$cosmetics_ok" -eq 1 ] && [ "$widgets_ok" -eq 1 ]; then
     log "KOS lock screen styled: clock+weather+lyrics, rounded password box"
   fi
 }
