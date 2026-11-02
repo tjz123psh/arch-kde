@@ -1,0 +1,11 @@
+[Unit]
+Description=Daily check for new KOS desktop releases
+
+[Timer]
+# 中午触发：01:00 那档基本都在睡眠，Persistent 会攒到下次开机才跑，观感像"没在工作"
+OnCalendar=*-*-* 12:00:00
+RandomizedDelaySec=15m
+Persistent=true
+
+[Install]
+WantedBy=timers.target

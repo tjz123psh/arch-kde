@@ -1,0 +1,16 @@
+[Desktop Entry]
+Type=Application
+Name=KOS 桌面更新
+Name[en]=KOS Desktop Update
+GenericName=KOS Desktop Updater
+GenericName[en]=KOS Desktop Updater
+Comment=检查并更新 KOS（NextKDE）桌面外壳，本地补丁会自动保留并重打
+Comment[en]=Check and update the KOS (NextKDE) desktop shell, keeping local patches
+Exec=kitty --class kos-update @HOME@/scripts/kos/update.sh --hold
+TryExec=kitty
+Icon=system-software-update
+Terminal=false
+Categories=System;
+Keywords=KOS;NextKDE;update;updater;kos;更新;升级;
+StartupNotify=true
+X-GNOME-UsesNotifications=true

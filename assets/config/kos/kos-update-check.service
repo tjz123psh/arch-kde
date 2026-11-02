@@ -1,0 +1,14 @@
+[Unit]
+Description=KOS desktop update check (notify only, never installs)
+Documentation=file:%h/scripts/kos/README.md
+# 脚本被删除/移动时直接跳过，别每天留一条 failed
+ConditionPathExists=%h/scripts/kos/update.sh
+
+[Service]
+Type=oneshot
+ExecStart=%h/scripts/kos/update.sh check --notify --quiet
+SyslogIdentifier=kos-update-check
+# 10 = 有新版本（已发通知）；0 = 已是最新或离线跳过
+SuccessExitStatus=0 10
+# 脚本内 ls-remote 单次最多 30s、失败重试一次，180s 足够
+TimeoutStartSec=180
