@@ -254,14 +254,16 @@ main() {
   install_desktop_config
   install_wallpapers
   seed_default_wallpaper
-  install_user_scripts || warn "Maintenance/package scripts failed to install; rerun later"
-  install_kde_shortcuts || warn "KDE shortcuts setup failed; rerun later"
-  install_wallpaper_shortcut || warn "Wallpaper shortcut setup failed; rerun later"
-  install_vellum_shortcuts || warn "Vellum shortcuts setup failed; rerun later"
-  install_shortcut_viewer_shortcut || warn "Shortcut viewer setup failed; rerun later"
-  install_record_menu_shortcut || warn "Record menu shortcut setup failed; rerun later"
-  install_hotspot_shortcut || warn "Hotspot menu shortcut setup failed; rerun later"
-  configure_keyboard_repeat || warn "Keyboard repeat setup failed; rerun later"
+  # 这些阶段失败只 warn；用 optional_stage 而不是 `|| warn`：后者的 errexit 抑制会让
+  # 函数中途失败也不报错（见 lib/common.sh 的注释）。
+  optional_stage "Maintenance/package scripts failed to install; rerun later" install_user_scripts
+  optional_stage "KDE shortcuts setup failed; rerun later" install_kde_shortcuts
+  optional_stage "Wallpaper shortcut setup failed; rerun later" install_wallpaper_shortcut
+  optional_stage "Vellum shortcuts setup failed; rerun later" install_vellum_shortcuts
+  optional_stage "Shortcut viewer setup failed; rerun later" install_shortcut_viewer_shortcut
+  optional_stage "Record menu shortcut setup failed; rerun later" install_record_menu_shortcut
+  optional_stage "Hotspot menu shortcut setup failed; rerun later" install_hotspot_shortcut
+  optional_stage "Keyboard repeat setup failed; rerun later" configure_keyboard_repeat
 
   run_doctor quick || true
   summary

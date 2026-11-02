@@ -63,6 +63,23 @@ sudo_run() {
   run sudo "$@"
 }
 
+# 可选阶段：失败只 warn，不中断安装。
+#
+# 不能直接写 `stage || warn "..."`：bash 在 `||` 列表里调用函数时会忽略 errexit，
+# 函数体内的 `set -e` 也不生效，于是中途某个 kwriteconfig6 / write_file / ln 失败后
+# 函数继续往下跑、最后以 log 收尾返回 0，warn 永远不会触发。
+# 这里把阶段放进子 shell 并重新打开 errexit：子 shell 是一条独立命令，不在条件列表里，
+# -e 正常生效；父 shell 先关掉 -e 收退出码，失败才 warn。
+optional_stage() {
+  local label="$1" fn="$2" rc=0
+  set +e
+  ( set -Eeuo pipefail; "$fn" )
+  rc=$?
+  set -e
+  [ "$rc" -eq 0 ] || warn "$label"
+  return 0
+}
+
 confirm() {
   if [ "$ASSUME_YES" -eq 1 ]; then return 0; fi
   local ans
@@ -132,14 +149,40 @@ record_created() {
 
 backup_file() {
   local src="$1"
-  local rel dst sum
-  if [ ! -e "$src" ]; then return 0; fi
-  rel="${src#"$HOME"/}"
+  local rel dst sum needs_sudo=0
+  if [ -e "$src" ]; then
+    :
+  elif [ "${src#"$HOME"/}" != "$src" ]; then
+    # 自己 HOME 下看不见就是真不存在
+    return 0
+  elif ! sudo -n test -e "$src" 2>/dev/null; then
+    # 既不在 HOME 下、又没法用 sudo 确认：当成不存在（例如 --dry-run、无 sudo）
+    return 0
+  else
+    # root-only 路径：/boot 是 700 root，普通用户连 stat 都做不到，
+    # 这里的 [ -e ] 会静默失败，导致 grub.cfg 这类文件从来没进过备份。
+    needs_sudo=1
+  fi
+  if [ "$needs_sudo" -eq 1 ]; then
+    rel="root/${src#/}"
+  else
+    rel="${src#"$HOME"/}"
+    rel="${rel#/}"
+  fi
   dst="$BACKUP_DIR/$rel"
   if [ -e "$dst" ]; then return 0; fi
   mkdir -p "$(dirname "$dst")"
-  cp -a "$src" "$dst"
-  sum=$(sha256sum "$src" | awk '{print $1}')
+  if [ "$needs_sudo" -eq 1 ]; then
+    if ! sudo cp -a -- "$src" "$dst"; then
+      warn "Could not back up $src (needs root); continuing without a backup"
+      return 0
+    fi
+    sudo chown -- "$(id -u):$(id -g)" "$dst" 2>/dev/null || true
+    sum=$(sudo sha256sum -- "$src" | awk '{print $1}')
+  else
+    cp -a -- "$src" "$dst"
+    sum=$(sha256sum -- "$src" | awk '{print $1}')
+  fi
   echo "$src $sum $dst" >> "$MANIFEST"
 }
 
