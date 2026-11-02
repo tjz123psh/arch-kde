@@ -47,6 +47,8 @@ bash install.sh --yes       # 全装
 - **外观**：BreezeDark + WhiteSur 图标/光标，SilentSDDM 登录页，13 张 KOS 壁纸（默认壁纸开箱即用，`--wallpaper` 可换）
 - **窗口**：新窗口默认 1304x770（`--window-size WxH` 可改，只在第一次出现时套一次；对话框 / 桌面面板不受影响）
 - **软件**：Chrome、VS Code、Obsidian、Docker、gh、yazi 等
+- **KOS 更新**：`kos` 命令（`kos check` / `kos update` / `kos rollback` / `kos patch`，无参数进菜单），
+  桌面启动器与每日 12:00 的只检查定时器；本地补丁会自动保留并重打
 - **快捷键**：Alt+Enter 终端、Alt+Q 关窗、Win+O 启动器、Win+/ 快捷键查看器、Print 区域截图、Alt+F5 录屏、Alt+F6 热点
 
 ## 文档

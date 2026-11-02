@@ -33,6 +33,10 @@
 - 触摸板：滚动方向改成“内容跟手指走”（和 Windows 一致，`NaturalScroll=true`，由 `modules/85-config.sh` 写进 `kcminputrc`）；`Fn+F10` 是真正的开关——安装器用用户级组件 `~/.local/share/kglobalaccel/org.kde.touchpadshortcuts.desktop` 覆盖系统那份，把“切换”动作的 Exec 换成 `~/.local/bin/kos-touchpad-toggle`（400ms 防抖，源码在 `assets/config/shortcuts/`），三个触摸板键都绑在这一个动作上；改完要注销重登（KGlobalAccel 在会话启动时读组件）
 - `Win+/` 快捷键查看器：KOS + KDE 快捷键按分类列出，媒体键显示成中文键名，Meta 显示为 Win
 - `rclone` 随安装器一起装（云盘同步 / 异地备份用；不写任何远端配置）
+- `kos` 命令：KOS 桌面更新器（`status` / `check` / `update` / `rollback` / `patch` / `build` / `logs`，
+  无参数进 fzf 菜单）。上游没有 Arch 包，桌面本体只能走上游发布；脚本会先导出本地补丁再切换源码、
+  后重打。另装启动器 `kos-update.desktop` 与 `kos-update-check.timer`（每日 12:00 只检查不安装）。
+  源文件在 `assets/scripts/kos/`（含 69 项回归测试），用户级单元在 `assets/config/kos/`。
 - 窗口动效：KOS 动画走 genie（最小化吸进 Dock），叠加 KDE 自带的摆动窗口（拖动/缩放形变）
 - 默认壁纸：安装器把 Plasma 桌面和 KOS 都指到图集里的一张（默认 `樱吹雪.png`，`--wallpaper` 可改），
   不再出现 KDE 默认壁纸；用户自己在图集里选过的图不会被重跑覆盖
@@ -50,7 +54,7 @@ lib/common.sh            日志 / 备份 / install_file / write_file / sudo 保�
 modules/00..95           按序号 source 进同一个 shell
 assets/config/           应用配置（kitty/fish/yazi/fastfetch/mpv/fuzzel/btop 等）
                          + display / shortcuts：被桌面配置调用的小工具
-assets/scripts/          maintenance / package / desktop / media 四组链到 ~/bin，share 只复制
+assets/scripts/          maintenance / package / desktop / media 四组链到 ~/bin，kos/update.sh → kos，share 只复制
 assets/wallpapers/       13 张壁纸
 docs/                    本文件 + 排障手册
 ```
@@ -68,7 +72,7 @@ docs/                    本文件 + 排障手册
 | `45-ime` / `47-hotspot` / `50-terminal` / `52-configs` | 输入法、热点转发 drop-in、终端、应用配置 |
 | `55-apps` | QQ 启动器去重、Vellum 安装 |
 | `57-shortcuts` | KDE 快捷键、Vellum 截图键 |
-| `58-scripts` | 常驻脚本安装到 `~/scripts`，链接到 `~/bin` |
+| `58-scripts` | 常驻脚本安装到 `~/scripts`，链接到 `~/bin`；`kos` 命令 + 桌面启动器 + 每日检查定时器 |
 | `60-kos` | 取上游源码并用 kosctl 构建安装 |
 | `80-sddm` / `85-config` | 登录主题、桌面配置、锁屏 |
 | `95-doctor` | 安装后复查 |
@@ -136,6 +140,17 @@ bash install.sh --dry-run --yes
    `bash install.sh --yes`**。本机上一次完整安装是 2026-10-29 20:28（早于锁屏壁纸那次重构），
    所以 doctor 现在报的锁屏 `[WARN]` 属于预期，重跑即补。用户 2026-11-02 决定暂不做干净 VM
    复跑，验证以实机幂等重跑为准。
+
+6. **`kos` 命令已纳入安装器；清掉两处旧脚本残留（2026-11-02）**
+   把原先只存在于 `~/scripts/kos/`（`my-script` 仓库，安装器不管）的 KOS 桌面更新器搬进本仓库：
+   脚本 `assets/scripts/kos/update.sh`（含 README 与 69 项回归测试），桌面启动器与用户单元在
+   `assets/config/kos/`；`58-scripts` 把它链成 `~/bin/kos`，写入 `kos-update.desktop`，并
+   `systemctl --user enable --now kos-update-check.timer`（失败只 warn）。桌面文件的 `@HOME@`
+   在安装时替换，不写死用户名。
+   同时清理两处残留：`~/scripts/maintenance/kos-undo`（安装器仓库 `a55e25d` 已删的回滚命令）与
+   `~/scripts/desktop/kos-touchpad-hotkey`（已被 `assets/config/shortcuts/kos-touchpad-toggle`
+   + kglobalaccel 组件取代的 python 旧版），包括对应的 `~/bin` 链接；旧文件副本在
+   `~/.local/state/kos-installer/retired/20261102-*`（kos-undo 可从仓库历史取）。
 
 ## 本机系统级改动（安装器不管）
 
@@ -214,6 +229,7 @@ KOS 壳自己的快捷键存在 `~/.local/state/quickshell/kos/shortcuts/config.
 
 以 `git log` 为准（本节只是最近一次的写作锚点，别当成 HEAD）：
 
+- `2b60494` feat(scripts): ship the KOS desktop updater as the kos command
 - `ea688f8` chore(ci): dry-run without archlinuxcn and the AUR
 - `d2b1fef` fix(doctor): match the current kitty design and state dir
 - `f0807ad` fix(grub): preserve the custom background and never abort the install
