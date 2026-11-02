@@ -24,7 +24,7 @@ lib/common.sh       日志 / 备份 / install_file / write_file / sudo 保活
 modules/00..95      每个阶段一个文件，按序号 source 进同一个 shell
 assets/             配置、壁纸、常驻脚本、GRUB 主题
 assets/config/      应用配置（fcitx5 / kitty / fish / gtk / fontconfig / environment 等）
-assets/scripts/     maintenance / package / desktop 三组常驻脚本（由 58-scripts 装到 ~/scripts）
+assets/scripts/     常驻脚本，按功能分目录（目录可增删；58-scripts 装到 ~/scripts 并把入口链到 ~/bin）
 assets/wallpapers/  13 张壁纸
 docs/               HANDOFF.md（交接状态）+ TROUBLESHOOTING.md（排障手册）
 ```

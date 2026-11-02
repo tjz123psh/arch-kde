@@ -2,7 +2,11 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 # shellcheck shell=bash
 #
-# 用户常驻工具：maintenance / package / desktop / media / kos 五组链到 ~/bin，
+# 用户常驻工具：把 assets/scripts 整个复制到 ~/scripts，再把命令链到 ~/bin。
+# 目录按功能分、可增删；链接规则分三类：
+#   - desktop / media：目录里的可执行脚本全部链接（新增一个就是新命令）；
+#   - maintenance：同上，但测试入口 run 不进 PATH；
+#   - package / kos：显式点名入口（pac / pacr / pacd、kos）。
 # share 只随目录复制、不建命令（被 maintenance 脚本按相对路径读取）。
 # 源文件在 assets/scripts，安装到 ~/scripts，
 # 再把命令软链接到 ~/bin；这样脚本更新不会丢用户配置。

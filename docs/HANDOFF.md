@@ -54,7 +54,7 @@ lib/common.sh            日志 / 备份 / install_file / write_file / sudo 保�
 modules/00..95           按序号 source 进同一个 shell
 assets/config/           应用配置（kitty/fish/yazi/fastfetch/mpv/fuzzel/btop 等）
                          + display / shortcuts：被桌面配置调用的小工具
-assets/scripts/          maintenance / package / desktop / media 四组链到 ~/bin，kos/update.sh → kos，share 只复制
+assets/scripts/          常驻脚本，按功能分目录；58-scripts 装到 ~/scripts，入口链到 ~/bin（share 只复制）
 assets/wallpapers/       13 张壁纸
 docs/                    本文件 + 排障手册
 ```
