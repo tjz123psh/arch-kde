@@ -73,7 +73,11 @@ hw_policy_resolve() {
       legacy)
         NVIDIA_PKG="$NVIDIA_LEGACY_PKGS"
         if [ "${NO_ARCHLINUXCN:-0}" -eq 1 ]; then
-          hw_alert "nvidia-580xx only exists in archlinuxcn, but --no-archlinuxcn was given: set up archlinuxcn first"
+          # 580xx 只在 archlinuxcn。没有那个仓库时把它混进官方包列表，
+          # 结果一定是 pacman 整条事务失败、安装器 die；--help 承诺的是“跳过”。
+          WANT_NVIDIA=0
+          NVIDIA_PKG=
+          hw_alert "nvidia-580xx only exists in archlinuxcn, but --no-archlinuxcn was given: skipping the NVIDIA driver"
         fi
         ;;
       *)
@@ -199,7 +203,7 @@ pacman_fallback() {
     else
       rc=$?
     fi
-    if [ "$attempt" -ge 3 ] || ! _mirror_network_failure "$out"; then
+    if [ "$attempt" -gt 3 ] || ! _mirror_network_failure "$out"; then
       rm -f "$out"
       return "$rc"
     fi
@@ -502,9 +506,18 @@ base-devel git curl jq unzip xdg-utils xdg-user-dirs man-db cmake extra-cmake-mo
 # 用 pacman -Si 判断"当前配置的仓库里有没有"，而不是猜它该在哪个仓库。
 install_archlinuxcn_apps() {
   local p skipped=
-  [ -n "${CN_EXTRA_PKGS:-}" ] || return 0
-  log "Checking optional archlinuxcn apps (${CN_EXTRA_PKGS})..."
+  local -a pkgs=()
   for p in $CN_EXTRA_PKGS; do
+    # --no-asus 承诺不装 ASUS 工具，supergfxctl 也算在内（它只在 archlinuxcn）。
+    if [ "$p" = supergfxctl ] && [ "${HW_ASUS:-1}" -eq 0 ]; then
+      log "Skipping supergfxctl (--no-asus)"
+      continue
+    fi
+    pkgs+=("$p")
+  done
+  [ "${#pkgs[@]}" -eq 0 ] && return 0
+  log "Checking optional archlinuxcn apps (${pkgs[*]})..."
+  for p in "${pkgs[@]}"; do
     if [ "$DRY_RUN" -eq 1 ]; then
       log "[dry-run] if pacman -Si $p succeeds, run sudo pacman -S --needed --noconfirm $p"
       continue
@@ -637,8 +650,7 @@ install_aur_packages() {
 
   # 中文应用（2026-10-20 用户指定）：QQ（官方版 + Wayland 修复版）、微信、MusicFree
   # linuxqq-wayland-fix 修了 Wayland 下屏幕共享/共享声音/剪贴板；两个都装，
-  # 但只把修复版暴露到菜单里。安装器只装包，不做桌面文件改写 ——
-  # 菜单去重（老项目的 fix_china_app_launchers）没有移植过来，属于已知缺口。
+  # 但只把修复版暴露到菜单里（55-apps.sh 的 fix_qq_launcher 用用户级 qq.desktop 隐藏官方版）。
   list="$list linuxqq linuxqq-wayland-fix wechat-bin musicfree-desktop-wayland-bin"
 
   # 命令行 AI 工具（2026-10-21 用户指定）：pi 与 opencode。上游只发二进制；
