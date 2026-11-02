@@ -83,3 +83,8 @@ jobs:
       # 全阶段走一遍。--dry-run 不克隆源码、不装包，只打印每一步。
       - name: Every stage, without touching the system
         run: su - builder -c "cd '$GITHUB_WORKSPACE' && bash install.sh --dry-run --yes"
+
+      # AGENTS.md 的第五条门禁：关掉 archlinuxcn 和 AUR 时也要能把全阶段走完，
+      # 否则 --no-archlinuxcn / --no-aur 的分支只有提交者自己在 TTY 里跑过。
+      - name: Dry run without archlinuxcn or the AUR
+        run: su - builder -c "cd '$GITHUB_WORKSPACE' && bash install.sh --dry-run --yes --no-archlinuxcn --no-aur"
