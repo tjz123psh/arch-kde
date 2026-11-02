@@ -78,9 +78,8 @@ What gets installed:
                      when there is no wallpaper yet, unless you pass it again.
 
   --window-size WxH  Size new application windows open at (default 1304x770).
-                     Applied once when the window first appears; dialogs, the
-                     desktop/panel layers and the Win+/ shortcut viewer keep
-                     their own size.
+                     Applied once when the window first appears; dialogs and
+                     the desktop/panel layers keep their own size.
 
 Skip:
   --no-sddm-theme    Leave the SDDM login theme alone

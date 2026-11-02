@@ -50,7 +50,7 @@ lib/common.sh            日志 / 备份 / install_file / write_file / sudo 保�
 modules/00..95           按序号 source 进同一个 shell
 assets/config/           应用配置（kitty/fish/yazi/fastfetch/mpv/fuzzel/btop 等）
                          + display / shortcuts：被桌面配置调用的小工具
-assets/scripts/          maintenance / package / desktop 三组常驻脚本
+assets/scripts/          maintenance / package / desktop / media 四组链到 ~/bin，share 只复制
 assets/wallpapers/       13 张壁纸
 docs/                    本文件 + 排障手册
 ```
@@ -70,7 +70,7 @@ docs/                    本文件 + 排障手册
 | `57-shortcuts` | KDE 快捷键、Vellum 截图键 |
 | `58-scripts` | 常驻脚本安装到 `~/scripts`，链接到 `~/bin` |
 | `60-kos` | 取上游源码并用 kosctl 构建安装 |
-| `80-sddm` / `85-config` | 登录主题、桌面配置、锁屏、OSD 模块 |
+| `80-sddm` / `85-config` | 登录主题、桌面配置、锁屏 |
 | `95-doctor` | 安装后复查 |
 
 ## 新会话第一步
@@ -126,6 +126,16 @@ bash install.sh --dry-run --yes
    `doctor` 报 `[WARN]`，重跑 `bash install.sh --yes` 恢复。2026-10-29 用
    `/usr/lib/kscreenlocker_greet --testing` 截图验证：上游 QML + 这条 kscreenlockerrc 就能正常出图
    （本机 16:48 的 KOS 更新把旧版包内补丁冲掉，正是那次黑屏的原因）。
+
+5. **2026-11-02 修复批次：行为已改，待一次完整实机安装验证**
+   这一批改的是行为：可选阶段失败会上报（`optional_stage`）、root-only 文件（`/boot/grub/grub.cfg`）
+   进备份、`--power` 从 tlp 回切 ppd 会 unmask、`--no-archlinuxcn` 下 NVIDIA 驱动按承诺跳过、
+   `--no-asus` 真的不装 supergfxctl、`--ime rime` 写入 rime 的 profile、GRUB / SDDM 主题失败只
+   warn、两个锁屏补丁都做锚点检查、镜像降级次数与文档一致。
+   静态门禁（语法 / shellcheck / `--check` / 两条 `--dry-run`）已过；**还没跑过完整
+   `bash install.sh --yes`**。本机上一次完整安装是 2026-10-29 20:28（早于锁屏壁纸那次重构），
+   所以 doctor 现在报的锁屏 `[WARN]` 属于预期，重跑即补。用户 2026-11-02 决定暂不做干净 VM
+   复跑，验证以实机幂等重跑为准。
 
 ## 本机系统级改动（安装器不管）
 
@@ -190,9 +200,13 @@ KOS 壳自己的快捷键存在 `~/.local/state/quickshell/kos/shortcuts/config.
 ## 约定（不要破坏）
 
 - 以桌面用户身份运行，**不要整脚本 sudo**；KOS 配置写 `~/.config/quickshell/kos`。
-- 不碰分区、挂载、bootloader、内核安装/切换、时区。
+- 不碰分区、挂载、bootloader 本体、内核安装/切换、时区；例外是 GRUB **主题**
+  （只改 `/etc/default/grub` 的显示项 + `grub-mkconfig`，改前备份、失败只 warn）。
 - 写系统文件先 `backup_file`；备份在 `~/.local/state/kos-installer/backup/<时间>/`。
-- KOS 本体失败 `die`；独立应用 / 锁屏 / 主题 / OSD / 壁纸失败只 `warn`。
+  root-only 路径（`/boot` 是 700 root）靠 `sudo` 备份，落在 `backup/<时间>/root/…`。
+- KOS 本体失败 `die`；独立应用 / 锁屏 / 主题 / 壁纸失败只 `warn`（可选阶段走 `optional_stage`，
+  它会在子 shell 里恢复 errexit：直接写 `stage || warn` 会让函数体内的 `set -e` 失效、
+  中途失败也不报错）。
 - 图片：“截图”和“壁纸”不要混淆；用户说的“镜像文件”指 pacman mirrorlist，不是软件包。
 - 不要把测试 VM 密码、token、密钥写进仓库、文档或提交信息。
 
@@ -200,7 +214,9 @@ KOS 壳自己的快捷键存在 `~/.local/state/quickshell/kos/shortcuts/config.
 
 以 `git log` 为准（本节只是最近一次的写作锚点，别当成 HEAD）：
 
-- `b0b94a1` fix(lock): take the lock screen wallpaper from kscreenlockerrc, not the KOS package
-- `ff9e7cc` refactor(input): ship the touchpad wrapper from config/ and stop shadowing shortcutsrc
-- `b552512` chore: drop a stray __pycache__ and ignore bytecode
-- `41e9a21` fix(input): debounce the Fn+F10 touchpad toggle
+- `ea688f8` chore(ci): dry-run without archlinuxcn and the AUR
+- `d2b1fef` fix(doctor): match the current kitty design and state dir
+- `f0807ad` fix(grub): preserve the custom background and never abort the install
+- `e04b369` fix(sddm): keep the login theme optional and fix the Current fallback
+- `702a908` fix(desktop): back up KOS files before patching and check every anchor
+- `6a2a98f` fix(installer): report failures in the optional stages

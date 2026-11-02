@@ -12,8 +12,11 @@ bash install.sh --dry-run    # 只打印
 - 日志：`~/.local/state/kos-installer/log/install-*.log`
 - doctor 报告：`~/.local/state/kos-installer/doctor-*.txt`
 - 这两样只保留最近 20 份（每次运行自动清理；要改数量就 `KOS_STATE_KEEP=50 bash install.sh ...`）
-- 所有被改过的配置：`~/.local/state/kos-installer/backup/<时间>/`
-  - `manifest.txt` 记录原路径、sha256、备份路径
+- 备份：`~/.local/state/kos-installer/backup/<时间>/`
+  - `manifest.txt` 记录原路径、sha256、备份路径；root-only 文件（如 `/boot/grub/grub.cfg`）
+    存在 `backup/<时间>/root/…` 下
+  - 例外：整目录复制（`/etc/sddm/themes/silent`）与 AccountsService 头像不在 manifest 里，
+    改前自己留一份原件
 
 ## 镜像 / 网络
 
@@ -146,8 +149,9 @@ ls -l ~/.local/share/kos/lockscreen.png
 `doctor` 的 `== 锁屏 ==` 报 `[MISS]` = 这个键或文件不在了，重跑安装器。
 
 密码框圆角、隐藏日历/表盘是包内 QML 补丁，KOS 重建锁屏包后会回到上游原版（`doctor` 报
-`[WARN]`），只影响观感；重跑安装器会把它们打回去。补丁锚点对不上时安装器会 `warn` 并
-**整份不写**（不写半成品，避免锁屏 QML 直接报错），这时要按新 QML 改 `modules/85-config.sh`。
+`[WARN]`），只影响观感；重跑安装器会把它们打回去。两个补丁都做锚点检查：锚点对不上时
+安装器只 `warn` 并跳过（不写半成品，避免锁屏 QML 直接报错），这时要按新 QML 改
+`modules/85-config.sh`。
 
 ## KOS shell 起不来 / 黑屏
 
@@ -158,11 +162,13 @@ journalctl --user -u kos-shell -n 100 --no-pager
 
 先看 QML 报错，不要急着重装。常见原因：
 
-- 上游 KOS 更新后 `DesktopEnvironment.qml` 结构变了，安装器的 Python patch 没命中；
-- OSD / 锁屏 QML 写入失败；
+- 上游 KOS 更新后安装器的 Python 锚点 patch 没命中（`SettingsBridgeDesktop.cpp` 的
+  KWin 集成探针、`ThemeWallpaperService.qml` 的动画开关）；
+- 锁屏 QML 写入失败（`doctor` 的 `== 锁屏 ==` 会报 `[WARN]`/`[MISS]`）；
 - 旧备份路径。
 
-安装器改过的文件都有备份，按 `manifest.txt` 恢复单个文件即可。
+安装器写过的配置文件会先备份（见文首的备份目录），按 `manifest.txt` 恢复单个文件即可；
+整目录复制与 AccountsService 头像不在 manifest 里。
 
 ## SDDM 登录页
 
@@ -226,7 +232,8 @@ cat ~/.config/Code/User/argv.json          # VS Code 自己读的运行时参数
 ```
 
 两处都应该出现 `password-store` = `basic`；前者管菜单/终端启动，后者管直接跑
-`/usr/share/code/code` 的情况。
+`/usr/share/code/code` 的情况。文件已经存在时安装器只补缺的那处、不覆盖你的配置：
+`argv.json` 存在但缺这个键时只提示一句，需要你手工加一行。
 
 想改成用钱包加密：删掉那一行里的 `--password-store=basic`，装 `kwalletmanager`、
 建一个 kdewallet 钱包，然后重启 VS Code。
@@ -252,8 +259,9 @@ sudo grub-mkconfig -o /boot/grub/grub.cfg
 壁纸有两个来源，先分清是哪一个：
 
 - **KOS 自己的壁纸**：`~/.local/state/quickshell/kos/wallpaper.ini` 里的 `image=`（shell 盖住桌面时看到的就是它）
-- **Plasma 桌面壁纸**：`~/.config/plasma-org.kde.plasma.desktop-appletsrc` 里的 `[Containments][1][Wallpaper][org.kde.image][General] Image=`
-  （KOS shell 启动前那几秒、以及没有 KOS 的时候看到的就是它）
+- **Plasma 桌面壁纸**：`~/.config/plasma-org.kos.desktop-appletsrc` 里的 `[Containments][1][Wallpaper][org.kde.image][General] Image=`
+  （KOS 把 shell 包换成了 `org.kos.desktop`，plasmashell 因此用这个文件名；没装 KOS 的普通 KDE
+  才是 `plasma-org.kde.plasma.desktop-appletsrc`。两份同时存在时以 KOS 那份为准。）
 
 全新机器装完第一次登录前，appletsrc 还不存在，安装器不会去伪造它（Plasma 会当成无主配置丢掉），
 而是装一个首登自启动：`~/.config/autostart/kos-wallpaper-first-login.desktop` →
@@ -265,7 +273,7 @@ sudo grub-mkconfig -o /boot/grub/grub.cfg
 ```bash
 ls ~/.local/share/kos/gallery                     # 图集在不在
 cat ~/.local/state/kos-installer/log/wallpaper-first-login.log
-grep -A2 'org.kde.image' ~/.config/plasma-org.kde.plasma.desktop-appletsrc | head
+grep -A2 'org.kde.image' ~/.config/plasma-org.kos.desktop-appletsrc | head
 ```
 
 手动设一次：`plasma-apply-wallpaperimage ~/.local/share/kos/gallery/落霞.png`。

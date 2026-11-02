@@ -4,7 +4,8 @@
 Quickshell 外壳、KOS 设置与控制中心、kitty + fish 终端、fcitx5 中文输入、SilentSDDM 登录主题、13 张壁纸，外加一套常用软件和快捷键。
 
 - 桌面本体来自上游 [NextKDE](https://github.com/SuceV587/NextKde)，本仓库只负责“装”和少量用户配置
-- 破坏性动作（分区 / 挂载 / 内核 / bootloader / 时区）一律不碰，那些都是 archinstall 的职责
+- 破坏性动作（分区 / 挂载 / 内核 / bootloader / 时区）一律不碰，那些都是 archinstall 的职责；
+  唯一例外是 GRUB **主题**（只改 `/etc/default/grub` 的显示相关项并重生成 `grub.cfg`，改前备份、失败只 warn）
 
 ## 快速开始
 

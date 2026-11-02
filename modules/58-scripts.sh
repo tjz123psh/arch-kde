@@ -2,7 +2,8 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 # shellcheck shell=bash
 #
-# 用户常驻工具：maintenance / package / share 三组脚本。
+# 用户常驻工具：maintenance / package / desktop / media 四组链到 ~/bin，
+# share 只随目录复制、不建命令（被 maintenance 脚本按相对路径读取）。
 # 源文件在 assets/scripts，安装到 ~/scripts，
 # 再把命令软链接到 ~/bin；这样脚本更新不会丢用户配置。
 
