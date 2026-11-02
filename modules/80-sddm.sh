@@ -179,7 +179,12 @@ setup_sddm_theme() {
     pkg_installed "$p" || missing+=("$p")
   done
   if [ ${#missing[@]} -gt 0 ]; then
-    sudo_run pacman -S --needed --noconfirm "${missing[@]}"
+    # SDDM 主题是可降级项：依赖装不上只 warn，不能把整安装卡在这里
+    # （模块在 main 里是裸调用，set -e 会直接把安装器带下去）。
+    if ! sudo_run pacman -S --needed --noconfirm "${missing[@]}"; then
+      warn "SDDM 主题依赖安装失败，保留现有登录主题（缺：${missing[*]}）"
+      return 0
+    fi
   fi
 
   log "安装 sddm-silent-theme（AUR）"
@@ -241,8 +246,17 @@ CONF
     backup_file /etc/sddm.conf
     if sudo grep -q '^\[Theme\]' /etc/sddm.conf; then
       sudo sed -i '/^\[Theme\]/,/^\[/ s/^Current=.*/Current=silent/' /etc/sddm.conf
-      sudo grep -q '^Current=silent' /etc/sddm.conf ||
-        printf 'Current=silent\n' | sudo tee -a /etc/sddm.conf >/dev/null
+      # 段里没有 Current= 时插在 [Theme] 段内。追加到文件末尾会落到后面的 section，
+      # 下次重跑 grep 又能找到这行，于是永远不会被纠正。
+      if ! sudo awk '
+        BEGIN { found = 0 }
+        /^\[Theme\]/ { in_theme = 1; next }
+        in_theme && /^\[/ { exit }
+        in_theme && /^Current=/ { found = 1 }
+        END { exit !found }
+      ' /etc/sddm.conf; then
+        sudo sed -i '/^\[Theme\]/a Current=silent' /etc/sddm.conf
+      fi
     else
       printf '\n[Theme]\nCurrent=silent\n' | sudo tee -a /etc/sddm.conf >/dev/null
     fi
