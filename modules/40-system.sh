@@ -37,7 +37,14 @@ enable_services() {
   sudo_run systemctl enable bluetooth || warn "Failed to enable bluetooth.service; check manually"
 
   if [ "${WANT_PPD:-0}" -eq 1 ]; then
-    sudo_run systemctl enable power-profiles-daemon
+    # 上一次用 --power tlp 跑过会把 ppd mask 掉：不先 unmask，这里的 enable 会直接失败，
+    # 而 enable_services 是裸调用（errexit 生效），整个安装就停在这里。
+    sudo_run systemctl unmask power-profiles-daemon || warn "Failed to unmask power-profiles-daemon; check manually"
+    sudo_run systemctl enable power-profiles-daemon || warn "Failed to enable power-profiles-daemon; check manually"
+    # tlp 与 ppd 二选一：切回 ppd 时把上一次启用的 tlp 关掉，别让两套策略互相覆盖。
+    if systemctl is-enabled tlp >/dev/null 2>&1; then
+      sudo_run systemctl disable tlp || warn "Failed to disable tlp; check manually"
+    fi
   fi
   if [ "${WANT_TLP:-0}" -eq 1 ]; then
     sudo_run systemctl enable tlp
@@ -71,7 +78,7 @@ wifi.backend=iwd
 EOF
   sudo_run systemctl enable iwd
   # 同一条 wlan0 不能两个后端抢：iwd 模式下把 wpa_supplicant 停掉
-  sudo_run systemctl disable wpa_supplicant || true
+  sudo_run systemctl disable wpa_supplicant || warn "Failed to disable wpa_supplicant; it and iwd may fight over wlan0"
   warn "Switched to the iwd backend. If the Wi-Fi list is empty: delete /etc/NetworkManager/conf.d/10-iwd-backend.conf and run sudo systemctl enable --now wpa_supplicant to roll back"
 }
 
