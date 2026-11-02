@@ -32,13 +32,31 @@ setup_grub_theme() {
 
   log "安装 GRUB 主题：$theme_name"
   # /boot 可能是 vfat，不能放符号链接：用 -L 跟随链接复制。
-  # 不再 rm -rf 整个目录：用户可能把 background.jpg 换成了自己的图，删了没有备份能救。
-  # 原地覆盖仓库里的文件即可，主题用不到的旧文件留着也无害。
-  sudo mkdir -p "$theme_dir"
-  if ! sudo cp -rL "$theme_src/." "$theme_dir/"; then
+  # 不再 rm -rf 整个目录：用户可能把 background.jpg 换成了自己的图。
+  # 先复制到临时目录再搬进去：用户换过的 background.jpg 不覆盖，其余文件照常更新；
+  # theme_dir 在 /boot 下（通常是 700 root），判断和比较都得走 sudo。
+  if ! sudo mkdir -p "$theme_dir"; then
+    warn "无法创建 $theme_dir，跳过 GRUB 主题（重跑不影响安装）"
+    return 0
+  fi
+  local staged
+  staged=$(mktemp -d)
+  if ! cp -rL "$theme_src/." "$staged"/; then
+    rm -rf -- "$staged"
+    warn "复制 GRUB 主题到临时目录失败，跳过 GRUB 主题"
+    return 0
+  fi
+  if sudo test -f "$theme_dir/background.jpg" &&
+     ! sudo cmp -s "$staged/background.jpg" "$theme_dir/background.jpg"; then
+    log "保留用户自定义的 GRUB 背景：$theme_dir/background.jpg"
+    rm -f -- "$staged/background.jpg"
+  fi
+  if ! sudo cp -rL "$staged"/. "$theme_dir"/; then
+    rm -rf -- "$staged"
     warn "复制 GRUB 主题文件失败"
     return 0
   fi
+  rm -rf -- "$staged"
 
   grub_set_kv() {
     local key="$1" value="$2"
@@ -49,10 +67,13 @@ setup_grub_theme() {
     fi
   }
 
-  grub_set_kv GRUB_THEME "\"/boot/grub/themes/$theme_name/theme.txt\""
-  grub_set_kv GRUB_TIMEOUT "5"
-  grub_set_kv GRUB_TIMEOUT_STYLE "menu"
-  grub_set_kv GRUB_GFXMODE "1920x1080,auto"
+  if ! grub_set_kv GRUB_THEME "\"/boot/grub/themes/$theme_name/theme.txt\"" ||
+     ! grub_set_kv GRUB_TIMEOUT "5" ||
+     ! grub_set_kv GRUB_TIMEOUT_STYLE "menu" ||
+     ! grub_set_kv GRUB_GFXMODE "1920x1080,auto"; then
+    warn "写 /etc/default/grub 失败，GRUB 主题可能未生效（重跑不影响安装）"
+    return 0
+  fi
 
   # 键盘：旧版本往 GRUB_PRELOAD_MODULES 里塞了 "usb usb_keyboard"。笔记本内置键盘是
   # AT/PS2（不是 USB），UEFI 下再加载 usb_keyboard 会把输入抢掉，表现就是菜单里
@@ -72,7 +93,8 @@ setup_grub_theme() {
         *) new_preload="${new_preload:+$new_preload }at_keyboard" ;;
       esac
       log "GRUB_PRELOAD_MODULES 含 usb_keyboard（会抢走内置键盘），改成：$new_preload"
-      grub_set_kv GRUB_PRELOAD_MODULES "\"$new_preload\""
+      grub_set_kv GRUB_PRELOAD_MODULES "\"$new_preload\"" ||
+        warn "写 GRUB_PRELOAD_MODULES 失败；GRUB 菜单里键盘可能需要手动修"
       ;;
   esac
 
@@ -81,7 +103,7 @@ setup_grub_theme() {
     warn "grub-mkconfig 失败，GRUB 主题可能未生效"
     return 0
   fi
-  sudo sync
+  sudo sync || warn "sync 失败；GRUB 配置可能未落盘"
   if sudo grep -q "themes/$theme_name" "$grub_cfg"; then
     log "GRUB 主题已生效：$theme_dir"
   else
