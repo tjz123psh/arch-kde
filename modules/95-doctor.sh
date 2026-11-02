@@ -18,14 +18,17 @@ run_doctor() {
     pacman -Q kwin plasma-workspace sddm kitty fish fcitx5 quickshell github-cli docker docker-compose npm jdk25-openjdk 2>&1 || true
     echo
     echo "== KOS 外观 =="
+    local doctor_state="${XDG_STATE_HOME:-$HOME/.local/state}"
     if have kreadconfig6; then
       echo -n "Decoration:  "; kreadconfig6 --file kwinrc --group org.kde.kdecoration2 --key library; echo -n "  theme="; kreadconfig6 --file kwinrc --group org.kde.kdecoration2 --key theme; echo
       echo -n "InputMethod: "; kreadconfig6 --file kwinrc --group Wayland --key InputMethod
       echo -n "KOS 动画:    "; kreadconfig6 --file kwinrc --group Plugins --key kos_dock_window_animationEnabled
       echo -n "键盘重复:    "; kreadconfig6 --file kcminputrc --group Keyboard --key RepeatDelay; echo -n "ms / "; kreadconfig6 --file kcminputrc --group Keyboard --key RepeatRate; echo " 次/秒"
-      echo -n "动态主题:    "; kreadconfig6 --file "$HOME/.local/state/quickshell/kos/wallpaper.ini" --group Wallpaper --key themeAnimated
-      echo -n "Dock 显示:    "; grep -o '"visibilityMode"[[:space:]]*:[[:space:]]*"[^"]*"' "$HOME/.local/state/quickshell/kos/dock/config.json" 2>/dev/null | head -1
-      echo -n "kitty 无标题栏: "; grep -q "decorationpolicy=none" "$HOME/.config/kwinrulesrc" 2>/dev/null && echo "已配置" || echo "未配置"
+      echo -n "动态主题:    "; kreadconfig6 --file "$doctor_state/quickshell/kos/wallpaper.ini" --group Wallpaper --key themeAnimated
+      echo -n "Dock 显示:    "; grep -o '"visibilityMode"[[:space:]]*:[[:space:]]*"[^"]*"' "$doctor_state/quickshell/kos/dock/config.json" 2>/dev/null | head -1
+      # 现行设计保留窗口装饰（没装饰的窗口 KWin 不给缩放把手）。这里以前查的是已经被
+      # 删掉的 kitty_no_decorations 规则，报“未配置”反而像是漏了东西。
+      echo -n "kitty 装饰:  "; if grep -q "decorationpolicy=none" "$HOME/.config/kwinrulesrc" 2>/dev/null; then echo "旧规则仍在（重跑安装器会清理）"; else echo "保留（可拖边缩放）"; fi
       echo -n "Glass:       "; kreadconfig6 --file kwinrc --group Plugins --key glassEnabled
     fi
     if declare -F kos_repo_dir >/dev/null 2>&1; then kos_dir=$(kos_repo_dir); fi
