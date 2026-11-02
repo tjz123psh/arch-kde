@@ -45,6 +45,8 @@ bash install.sh --yes       # 全装
 - **终端**：kitty + fish + starship，配置随安装器部署；编辑器用 nvim
 - **输入法**：fcitx5 + 中文方案，按 KWin Wayland 方式接管
 - **外观**：BreezeDark + WhiteSur 图标/光标，SilentSDDM 登录页，13 张 KOS 壁纸（默认壁纸开箱即用，`--wallpaper` 可换）
+- **空间壁纸**：默认构建（深度引擎 + 3D 视差壁纸）。在 设置 → 扩展与服务 里打开开关后，
+  第一次会下载模型；不想要就用 `--no-spatial`（省掉 OpenCV / ONNX Runtime 与相应构建时间）
 - **窗口**：新窗口默认 1304x770（`--window-size WxH` 可改，只在第一次出现时套一次；对话框 / 桌面面板不受影响）
 - **软件**：Chrome、VS Code、Obsidian、Docker、gh、yazi 等
 - **KOS 更新**：`kos` 命令（`kos check` / `kos update` / `kos rollback` / `kos patch`，无参数进菜单），

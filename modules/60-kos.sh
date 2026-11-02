@@ -52,10 +52,11 @@ kos_dep_list() {
     printf '%s\n' kcalendarcore
   fi
 
-  # 空间景深要多两样：深度引擎要 OpenCV + ONNX Runtime（Arch 的包名是
-  # onnxruntime-cpu）。缺了它们 CMake 会静默跳过，所以 --spatial 时显式列出来。
-  if [ "${KOS_SPATIAL:-0}" -eq 1 ]; then
-    printf '%s\n' opencv onnxruntime-cpu
+  # 空间景深：3D 壁纸插件链接系统的 OpenCV（构建 + 运行都要），深度引擎用的
+  # ONNX Runtime 由 kosctl 自己下载固定版本 SDK（build/deps/onnxruntime-*）并部署到
+  # ~/.local/lib，不需要系统包；缺了它们 CMake 会静默跳过，所以默认就显式列出来。
+  if [ "${KOS_SPATIAL:-1}" -eq 1 ]; then
+    printf '%s\n' opencv
   fi
 }
 

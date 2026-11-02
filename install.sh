@@ -38,7 +38,9 @@ NO_VSCODE=0
 KOS_WITH_APPS=1
 KOS_WITH_LOCKSCREEN=1
 KOS_START=0
-KOS_SPATIAL=0
+# 空间壁纸（深度引擎 + 3D 壁纸插件）默认构建：装 opencv / onnxruntime-cpu，
+# 构建时间更长。--no-spatial 可关掉。
+KOS_SPATIAL=1
 IME=fcitx5
 LOCALE_MODE=en
 HW_ASUS=1
@@ -69,8 +71,9 @@ What gets installed:
   --all              Full install (the default); kept for explicitness
   --no-apps          Skip standalone apps (calendar / calculator / todo / weather)
   --no-lockscreen    Skip the KOS lock screen
+  --no-spatial       Skip the spatial wallpaper build (no OpenCV / ONNX Runtime)
   --start            Start the KOS shell right after installing
-  --spatial          Also build spatial depth (installs OpenCV + ONNX Runtime; off by default)
+  --spatial          Build the spatial wallpaper (default; kept for explicitness)
   --ime fcitx5|rime|none
   --locale en|zh
   --wallpaper NAME   Default desktop wallpaper from assets/wallpapers
@@ -120,6 +123,7 @@ parse_args() {
       --no-lockscreen) KOS_WITH_LOCKSCREEN=0 ;;
       --start) KOS_START=1 ;;
       --spatial) KOS_SPATIAL=1 ;;
+      --no-spatial) KOS_SPATIAL=0 ;;
       --ime)
         shift; IME="${1:?--ime needs a value}"
         case "$IME" in fcitx5|rime|none) ;; *) die "--ime must be fcitx5, rime or none (got: $IME)" ;; esac

@@ -254,6 +254,28 @@ sudo grub-mkconfig -o /boot/grub/grub.cfg
 安装器现在不再写 `usb_keyboard`，遇到旧值会自动换成 `at_keyboard`；
 `bash install.sh --yes` 重跑一次即可修好。
 
+## 设置里「空间壁纸」显示不可用
+
+含义：当前安装的 KOS 在构建时没编进深度引擎（OpenCV + ONNX Runtime）与 3D 壁纸插件，设置页
+（`ServicesSettingsPage.qml`）因此把服务标成「此版本未构建空间壁纸组件」。**跟 tag / main 无关**，
+只跟编译开关 `KOS_BUILD_SPATIAL` 有关。
+
+安装器现在**默认构建**它（`--no-spatial` 关闭）：
+
+```bash
+bash install.sh --yes                 # 默认包含空间壁纸；需 opencv / onnxruntime-cpu
+bash install.sh --yes --no-spatial    # 关掉（少两个依赖、构建更快）
+```
+
+只想重建 KOS、不动其它配置：
+
+```bash
+env KOS_BUILD_SPATIAL=ON ~/.cache/kos-src/tools/kosctl install
+```
+
+构建完注销重登（或 `~/.cache/kos-src/tools/kosctl start` 立即重启 shell），再到
+设置 → 扩展与服务 打开开关；**第一次启用会下载模型**，那一步需要联网。
+
 ## 桌面壁纸还是 KDE 默认的那张
 
 壁纸有两个来源，先分清是哪一个：

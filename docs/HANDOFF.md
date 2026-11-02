@@ -40,6 +40,11 @@
 - 窗口动效：KOS 动画走 genie（最小化吸进 Dock），叠加 KDE 自带的摆动窗口（拖动/缩放形变）
 - 默认壁纸：安装器把 Plasma 桌面和 KOS 都指到图集里的一张（默认 `樱吹雪.png`，`--wallpaper` 可改），
   不再出现 KDE 默认壁纸；用户自己在图集里选过的图不会被重跑覆盖
+- 空间壁纸（深度引擎 + 3D 视差壁纸）：安装器**默认构建**（`--no-spatial` 关闭）。依赖系统的
+  `opencv`；ONNX Runtime 由 kosctl 自己下载固定版本 SDK 并部署到 `~/.local/lib`，不需要系统包。
+  设置 → 扩展与服务 里启用时下载两个模型（约 265 MiB，缓存在用户目录），之后对当前壁纸生成
+  深度图（`spatialResources.available/enabled/ready` 全为 true）。本机 2026-11-02 已启用。
+  构建比默认配置多几十秒（`kos-ai` + `Kos/Spatial3D` 插件）
 - 回滚：**没有自动回滚命令**（2026-10-25 按用户要求把 `kos-undo` 整个删掉了）。三条路：
   ① `bash install.sh --yes` 是幂等的，重跑一遍能修好大部分问题；
   ② 被覆盖的文件在 `~/.local/state/kos-installer/backup/<时间>/`，`manifest.txt` 每行是
