@@ -44,7 +44,10 @@
   `opencv`；ONNX Runtime 由 kosctl 自己下载固定版本 SDK 并部署到 `~/.local/lib`，不需要系统包。
   设置 → 扩展与服务 里启用时下载两个模型（约 265 MiB，缓存在用户目录），之后对当前壁纸生成
   深度图（`spatialResources.available/enabled/ready` 全为 true）。本机 2026-11-02 已启用。
-  构建比默认配置多几十秒（`kos-ai` + `Kos/Spatial3D` 插件）
+  构建比默认配置多几十秒（`kos-ai` + `Kos/Spatial3D` 插件）。
+  本地补丁：换壁纸不再把开关关掉（上游预览应用图片时会写 `false`；
+  `enable_kos_spatial_keep_on_wallpaper_change`）。`kosctl install` 重建 shell 会冲掉它，
+  重跑安装器恢复；切到动态主题时仍会关，主题模式下画不了视差。
 - 回滚：**没有自动回滚命令**（2026-10-25 按用户要求把 `kos-undo` 整个删掉了）。三条路：
   ① `bash install.sh --yes` 是幂等的，重跑一遍能修好大部分问题；
   ② 被覆盖的文件在 `~/.local/state/kos-installer/backup/<时间>/`，`manifest.txt` 每行是

@@ -568,6 +568,81 @@ PY
   log "KOS Settings background made translucent"
 }
 
+# 空间壁纸：换壁纸不应该把“空间壁纸”开关一起关掉。
+#
+# 上游 WallpaperPreviewService.finish() 在应用图片时，如果预览里没来得及出深度
+# （keepSpatial 不为真），会执行 updateSpatialWallpaperEnabled(false)——用户只是换了一张图，
+# 视差就永久消失，2026-11-03 实测（预览 ds2 后开关被写 false）。
+# SpatialWallpaperService 自己会按 mode/preview 门控，并在壁纸变化后为新图重新生成深度，
+# 所以这里只拿掉那次写入，保留用户的选择。
+# 注意：切到“动态主题”（mode=theme）时上游仍会关——主题模式下本来就画不了视差。
+enable_kos_spatial_keep_on_wallpaper_change() {
+  local qml="$HOME/.config/quickshell/kos/desktop/modules/wallpaper/WallpaperPreviewService.qml"
+
+  log "Keeping the spatial wallpaper switch across wallpaper changes..."
+  if [ "$DRY_RUN" -eq 1 ]; then
+    log "[dry-run] patch WallpaperPreviewService.finish so applying an image keeps the spatial switch"
+    return 0
+  fi
+  if [ ! -f "$qml" ]; then
+    warn "WallpaperPreviewService.qml not found; skipping the spatial-keep patch"
+    return 0
+  fi
+  backup_file "$qml"
+
+  if ! python3 - "$qml" <<'PY'
+from pathlib import Path
+import sys
+
+path = Path(sys.argv[1])
+source = path.read_text()
+
+marker = "// KOS installer: keep the spatial switch when applying an image (v2)"
+
+upstream = """        } else {
+            SpatialWallpaperService.cancelPreparation()
+            if (keep) AppearanceConfigService.updateSpatialWallpaperEnabled(false)
+            active = false
+        }"""
+
+# v1 of this patch only removed the write; it left the preview's depth never
+# regenerated for the newly applied image. Revert it before applying v2.
+v1 = """        } else {
+            SpatialWallpaperService.cancelPreparation()
+            // KOS installer: keep the spatial switch when applying an image.
+            // Upstream cleared it here, so changing the wallpaper (or applying it
+            // before the preview depth was ready) silently killed the effect.
+            // SpatialWallpaperService already gates on mode/preview and regenerates
+            // the depth for the new path, so the user's choice can stay untouched.
+            active = false
+        }"""
+
+patched = """        } else {
+            SpatialWallpaperService.cancelPreparation()
+            // KOS installer: keep the spatial switch when applying an image (v2).
+            // Upstream cleared it here, so changing the wallpaper (or applying it
+            // before the preview depth was ready) silently killed the effect.
+            // The clear doubles as the signal that restarts the depth pipeline for
+            // the new path, so after keeping the switch we have to restart it
+            // ourselves: refreshWallpaper() is skipped while the preview is still
+            // active, and it is closed only on the line above.
+            active = false
+            if (keep && mode === "image") SpatialWallpaperService.refreshWallpaper()
+        }"""
+
+if marker in source:
+    sys.exit(0)
+source = source.replace(v1, upstream, 1)
+if upstream not in source:
+    print("missing anchor in WallpaperPreviewService.finish", file=sys.stderr)
+    sys.exit(3)
+path.write_text(source.replace(upstream, patched, 1))
+PY
+  then
+    warn "KOS 壁纸预览的锚点对不上（上游改过？），换壁纸仍会把空间壁纸开关关掉"
+  fi
+}
+
 # 默认应用：文本/语言文件用 Neovim，PDF 用 WPS，图片用 nomacs，
 # 文件夹用 Dolphin；不覆盖这里没列出的关联。
 install_default_apps() {
@@ -970,6 +1045,7 @@ install_desktop_config() {
   enable_frosted_kde_windows
   configure_default_window_size
   enable_kos_frosted_settings
+  enable_kos_spatial_keep_on_wallpaper_change
   install_chrome_password_store_override
   install_default_apps
   configure_kde_global_appearance

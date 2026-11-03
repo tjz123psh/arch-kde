@@ -258,6 +258,15 @@ env KOS_BUILD_SPATIAL=ON ~/.cache/kos-src/tools/kosctl install
 构建完注销重登（或 `~/.cache/kos-src/tools/kosctl start` 立即重启 shell），再到
 设置 → 扩展与服务 打开开关；**第一次启用会下载模型**，那一步需要联网。
 
+换壁纸后视差消失（2026-11-03 修）
+
+上游的壁纸预览在“应用图片”时会把空间壁纸开关直接写成 `false`（预览里深度没来得及就绪也算），
+换一张图视差就永久消失。安装器现在会在已安装的 shell 副本里去掉那次写入
+（`WallpaperPreviewService.finish`，`modules/85-config.sh` 的
+`enable_kos_spatial_keep_on_wallpaper_change`，锚点对不上只 warn），换图会保留开关并为新壁纸
+重新生成深度；`kosctl install` / 升级重装 shell 后补丁会被冲掉，重跑安装器即可。
+切到“动态主题”（`mode=theme`）时上游仍会关开关——主题模式下本来就画不了视差。
+
 ## 桌面壁纸还是 KDE 默认的那张
 
 壁纸有两个来源，先分清是哪一个：
