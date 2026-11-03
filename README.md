@@ -48,7 +48,7 @@ bash install.sh --yes       # 全装
 - **空间壁纸**：默认构建（深度引擎 + 3D 视差壁纸）。在 设置 → 扩展与服务 里打开开关后，
   第一次会下载模型；不想要就用 `--no-spatial`（省掉 OpenCV / ONNX Runtime 与相应构建时间）
 - **窗口**：新窗口默认 1304x770（`--window-size WxH` 可改，只在第一次出现时套一次；对话框 / 桌面面板不受影响）
-- **软件**：Chrome、VS Code、Obsidian、Docker、gh、yazi 等
+- **软件**：Chrome、Zed（`zedg`，中文汉化版）、Obsidian、Docker、gh、yazi 等
 - **KOS 更新**：`kos` 命令（`kos check` / `kos update` / `kos rollback` / `kos patch`，无参数进菜单），
   桌面启动器与每日 12:00 的只检查定时器；本地补丁会自动保留并重打
 - **快捷键**：Alt+Enter 终端、Alt+Q 关窗、Win+O 启动器、Win+/ 快捷键查看器、Print 区域截图、Alt+F5 录屏、Alt+F6 热点

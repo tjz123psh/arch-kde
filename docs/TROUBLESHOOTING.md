@@ -202,7 +202,8 @@ sudo iptables -S FORWARD | head -4
 
 另外热点还依赖 `dnsmasq`（shared 模式的 DHCP/DNS）；缺了它会在开启时报
 `IP 配置无法保留（无可用地址、超时等）`。
-## Electron 应用弹「KDE 密码库 / OS keyring 不可用」
+
+## Chrome 弹「KDE 密码库 / OS keyring 不可用」
 
 Chrome 启动时要通过 KDE 密钥服务（`ksecretd`，属于 `kwallet` 包）取 cookie 加密密钥；
 系统里没建过钱包时，它会请求新建一个叫 `kwallet` 的钱包，**点取消才能继续使用浏览器**。
@@ -218,25 +219,6 @@ grep '^Exec' ~/.local/share/applications/google-chrome.desktop   # 应该带 --p
 
 换成 basic 存储后，Chrome 会重新生成 cookie 加密密钥，个别站点可能要重新登录一次。
 
-### VS Code 弹「你正在 KDE 环境中运行，但 OS keyring 不可用于加密」
-
-同一个根因，但不是同一个应用：`kwallet` 进程在跑，而**钱包从来没建过**
-（`~/.local/share/kwalletd/` 是空的，`kwallet-query -l kdewallet` 会报 not found），
-Electron 就认定“KDE 环境下该有 keyring”，去取的时候拿不到，于是弹这句。
-
-安装器给 VS Code 写两处（都在用户目录，不动 kwallet 本身）：
-
-```bash
-cat ~/.config/code-flags.conf              # /usr/bin/code 包装脚本启动时读
-cat ~/.config/Code/User/argv.json          # VS Code 自己读的运行时参数
-```
-
-两处都应该出现 `password-store` = `basic`；前者管菜单/终端启动，后者管直接跑
-`/usr/share/code/code` 的情况。文件已经存在时安装器只补缺的那处、不覆盖你的配置：
-`argv.json` 存在但缺这个键时只提示一句，需要你手工加一行。
-
-想改成用钱包加密：删掉那一行里的 `--password-store=basic`，装 `kwalletmanager`、
-建一个 kdewallet 钱包，然后重启 VS Code。
 ## GRUB 菜单里上下键没反应
 
 典型症状：开机停在 GRUB 菜单，按 ↑↓ 不动、只能等超时自己启动。

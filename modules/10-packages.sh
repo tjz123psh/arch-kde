@@ -239,7 +239,7 @@ setup_official_mirrors() {
 # ---------------------------------------------------------------------------
 # archlinuxcn 中文社区仓库
 #
-# 中国用户常用（Chrome / VS Code / 字体 / 输入法等）。安装器默认配置，
+# 中国用户常用（Chrome / Zed / 字体 / 输入法等）。安装器默认配置，
 # 用 --no-archlinuxcn 跳过。镜像顺序按中国网络优先级：清华第一（用户指定），
 # 后面是中科大 / 阿里云 / 华为云 / 腾讯云 / 南大 / 浙大，都是长期在线的
 # archlinuxcn 镜像。参考 https://www.archlinuxcn.org/archlinux-cn-repo-and-mirror/
@@ -661,8 +661,10 @@ install_aur_packages() {
   if [ "$NO_BROWSER" -eq 0 ]; then
     list="$list google-chrome"
   fi
-  if [ "$NO_VSCODE" -eq 0 ]; then
-    list="$list visual-studio-code-bin"
+  if [ "${NO_ZED:-0}" -eq 0 ]; then
+    # Zed 中文汉化版（AUR zedg，预编译二进制，不拖 cargo 构建）；上游是 WenYin-Community
+    # 的 zed-globalization 分支。之前装的是 VS Code，2026-11-03 用户要求换成它。
+    list="$list zedg"
   fi
   if [ "$IME" = rime ]; then
     list="$list rime-ice-git"

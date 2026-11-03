@@ -34,7 +34,7 @@ NO_ARCHLINUXCN=0
 NO_SDDM_THEME=0
 KEEP_USER_CONFIGS=0
 NO_BROWSER=0
-NO_VSCODE=0
+NO_ZED=0
 KOS_WITH_APPS=1
 KOS_WITH_LOCKSCREEN=1
 KOS_START=0
@@ -90,7 +90,7 @@ Skip:
   --no-mirrors       Do not rewrite the pacman mirrorlist
   --no-archlinuxcn   Do not add the archlinuxcn repository
   --no-browser       Do not install Chrome
-  --no-vscode        Do not install VS Code
+  --no-zed           Do not install the Zed editor (zedg, the Chinese-localised build)
   --skip-update      Do not update the KOS source (offline install)
   --clean-old-desktop  Remove packages left over from the old linux-macos desktop (off by default)
   --keep-user-configs  Do not overwrite config files that already exist (yazi/mpv/fish/kitty/...)
@@ -159,7 +159,8 @@ parse_args() {
       --no-mirrors) NO_MIRRORS=1 ;;
       --no-archlinuxcn) NO_ARCHLINUXCN=1 ;;
       --no-browser) NO_BROWSER=1 ;;
-      --no-vscode) NO_VSCODE=1 ;;
+      --no-zed) NO_ZED=1 ;;
+      --no-vscode) NO_ZED=1 ;;   # 旧名字，保留兼容，语义改成“不装编辑器”
       --skip-update) SKIP_UPDATE=1 ;;
       --clean-old-desktop) CLEAN_OLD=1 ;;
       --keep-user-configs) KEEP_USER_CONFIGS=1 ;;
